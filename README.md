@@ -2,4 +2,4 @@
 
 GitHub website hosting for personal projects etc.
 
-Link:  <link href="https://oli-c.github.io/Home.html">
+<a href="https://oli-c.github.io/Home.html" target="_top">Link to Site</a>
