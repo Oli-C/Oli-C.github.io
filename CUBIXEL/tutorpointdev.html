@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- Header Section -->
+<head>
+  <meta charset = "utf-8">
+  <title>CUBIXEL | TutorPoint</title>
+  <meta name="description" content="CUBIXEL HTML tour TutorPoint development page.">
+  <meta name="viewport" content="width=device-width, initial-scale=1,
+    shrink-to-fit=no">
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+
+<body style="background-image:url(./resources/img/bg_tp.jpg)">
+
+  <!--  Navigation Bar  -->
+  <header class="navbar">
+    <img class="logo" src="./resources/img/logo/cubixel_navlogo.png" alt="navlogo">
+    <nav>
+      <ul class="navlinks">
+        <li><a href="./index.html">Home</a></li>
+        <li><a href="team.html">The Team</a></li>
+        <li><a href="./services.html">Services</a></li>
+        <li class="dropdown">
+          <a href="tutorpoint.html" class="dropdown-button" style="color: #EB4CE6;">TutorPoint</a>
+          <ul class="dropdown-content">
+            <li><a href="./tutorpoint.html">What is TutorPoint?</a></li>
+            <li><a href="./tutorpointdev.html" style="color: #EB4CE6;">Development</a></li>
+            <li><a href="./tutorpointfam.html">Finance & Marketing</a></li>
+            <li><a href="tutorpointfiles.html">File Directory</a></li>
+          </ul>
+        </li>
+      </ul>
+    </nav>
+    <a href="https://www.instagram.com/tutorpoint_uk/" target="_blank" class="media media-instagram">
+      <img src="./resources/img/icons/instagram.png" style="width: 25px; transform: translateY(-3.5px)"></a>
+    <a href="https://www.facebook.com/TutorPointTeam/" target="_blank" class="media media-facebook">
+      <img src="./resources/img/icons/facebook.png" style="width: 25px; transform: translateY(-3.5px)"></a>
+  </header>
+
+  <!--  Breadcrumb  -->
+  <ul class="breadcrumb">
+    <li><a href="./index.html">Home</a></li>
+    <li><a href="./tutorpoint.html">TutorPoint</a></li>
+    <li>Development</li>
+  </ul>
+
+  <!--  Page Content  -->
+  <main>
+
+    <!-- Overlays -->
+    <div class="overlay" onclick="osOff()" id="osOverlay">
+      <embed class="overlay-content" src="assets/html/ostutorpoint.html" style="width: 60%; height: 80%;">
+    </div>
+    <script>
+        function osOn() {
+            document.getElementById("osOverlay").style.display = "block";
+        }
+
+        function osOff() {
+            document.getElementById("osOverlay").style.display = "none";
+        }
+    </script>
+    <div class="overlay" onclick="ocOff()" id="ocOverlay">
+      <embed class="overlay-content" src="assets/html/octutorpoint.html" style="width: 60%; height: 80%;">
+    </div>
+    <script>
+        function ocOn() {
+            document.getElementById("ocOverlay").style.display = "block";
+        }
+
+        function ocOff() {
+            document.getElementById("ocOverlay").style.display = "none";
+        }
+    </script>
+    <div class="overlay" onclick="csOff()" id="csOverlay">
+      <embed class="overlay-content" src="assets/html/cstutorpoint.html" style="width: 60%; height: 80%;">
+    </div>
+    <script>
+        function csOn() {
+            document.getElementById("csOverlay").style.display = "block";
+        }
+
+        function csOff() {
+            document.getElementById("csOverlay").style.display = "none";
+        }
+    </script>
+    <div class="overlay" onclick="jgOff()" id="jgOverlay">
+      <embed class="overlay-content" src="assets/html/jgtutorpoint.html" style="width: 60%; height: 80%;">
+    </div>
+    <script>
+        function jgOn() {
+            document.getElementById("jgOverlay").style.display = "block";
+        }
+
+        function jgOff() {
+            document.getElementById("jgOverlay").style.display = "none";
+        }
+    </script>
+    <div class="overlay" onclick="cmOff()" id="cmOverlay">
+      <embed class="overlay-content" src="assets/html/cmtutorpoint.html" style="width: 60%; height: 80%;">
+    </div>
+    <script>
+        function cmOn() {
+            document.getElementById("cmOverlay").style.display = "block";
+        }
+
+        function cmOff() {
+            document.getElementById("cmOverlay").style.display = "none";
+        }
+    </script>
+    <div class="overlay" onclick="smOff()" id="smOverlay">
+      <embed class="overlay-content" src="assets/html/smtutorpoint.html" style="width: 60%; height: 80%;">
+    </div>
+    <script>
+        function smOn() {
+            document.getElementById("smOverlay").style.display = "block";
+        }
+
+        function smOff() {
+            document.getElementById("smOverlay").style.display = "none";
+        }
+    </script>
+    <div class="overlay" onclick="dbOff()" id="dbOverlay">
+      <embed class="overlay-content" src="assets/html/dbtutorpoint.html" style="width: 60%; height: 80%;">
+    </div>
+    <script>
+        function dbOn() {
+            document.getElementById("dbOverlay").style.display = "block";
+        }
+
+        function dbOff() {
+            document.getElementById("dbOverlay").style.display = "none";
+        }
+    </script>
+    <div class="overlay" onclick="ewOff()" id="ewOverlay">
+      <embed class="overlay-content" src="assets/html/ewtutorpoint.html" style="width: 60%; height: 80%;">
+    </div>
+    <script>
+        function ewOn() {
+            document.getElementById("ewOverlay").style.display = "block";
+        }
+
+        function ewOff() {
+            document.getElementById("ewOverlay").style.display = "none";
+        }
+    </script>
+      <section>
+          <style>
+              .popup {
+                  padding: 18px;
+                  background-color: var(--cubixel-navy);
+                  color: white;
+                  opacity: 1;
+                  transition: opacity 0.6s;
+                  margin-top: 15px;
+                  border-radius: 5px;
+              }
+              .closebtn {
+                  margin-left: 15px;
+                  color: white;
+                  font-weight: bold;
+                  float: right;
+                  font-size: 40px;
+                  line-height: 20px;
+                  cursor: pointer;
+                  transition: 0.3s;
+              }
+          </style>
+          <div class="popup">
+              <span class="closebtn">&times;</span>
+              <strong>Note: </strong> Click on the team cards in the info panel to see contributions and metrics.
+          </div>
+      </section>
+      <script>
+          var close = document.getElementsByClassName("closebtn");
+          var i;
+
+          for (i = 0; i < close.length; i++) {
+              close[i].onclick = function(){
+                  var div = this.parentElement;
+                  div.style.opacity = "0";
+                  setTimeout(function(){ div.style.display = "none"; }, 600);
+              }
+          }
+      </script>
+
+    <div class="flexbox" style="justify-content: center; flex-wrap: nowrap; align-content: stretch">
+      <section style="margin-right: 50px; justify-content: center">
+        <h1>Development</h1>
+        <button type="button" onclick="document.getElementById('func').scrollIntoView()" style="border-radius: 50px; transform: translateX(-8%)">Functional Specification</button>
+        <button type="button" onclick="document.getElementById('t&i').scrollIntoView()" style="border-radius: 50px; transform: translateX(-8%)">Test and Integration Plan</button>
+        <button type="button" onclick="document.getElementById('mins').scrollIntoView()" style="border-radius: 50px; transform: translateX(-8%)">Project Documentary</button>
+        <p>
+          Believe it or not, the TutorPoint product, and the features that it offers its user, did not
+          manifest out of thin air. From the very beginning, to what it is today, TutorPoint has undergone an
+          extensive development process, comprising of hundreds of hours of designing, programming and testing;
+          all of which would not have been impossible without the dedication and determination of the CUBIXEL team.
+        </p>
+        <p>
+          TutorPoint was first conceived out of the discussion of products that would meet the specification
+          and criteria set by our client. Such discussion gave rise to a variety of candidates
+          for potential projects that CUBIXEL could engage in; suggested ideas included an interactive
+          mobile phone repair manual, a multi-media flash card application, and an art work gallery
+          social media application, just to name a few. Despite a large number of potential candidates, three
+          ideas were favourable amongst team members. Product number one was an interactive PDF-like application
+          specifically designed for practical lab work, offering check-lists, progress bars, and instructional videos.
+          Product number two was an information tracker for the game 'Dungeons & Dragons', designed to help aid
+          the ‘Dungeon Master’ in controlling player stats and locations, also incorporating
+          an embedded digital dice. The third and final product was an online tutoring application
+          incorporating a range of online topics with multimedia abilities such as video chat, text chat,
+          and screen editing with the intent for educational purposes.
+        </p>
+        <p>
+          The image below is that of a whiteboard, displaying our three favoured project ideas as we discussed
+          and compared their features and functionalities.
+        </p>
+        <div class="row" style="justify-content: center">
+          <div class="column" style="margin-left: 12%; margin-bottom: -5%">
+            <img class="card" style="object-fit: cover; width: 80%; height: 90%; cursor: default" src="resources/img/tutorpointdev/whiteboard.jpg">
+          </div>
+        </div>
+        <p>
+          Through much deliberation between team members and consultation with our client, the CUBIXEL team
+          came to a unanimous decision to dedicate to the development of an online tutoring application. This application
+          was proposed to offer a one-to-one and one-to-many steaming platform for live tuition sessions, during which,
+          users would have access to a webcam, an XML file display, a digital whiteboard and other features with the purpose
+          to supplement education.
+        </p>
+        <p>
+          The subsequent task that was undertaken in the development process was the design and creation of
+          the product branding; this included the product name, its logo and its colour scheme. Such components of a
+          product are significant to its success, in regards to development and marketing. Examples of some of the
+          proposed logo designs and names can be seen below.
+        </p>
+        <div class="row" style="padding: 0 5% 3% 5%; justify-content: center">
+          <div class="column">
+            <img class="card" style="object-fit: scale-down; width: 90%; height: 107.5%; cursor: default" src="resources/img/tutorpointdev/tutorme.jpg">
+          </div>
+          <div class="column">
+            <img class="card" style="object-fit: scale-down; width: 90%; height: 50%; cursor: default" src="resources/img/tutorpointdev/tp.jpg">
+            <img class="card" style="object-fit: scale-down; width: 90%; height: 50%; cursor: default" src="resources/img/tutorpointdev/global.jpg">
+          </div>
+        </div>
+        <p>
+          Despite the various candidates for our product branding, one was chosen that best conveyed what we
+          wanted our product to represent and its purpose. The name TutorPoint was the successful candidate; though
+          a simple name, it states clearly the industry in which the product is associated with whilst also inferring
+          the product's purpose as a platform for tutors. The logo that was chosen depicts a tutor-like figure, as
+          represented by the mortarboard, ahead of two smaller figures which represent students; this design feature
+          portrays a tutor offering guidance to students, the core purpose of our product. This illustration is
+          contained within a pin-drop shape, often used in maps to display a location, hence representing that our
+          product is a location in which one can receive tutoring services. The final product branding design can be
+          seen below.
+        </p>
+        <div class="row" style="justify-content: center">
+          <div class="column" style="margin-left: 12%; margin-bottom: -5%">
+            <img class="card" style="object-fit: scale-down; width: 80%; height: 85%; cursor: default" src="resources/img/tutorpointdev/tp1.jpg">
+          </div>
+        </div>
+        <p>
+          In order to gauge a insight into the look and feel of the TutorPoint application, the CUBIXEL team
+          directed their efforts next into the design of the user interface for the various pages that would be featured
+          on the TutorPoint application; the creation of such designs would assist in the implementation of
+          GUI elements during development. The user interface design process required much consideration into
+          the features that the application would offer, how the user would access said features and the overall
+          structure of the application, which included the display of text, images and colour scheme. Two of the
+          final draft designs for the TutorPoint application user interfaces can be seen below, one representing
+          the 'Discover' screen, proposed to enable the user to search for or discover a tutor on the app; the other
+          representing the 'Recent' screen, proposed to assist the user in finding content or tutors that they have
+          previously interacted with.
+        </p>
+        <div class="row" style="margin: 0 4% .5% 0; justify-content: center">
+            <img class="card" style="object-fit: scale-down; width: 80%; height: 100%; cursor: default" src="resources/img/tutorpointdev/gui1.png">
+        </div>
+        <div class="row" style="margin: 0 4% 1% 0; justify-content: center">
+          <img class="card" style="object-fit: scale-down; width: 80%; height: 100%; cursor: default" src="resources/img/tutorpointdev/gui3.png">
+        </div>
+        <p>
+          The TutorPoint application user interfaces incorporated certain design factors, deemed significant
+          by the design team. It was of prime importance that the user interface appeared slick and modern, this
+          called upon the use of defined shapes, bold colours and lines, and the implementation of shadowing effects
+          in order to add depth to the page. Another important factor was to ensure that the display of information,
+          images, and buttons was clear and easy to navigate, yet also orderly and engaging; to achieve this,
+          the design team utilised explicit headings and titles to direct users to information of interest. Carousels
+          were a design choice, used to display content such as videos on the page, enabling the user to effortlessly
+          navigate through vast selections of content.
+        </p>
+        <p>
+          As detailed in the CUBIXEL Quality Assurance Manual, the CUBIXEL development team implemented specific
+          development methodologies into the development process for the TutorPoint product; such methodologies ensured
+          consistent project progression, as well as enabling the monitorisation of work efficiency.
+          The CUBIXEL development team opted for the use of test-driven development (TDD) while writing the TutorPoint
+          program, this would ensure a higher quality of code for the final product. Programming in such a way enabled
+          the team to break down the complexities of the TutorPoint program into manageable chunks, called
+          “User Stories”, each of which were developed and implemented one by one, enabling the constant
+          improvement of the functioning program.
+          Each completed “User Story” was subject to refactoring, a process utilised by the CUBIXEL development team,
+          incorporating several tasks. One task was the improvement of code reuse, which involved converting blocks of
+          code which should into functions. All code was subject to proof checking, to ensure the adherence of the
+          code to the CUBIXEL coding standards. Finally clean-up takes place, in which methods or variables which are
+          no longer used, old comments which are no longer relevant and other artefacts left behind due to your changes
+          are deleted.
+          Each completed “User Story” also underwent ‘Exploratory Testing’. The purpose of such testing was to find bugs in
+          the code and ensure its overall functionality. The discovery of bugs was reported to the relevant development
+          teams.
+        </p>
+        <p>
+          A majority of the code produced by the CUBIXEL development team was conducted in pairs, consisting of a
+          'Driver' and a 'Navigator'. The 'Driver' had direct control over coding the solution to a task or problem,
+          whereas the 'Navigator' was responsible for assisting the Driver in focusing on the task and working efficiently.
+          Pair programming was utilised in order to ensure maximum productivity from all members of the development team
+          as well as ensuring the maintenance of coding standards.
+        </p>
+        <h2 id="func">Functional Specification</h2>
+        <p>
+          The CUBIXEL Functional Specification for the development of TutorPoint provides an
+          understanding of the functionality projected to be implemented into the TutorPoint application, as well as
+          the services that CUBIXEL has offered its client in order to develop the proposed product. The
+          document also details the functional requirements for the TutorPoint application, including use cases,
+          program inputs, outputs and process flows.
+        </p>
+        <ul class="flexbox" style="margin-top: 50px; justify-content: center;">
+          <li class="flip-box">
+            <div class="flip-box-inner">
+              <div class="flip-box-front">
+                <img class="logo" src="./resources/img/logo/tutorpoint_logo1.png" style="width: 100px; box-shadow: none">
+                <h2>Functional Specification</h2>
+              </div>
+              <div class="flip-box-back">
+                <embed class="pdf" src="./resources/doc/tutorpoint/CUBIXEL%20TutorPoint%20Functional%20Specification.pdf">
+              </div>
+            </div>
+          </li>
+        </ul>
+        <h2 id="t&i" style="margin-top: 3%">Testing and Integration</h2>
+        <p>
+          The CUBIXEL Test and Integration Plan for the development of the TutorPoint application provides an overview
+          of the TutorPoint product, detailing the areas of the product that are suitable for testing. The document
+          also provides an in depth view of the types of testing processes that are used, the tools required
+          for such processes, and the members of the CUBIXEL team responsible for overseeing these tests.
+          A plan for how contracted modules, developed by external teams, are tested and integrated
+          is also detailed in the document. The Test and Integration plan additionally details the full integration
+          testing process, documentation and fault reporting procedure.
+        </p>
+        <ul class="flexbox" style="margin-top: 50px; justify-content: center;">
+          <li class="flip-box">
+            <div class="flip-box-inner">
+              <div class="flip-box-front">
+                <img class="logo" src="./resources/img/logo/tutorpoint_logo1.png" style="width: 100px; box-shadow: none">
+                <h2>Test and Integration Plan</h2>
+              </div>
+              <div class="flip-box-back">
+                <embed class="pdf" src="./resources/doc/tutorpoint/CUBIXEL%20TutorPoint%20Test%20and%20Integration%20Plan.pdf">
+              </div>
+            </div>
+          </li>
+        </ul>
+        <p>
+          The image below displays a section of all the tests written for the server-side and client-side of the
+          TutorPoint application. As can be observed, all tests for the server and client passed without error, the
+          server test passing in a total time of 50.434 seconds and the client tests, in a total time of 2 minutes and
+          20.554 seconds.
+        </p>
+        <div class="row" style="justify-content: center">
+          <div class="column" style="margin-left: 12%; margin-bottom: -10%; transform: translateX(-3.5%)">
+            <img class="card" style="object-fit: fill; width: 80%; height: 85%; cursor: default" src="resources/img/tutorpointdev/UnitTests.png">
+          </div>
+        </div>
+        <h2 id="mins" style="margin-top: 3%">Project Documentary</h2>
+        <p>
+          Throughout the development process, various development stages are documented in order to
+          monitor progression, measure success rate, and highlight areas of improvement in the development methodology.
+          The CUBIXEL development team scheduled to meet on average twice per week; enabling constant and consistent
+          follow-up between team members. All team meetings are documented as 'Meeting Minutes', consisting of
+          details of agenda topics and further actions to be carried out post meeting. Due to later implemented
+          social distancing measures, team meetings evolved from in-person to online, enabling the CUBIXEL team to
+          continue to attend meetings; such meetings were documented similarly, however 'Agenda' documents were
+          introduced with the purpose to inform team members of meeting agendas prior to  team meetings.
+        </p>
+        <p>
+          Due to later implemented social distancing measures, team meetings evolved from in-person to online,
+          enabling the CUBIXEL team to continue to attend meetings; such meetings were documented similarly,
+          however 'Agenda' documents were introduced with the purpose to inform team members of meeting agendas prior to  team meetings.
+        </p>
+        <p>
+          Testing and Integration reports are produced after every iteration of the development process in order
+          to document the success and failures in the testing and integration of the TutorPoint application
+          modules.
+        </p>
+        <section>
+          <div class="flexbox" style="justify-content: space-evenly; transform: translateX(-18.5%); width: 160%; align-items: flex-start">
+            <table>
+              <tr>
+                <th>Meetings</th>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%202%20211019%20Minutes_.pdf" target="_blank">Meeting 2 : 21 / 10 / 19</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%203%20281019%20Minutes_.pdf" target="_blank">Meeting 3 : 28 / 10 / 19</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%204%20311019%20Minutes%20(with%20Stuart%20Porter).pdf" target="_blank">Meeting 4 : 31 / 10 / 19</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%205%20041119%20Minutes_.pdf" target="_blank">Meeting 5 : 04 / 11 / 19</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%206%2011119%20Minutes_.pdf" target="_blank">Meeting 6 : 11 / 11 / 19</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%207%20181119%20Minutes.pdf" target="_blank">Meeting 7 : 18 / 11 / 19</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%208%20211119%20Minutes%20(with%20Stuart%20Porter).pdf" target="_blank">Meeting 8 : 21 / 11 / 19</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%209%20251119%20Minutes.pdf" target="_blank">Meeting 9 : 25 / 11 / 19</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2010%20281119%20Minutes.pdf" target="_blank">Meeting 10 : 28 / 11 / 19</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2011%20021219%20Minutes.pdf" target="_blank">Meeting 11 : 02 / 12 / 19</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2012%20130120%20Minutes.pdf" target="_blank">Meeting 12 : 13 / 01 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2013%20200120%20Minutes.pdf" target="_blank">Meeting 13 : 20 / 01 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2014%20270120%20Minutes_.pdf" target="_blank">Meeting 14 : 27 / 01 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2015%20030220%20Minutes_.pdf" target="_blank">Meeting 15 : 03 / 02 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2016%20100220%20Minutes.pdf" target="_blank">Meeting 16 : 10 / 02 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2017%20170220%20Minutes.pdf" target="_blank">Meeting 17 : 17 / 02 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2018%20240220%20Minutes.pdf" target="_blank">Meeting 18 : 24 / 02 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2019%20020320%20Minutes.pdf" target="_blank">Meeting 19 : 02 / 03 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2020%20090320%20Minutes.pdf" target="_blank">Meeting 20 : 09 / 03 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2021%20230320%20Minutes%20(Google%20Hangouts).pdf" target="_blank">Meeting 21 : 23 / 03 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2022%20260320%20Minutes%20(Google%20Hangouts).pdf" target="_blank">Meeting 22 : 26 / 03 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2023%20300320%20Minutes%20(Google%20Hangouts).pdf" target="_blank">Meeting 23 : 30 / 03 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2024%20020420%20Minutes%20(Google%20Hangouts).pdf" target="_blank">Meeting 24 : 02 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2024%20020420%20Minutes%20(Google%20Hangouts).pdf" target="_blank">Meeting 25 : 06 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2026%20090420%20Minutes%20(Google%20Hangouts).pdf" target="_blank">Meeting 26 : 09 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2027%20130420%20Minutes%20(Google%20Hangouts).pdf" target="_blank">Meeting 27 : 13 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2028%20160420%20Minutes%20(Google%20Hangouts).pdf" target="_blank">Meeting 28 : 16 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2029%20200420%20Minutes%20(Google%20Hangouts).pdf" target="_blank">Meeting 29 : 20 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2030%20230420%20Minutes%20(Google%20Hangouts).pdf" target="_blank">Meeting 30 : 23 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2031%20270420%20Minutes%20(Google%20Hangouts).pdf" target="_blank">Meeting 31 : 27 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2032%20300420%20Minutes%20(Google%20Hangouts).pdf" target="_blank">Meeting 32 : 30 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2033%20040520%20Minutes%20(Google%20Hangouts).pdf" target="_blank">Meeting 33 : 04 / 05 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2034%20070520%20Minutes%20(Google%20Hangouts).pdf" target="_blank">Meeting 34 : 07 / 05 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2035%20140520%20Minutes%20(Google%20Hangouts).pdf" target="_blank">Meeting 35 : 14 / 05 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2036%20180520%20Minutes%20(Google%20Hangouts).pdf"target="_blank">Meeting 36 : 18 / 05 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2037%20210520%20Minutes%20(Google%20Hangouts).pdf" target="_blank">Meeting 37 : 21 / 05 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2038%20250520%20Minutes%20(Google%20Hangouts).pdf" target="_blank">Meeting 38 : 25 / 05 / 20</a></td>
+              </tr>
+                <tr>
+                    <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2039%20280520%20Minutes%20(Google%20Hangouts).pdf" target="_blank">Meeting 39 : 28 / 05 / 20</a></td>
+                </tr>
+                <tr>
+                    <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/minutes/Meeting%2040%20010620%20Minutes%20(Google%20Hangouts).pdf" target="_blank">Meeting 40 : 01 / 06 / 20</a></td>
+                </tr>
+            </table>
+            <table>
+              <tr>
+                <th>Agendas</th>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td style="text-align: center">–</td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/agendas/Agenda%20for%20Meeting%2025%20-%20060420.pdf" target="_blank">Meeting 23 : 30 / 03 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/agendas/Agenda%20for%20Meeting%2024%20-%20020420.pdf" target="_blank">Meeting 24 : 02 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/agendas/Agenda%20for%20Meeting%2025%20-%20060420.pdf" target="_blank">Meeting 25 : 06 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/agendas/Agenda%20for%20Meeting%2026%20-%20090420.pdf" target="_blank">Meeting 26 : 09 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/agendas/Agenda%20for%20Meeting%2027%20-%20130420.pdf" target="_blank">Meeting 27 : 13 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/agendas/Agenda%20for%20Meeting%2028%20-%20160420.pdf" target="_blank">Meeting 28 : 16 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/agendas/Agenda%20for%20Meeting%2029%20-%20200420.pdf" target="_blank">Meeting 29 : 20 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/agendas/Agenda%20for%20Meeting%2030%20-%20230420.pdf" target="_blank">Meeting 30 : 23 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/agendas/Agenda%20for%20Meeting%2031%20-%20270420.pdf" target="_blank">Meeting 31 : 27 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/agendas/Agenda%20for%20Meeting%2032%20-%20300420.pdf" target="_blank">Meeting 32 : 30 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/agendas/Agenda%20for%20Meeting%2033%20-%20040520.pdf" target="_blank">Meeting 33 : 04 / 05 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/agendas/Agenda%20for%20Meeting%2034%20-%20070520.pdf" target="_blank">Meeting 34 : 07 / 05 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/agendas/Agenda%20for%20Meeting%2035%20-%20140520.pdf" target="_blank">Meeting 35 : 14 / 05 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/agendas/Agenda%20for%20Meeting%2036%20-%20180520.pdf" target="_blank">Meeting 36 : 18 / 05 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/agendas/Agenda%20for%20Meeting%2037%20-%20210520.pdf" target="_blank">Meeting 37 : 21 / 05 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/agendas/Agenda%20for%20Meeting%2038%20-%20250520.pdf" target="_blank">Meeting 38 : 25 / 05 / 20</a></td>
+              </tr>
+                <tr>
+                    <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/agendas/Agenda%20for%20Meeting%2039%20-%20280520.pdf" target="_blank">Meeting 39 : 28 / 05 / 20</a></td>
+                </tr>
+                <tr>
+                    <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/meetings/agendas/Agenda%20for%20Meeting%2040%20-%20010620.pdf" target="_blank">Meeting 40 : 01 / 06 / 20</a></td>
+                </tr>
+            </table>
+            <table>
+              <tr>
+                <th>T&I Reports</th>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/reports/TutorPoint%20Integration%20_%20Testing%20Report%20-%20Iteration%201.pdf" target="_blank">Iteration 1 : 05 / 03 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/reports/TutorPoint%20Integration%20_%20Testing%20Report%20-%20Iteration%202.pdf" target="_blank">Iteration 2 : 19 / 03 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/reports/TutorPoint%20Integration%20_%20Testing%20Report%20-%20Iteration%203.pdf" target="_blank">Iteration 3 : 02 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/reports/TutorPoint%20Integration%20_%20Testing%20Report%20-%20Iteration%204.pdf" target="_blank">Iteration 4 : 16 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/reports/TutorPoint%20Integration%20_%20Testing%20Report%20-%20Iteration%205.pdf" target="_blank">Iteration 5 : 30 / 04 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/reports/TutorPoint%20Integration%20_%20Testing%20Report%20-%20Iteration%206.pdf" target="_blank">Iteration 6 : 14 / 05 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/reports/TutorPoint%20Integration%20_%20Testing%20Report%20-%20Iteration%207.pdf" target="_blank">Iteration 7 : 28 / 05 / 20</a></td>
+              </tr>
+              <tr>
+                <td><img src="resources/img/icons/doc_icon.png" style="width: 20px; height: 20px; margin: 0px 10px -5px 0; box-shadow: none;"><a href="./resources/doc/reports/TutorPoint%20Integration%20_%20Testing%20Report%20-%20Final%20Testing.pdf" target="_blank">Final Testing : 28 / 05 / 20</a></td>
+              </tr>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <div id="infopanel">
+        <h2>Start Date</h2>
+        <p>17 / 10 / 2019</p>
+        <h2>End Date</h2>
+        <p>04 / 06 / 2020</p>
+        <h2>Cost</h2>
+        <p>£ 55,000.00</p>
+        <h2>Hours</h2>
+        <p>1770+</p>
+        <h2>Code</h2>
+        <p>28000+ lines</p>
+        <h2>Client</h2>
+        <p>Dr. Stuart J. Porter</p>
+        <h2>Team</h2>
+        <div class="fob">
+          <div style="display: flex; justify-content: flex-start; align-items: center;" onclick="osOn()">
+            <img src="./resources/img/team/os2.jpeg" alt="olivers">
+            <div class="caption"><p style="font-size: 14px">Oliver Still</p></div>
+          </div>
+        </div>
+        <div class="fob">
+          <div style="display: flex; justify-content: flex-start; align-items: center;" onclick="ocOn()">
+            <img src="./resources/img/team/oc.jpeg" alt="oliverc">
+            <div class="caption"><p style="font-size: 14px">Oliver Clarke</p></div>
+          </div>
+        </div>
+        <div class="fob">
+          <div style="display: flex; justify-content: flex-start; align-items: center;" onclick="csOn()">
+            <img src="./resources/img/team/cs.jpg" alt="cameron">
+            <div class="caption"><p style="font-size: 14px">Cameron Smith</p></div>
+          </div>
+        </div>
+        <div class="fob">
+          <div style="display: flex; justify-content: flex-start; align-items: center;" onclick="jgOn()">
+            <img src="./resources/img/team/jg.jpg" alt="james">
+            <div class="caption"><p style="font-size: 14px">James Gardner</p></div>
+          </div>
+        </div>
+        <div class="fob">
+          <div style="display: flex; justify-content: flex-start; align-items: center;" onclick="cmOn()">
+            <img src="./resources/img/team/cm.jpg" alt="che">
+            <div class="caption"><p style="font-size: 14px">Che McKirgan</p></div>
+          </div>
+        </div>
+        <div class="fob">
+          <div style="display: flex; justify-content: flex-start; align-items: center;" onclick="smOn()">
+            <img src="./resources/img/team/sm.jpg" alt="stijn">
+            <div class="caption"><p style="font-size: 14px">Stijn Marynissen</p></div>
+          </div>
+        </div>
+        <div class="fob">
+          <div style="display: flex; justify-content: flex-start; align-items: center;" onclick="dbOn()">
+            <img src="./resources/img/team/db.jpg" alt="daniel">
+            <div class="caption"><p style="font-size: 14px">Daniel Bishop</p></div>
+          </div>
+        </div>
+        <div class="fob">
+          <div style="display: flex; justify-content: flex-start; align-items: center;" onclick="ewOn()">
+            <img src="./resources/img/team/ew.png" alt="eric">
+            <div class="caption"><p style="font-size: 14px">Eric Walker</p></div>
+          </div>
+        </div>
+        <p style="font-size: 15px;">Click on a member to see breakdown of individual contributions and QA Metrics.</p>
+      </div>
+    </div>
+  </main>
+
+  <footer>© CUBIXEL 2020 | Icons by <a target="_blank" href="https://icons8.com">Icons8</a></footer>
+
+</body>
+</html>
