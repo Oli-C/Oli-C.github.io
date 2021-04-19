@@ -18,6 +18,14 @@ h2{
     text-align: center;
 }
 
+.mainText{
+    white-space: normal;
+    text-align: justify;
+    size: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    line-height: 1.8;
+}
+
 main {
     color: black;
 }
