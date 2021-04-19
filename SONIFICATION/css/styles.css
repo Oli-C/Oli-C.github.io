@@ -1,24 +1,22 @@
 body {
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     line-height: 1.8;
-    color: black;
+    color: #000000;
     background-color: white;
     size: 12px;
     text-align: justify;
 }
 
-h6{
-    color: rgb(142,142,147);
-    text-align: center;
-
-}
-
-h2{
-
+h6 {
+    color: rgb(142, 142, 147);
     text-align: center;
 }
 
-.mainText{
+h2 {
+    text-align: center;
+}
+
+.mainText {
     white-space: normal;
     text-align: justify;
     size: 12px;
@@ -30,20 +28,95 @@ main {
     color: black;
 }
 
-.quote{
+.quote {
     font-style: italic;
     text-align: center;
-  margin-left: 10em;
+    margin-left: 10em;
     margin-right: 10em;
 }
 
-nav {
-    background: white;
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * Navigation * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+/* Navigation Bar */
+.navbar {
+    top: 0;
+    position: sticky;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0 10%;
+    z-index: 5;
+    background-image: linear-gradient(rgb(255, 255, 255), rgb(255, 255, 255));
+    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+    color: tomato;
 }
 
-margin {
-    margin-bottom: 14px;
+.navbar .logo {
+    width: auto;
+    height: 70px;
+    margin-right: auto;
 }
+
+.navlinks li a, .dropdown-button {
+    transition: all 0.3s ease;
+}
+
+nav .navbar-nav li a{
+    color: #8e8e93;
+}
+
+.navlinks li a:hover, .dropdown:hover .dropdown-button {
+    color: rgba(255, 255, 255, 1);
+}
+
+/* Links */
+a:link, a:visited {
+    /* background-color: #f44336; */
+    color: #8e8e93;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.isDisabled {
+
+    cursor: not-allowed;
+    opacity: 0.5;
+    text-decoration: none;
+    text-align: center;
+    display: inline-block;
+}
+
+a:active, a:hover{
+    text-decoration: none;
+    color: #d1d1d6;
+}
+
+/* Dropdown */
+.dropdown-content {
+    padding: 0;
+    display: none;
+    position: absolute;
+    background-color: white;
+    min-width: 140px;
+    box-shadow: 0 8px 16px 0 rgba(0, 0, 0, 0.2);
+    z-index: 1;
+    /*transform: translateX(-25px);*/
+}
+.dropdown-content li {
+    /*padding: 12px 16px;*/
+
+    display: block;
+    text-align: center;
+}
+.dropdown:hover .dropdown-content {
+    display: block;
+}
+.dropdown-content li:hover {
+    background-color: #434343;
+}
+
+
 
 ol {
     counter-reset: item;
@@ -51,7 +124,7 @@ ol {
     padding-left: 0;
 }
 
-dd{
+dd {
     text-align: left;
 
 
@@ -84,7 +157,7 @@ div, iframe {
 
 iframe {
     display: block;
-    border-style:none;
+    border-style: none;
 }
 
 .IMGcenter {
@@ -101,14 +174,14 @@ iframe {
     width: 30%;
 }
 
-.IMGcode{
+.IMGcode {
     display: block;
     margin-left: auto;
     margin-right: auto;
     width: 50%;
 }
 
-.IMGsmall{
+.IMGsmall {
     display: block;
     margin-left: auto;
     margin-right: auto;
@@ -119,6 +192,7 @@ iframe {
     background-color: white;
 
 }
+
 .bg-2 {
     background-color: #474e5d; /* Dark Blue */
     color: #ffffff;
