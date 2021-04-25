@@ -26,20 +26,21 @@
     <div class="collapse navbar-collapse text-center justify-content-end" id="navbarContent">
         <div class="navbar-nav">
             <a class="nav-item nav-link mx-4" href="./Home.html">Home</a>
-            <a class="nav-item nav-link mx-4" href="./Home.html">Research</a>
+            <a class="nav-item nav-link mx-4" href="./Research.html">Research</a>
             <div class="dropdown">
 
-                <a class="nav-item nav-link mx-4 isDisabled" href="./Techniques.html" class="dropdown-button">Sonification Techniques</a>
+                <a class="nav-item nav-link mx-4 isDisabled" href="./Techniques.html" class="dropdown-button">Sonification
+                    Techniques</a>
                 <ul class="dropdown-content">
                     <li><a class="nav-item nav-link isDisabled" href="./Techniques.html">Overview</a></li>
                     <li><a class="nav-item nav-link" href="./Home.html">Audification</a></li>
                     <li><a class="nav-item nav-link" href="./Home.html">Auditory Icons</a></li>
                     <li><a class="nav-item nav-link" href="./Home.html">Earcons</a></li>
-                    <li><a class="nav-item nav-link" href="./Home.html">Parameter Mapping</a></li>
+                    <li><a class="nav-item nav-link" href="./ParameterMapping.html">Parameter Mapping</a></li>
                     <li><a class="nav-item nav-link" href="./Home.html">Model-based</a></li>
                 </ul>
 
-                <a class="nav-item nav-link mx-4" href="./Home.html">Contact</a>
+                <a class="nav-item nav-link mx-4" href="mailto:<odjc500@york.ac.uk?subject=Sonification Website">Contact</a>
             </div>
         </div>
     </div>
@@ -60,6 +61,57 @@
     <h6 class="margin">Sonification Technique Comparison.</h6>
 
     <br>
+
+
+
+    <p>
+        Rendering auditory data involves several approaches of sonification techniques that can be classified:
+
+    </p>
+
+    <P>
+        <b>Auditory Icons and Earcons</b> are the most commonly found sonification techniques. Auditory icons imitate
+        sounds from the real world to help the listener to infer information such as the sound of crunching paper when a
+        user empties their trash on a computer. Earcons are similar but more abstract and do not resemble a
+        sound-information relationship. Often, musical motifs are used and “high levels of recognition can be achieved
+        by careful use of pitch, rhythm and timbre” \cite{Earcons}. To distinguish earcons from one another, clear
+        differences between the sounds are required such as tonal, timbral, and temporal changes.
+
+    </P>
+
+    <p>
+        <b>Audification</b> is the simplest technique that involves direct playback of data samples at a chosen
+        frequency. Audio-signal processing techniques (such as filters, compression or frequency shifting) can be used
+        to enhance the clarity of the audification. While simple, audification represents data accurately in its literal
+        form. It is best suited for large orderable data sets. Hunt and Pauletto evaluated audification against visual
+        displays in analysing helicopter flight data \cite{huntHeli}. The important attributes of the data were noise,
+        repetition, frequency, discontinuity and signal power. It was found that there was a strong correlation between
+        visual and audio display interpretation for the analysis of all 5 attributes.
+
+    </p>
+
+    <p>
+        <b>Parameter Mapping</b> involves taking data with multiple dimensions and mapping the dimensions to different
+        parameters of the sound. Common parameters used are frequency, amplitude, rhythm and timbre \cite{Kramer1994}.
+        The advantage of parameter mapping over audification is that mappings are flexible and can allow for different
+        aural views of a data set. However, parameter mapping can be sensitive and complex mappings can confuse a
+        listener due to the non-linear relationships of sound parameters \cite{Worrall}. Therefore, it is often
+        necessary to train listeners and an application such as proposed in this project is useful.
+
+
+    </p>
+
+
+    <p>
+        <b>Model-based Sonification</b> uses acoustic models of real-world instruments, objects and spaces to explore
+        data. With experience, humans can infer physical characteristics from everyday sounds such as material density,
+        hardness and the shape of an object. All we require as a human is for there to be an excitation (pluck, blow,
+        strike) against an object to produce the sound. There are two types of model-based sonification. The first is
+        where parameters of a physical model are excited by the data and the second is where the resonator is created
+        from the data itself and becomes the object that the user interacts with.
+    </p>
+
+
 
 
 </div>
