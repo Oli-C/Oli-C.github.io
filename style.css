@@ -80,6 +80,7 @@ html, body {
   text-rendering: optimizeLegibility;
   min-height: 100vh;
   overscroll-behavior: none;
+  overflow-anchor: none;
   letter-spacing: -0.005em;
 }
 body {
@@ -289,6 +290,10 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 .pill .ra-mask {
   -webkit-mask: url('assets/RAlogoWhite.png') center / contain no-repeat;
           mask: url('assets/RAlogoWhite.png') center / contain no-repeat;
+}
+.pill .cham-mask {
+  -webkit-mask: url('assets/CHAM_LOGO_2020_TRANSPARENT_WHITE.png') center / contain no-repeat;
+          mask: url('assets/CHAM_LOGO_2020_TRANSPARENT_WHITE.png') center / contain no-repeat;
 }
 .pill img {
   flex-shrink: 0;

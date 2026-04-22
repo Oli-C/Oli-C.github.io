@@ -1,6 +1,11 @@
 (function () {
   'use strict';
 
+  // Mobile browsers otherwise restore prior scroll (or anchor-shift on layout
+  // change) and push the "allfield" title off-screen during the intro animations.
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  window.scrollTo(0, 0);
+
   // ============================================================================
   //  Shader background — FBM + domain-warp noise on a fullscreen canvas.
   //  Replaces the previous CSS blob layer. Palette is driven by the current
