@@ -279,19 +279,23 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   transform: translateY(-1px);
 }
 .pill svg { flex-shrink: 0; }
+.pill .pill-mask {
+  display: block;
+  width: 22px;
+  height: 22px;
+  background-color: currentColor;
+  transition: background-color 160ms var(--ease);
+}
+.pill .ra-mask {
+  -webkit-mask: url('assets/RAlogoWhite.png') center / contain no-repeat;
+          mask: url('assets/RAlogoWhite.png') center / contain no-repeat;
+}
 .pill img {
   flex-shrink: 0;
   display: block;
   width: 22px;
   height: 22px;
   object-fit: contain;
-}
-.pill[data-platform="soundcloud"] {
-  color: #ff5500;
-}
-.pill[data-platform="soundcloud"]:hover {
-  color: #ff5500;
-  border-color: #ff5500;
 }
 
 /* =============================================================================
