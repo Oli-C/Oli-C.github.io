@@ -33,16 +33,24 @@
       '}',
       'void main(){',
       '  vec2 uv = gl_FragCoord.xy / uRes;',
-      '  vec2 p  = (uv - 0.5) * vec2(uRes.x/uRes.y, 1.0) * 2.4;',
-      '  float t = uTime * 0.06;',
+      '  float aspect = uRes.x / uRes.y;',
+      '  float scale  = 2.6 + 0.8 * clamp(1.0 - aspect, 0.0, 0.6);',
+      '  vec2  p      = (uv - 0.5) * vec2(aspect, 1.0) * scale;',
+      '  vec2 m = 0.6 * vec2(fbm(p*0.35 + 0.03*uTime), fbm(p*0.35 + vec2(4.0,2.0) - 0.03*uTime));',
+      '  p += m;',
+      '  float t = uTime * 0.05;',
       '  vec2 q = vec2(fbm(p + t), fbm(p + vec2(5.2, 1.3) - t));',
       '  vec2 r = vec2(fbm(p + 2.0*q + vec2(1.7, 9.2) + 0.15*t),',
       '                fbm(p + 2.0*q + vec2(8.3, 2.8) - 0.13*t));',
       '  float f = fbm(p + 2.3*r);',
       '  vec3 col = uBg;',
-      '  col = mix(col, uC1, smoothstep(0.25, 0.85, f));',
-      '  col = mix(col, uC2, smoothstep(0.20, 0.78, r.y) * 0.9);',
-      '  col = mix(col, uC3, smoothstep(0.25, 0.80, r.x) * 0.75);',
+      '  col = mix(col, uC1, smoothstep(0.40, 0.92, f) * 0.80);',
+      '  col = mix(col, uC2, smoothstep(0.35, 0.85, r.y) * 0.70);',
+      '  col = mix(col, uC3, smoothstep(0.40, 0.88, r.x) * 0.50);',
+      '  float hot = pow(smoothstep(0.60, 0.94, f), 2.2);',
+      '  float vig = smoothstep(1.4, 0.3, length(uv - 0.5));',
+      '  col *= 0.55 + 0.45 * vig;',
+      '  col += uC1 * hot * 0.35;',
       '  gl_FragColor = vec4(col, 1.0);',
       '}',
     ].join('\n');
@@ -84,7 +92,7 @@
     const uBg   = gl.getUniformLocation(prog, 'uBg');
 
     function resize() {
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const w = Math.max(1, Math.floor(window.innerWidth  * dpr));
       const h = Math.max(1, Math.floor(window.innerHeight * dpr));
       if (canvas.width !== w || canvas.height !== h) {
@@ -119,8 +127,8 @@
 
     // Companion colours per theme. Accent fills slot c1 dynamically.
     const THEME_PALETTES = {
-      charcoal: { bg: '#000000', c2: '#6a1e1e', c3: '#4a5d3a' },
-      oxblood:  { bg: '#180606', c2: '#8a3018', c3: '#8ec4d4' },
+      charcoal: { bg: '#000000', c2: '#45121a', c3: '#1c2d3e' },
+      oxblood:  { bg: '#120404', c2: '#6e1a14', c3: '#3a5e72' },
       paper:    { bg: '#ffffff', c2: '#b8431e', c3: '#7a8a4a' },
     };
 
