@@ -99,75 +99,20 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   position: fixed; inset: 0; pointer-events: none; z-index: 0;
 }
 
-/* Organic moving "paint" background — 4 large blobs drifting and morphing */
+/* Shader-rendered paint canvas — see bg-shader init in app.js */
 .bg-paint {
   z-index: 0;
-  overflow: hidden;
-  filter: blur(70px) saturate(1.1);
-  opacity: 0.55;
+  width: 100%;
+  height: 100%;
+  display: block;
+  opacity: 0.9;
   mix-blend-mode: screen;
+  filter: saturate(1.15);
 }
 [data-theme="paper"] .bg-paint {
   mix-blend-mode: multiply;
-  opacity: 0.35;
-  filter: blur(80px) saturate(1.05);
-}
-.blob {
-  position: absolute;
-  width: 46vmax;
-  height: 46vmax;
-  border-radius: 50%;
-  will-change: transform;
-  opacity: 0.9;
-}
-.blob-1 {
-  top: -20%; left: -15%;
-  background: radial-gradient(circle at 40% 40%, var(--accent), transparent 60%);
-  animation: drift1 26s ease-in-out infinite alternate;
-}
-.blob-2 {
-  top: 20%; right: -20%;
-  background: radial-gradient(circle at 60% 50%, #6a1e1e, transparent 60%);
-  animation: drift2 34s ease-in-out infinite alternate;
-}
-.blob-3 {
-  bottom: -25%; left: 10%;
-  background: radial-gradient(circle at 50% 50%, #4a5d3a, transparent 60%);
-  animation: drift3 40s ease-in-out infinite alternate;
-}
-.blob-4 {
-  top: 40%; left: 25%;
-  width: 32vmax; height: 32vmax;
-  background: radial-gradient(circle at 50% 50%, #8ec4d4, transparent 65%);
-  animation: drift4 30s ease-in-out infinite alternate;
-  opacity: 0.5;
-}
-[data-theme="paper"] .blob-1 { background: radial-gradient(circle at 40% 40%, var(--accent), transparent 60%); }
-[data-theme="paper"] .blob-2 { background: radial-gradient(circle at 60% 50%, #b8431e, transparent 60%); }
-[data-theme="paper"] .blob-3 { background: radial-gradient(circle at 50% 50%, #7a8a4a, transparent 60%); }
-
-@keyframes drift1 {
-  0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
-  50%  { transform: translate(8vmax, 6vmax) scale(1.12) rotate(40deg); }
-  100% { transform: translate(-4vmax, 10vmax) scale(0.95) rotate(-25deg); }
-}
-@keyframes drift2 {
-  0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
-  50%  { transform: translate(-10vmax, 8vmax) scale(1.1) rotate(-30deg); }
-  100% { transform: translate(-6vmax, -6vmax) scale(0.92) rotate(20deg); }
-}
-@keyframes drift3 {
-  0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
-  50%  { transform: translate(6vmax, -8vmax) scale(1.15) rotate(35deg); }
-  100% { transform: translate(12vmax, 4vmax) scale(0.9) rotate(-20deg); }
-}
-@keyframes drift4 {
-  0%   { transform: translate(0, 0) scale(1); }
-  50%  { transform: translate(-8vmax, 6vmax) scale(1.2); }
-  100% { transform: translate(10vmax, -10vmax) scale(0.85); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .blob { animation: none; }
+  opacity: 0.7;
+  filter: saturate(1.05);
 }
 .bg-paper {
   background:

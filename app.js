@@ -2,6 +2,143 @@
   'use strict';
 
   // ============================================================================
+  //  Shader background — FBM + domain-warp noise on a fullscreen canvas.
+  //  Replaces the previous CSS blob layer. Palette is driven by the current
+  //  theme + accent (via setPaintPalette, called from apply() below).
+  // ============================================================================
+  const setPaintPalette = (function initPaint() {
+    const canvas = document.getElementById('paint-canvas');
+    if (!canvas) return () => {};
+    const gl = canvas.getContext('webgl', { antialias: false, premultipliedAlpha: true })
+            || canvas.getContext('experimental-webgl');
+    if (!gl) { canvas.style.display = 'none'; return () => {}; }
+
+    const VERT = 'attribute vec2 a; void main(){ gl_Position = vec4(a,0.0,1.0); }';
+    const FRAG = [
+      'precision highp float;',
+      'uniform vec2 uRes;',
+      'uniform float uTime;',
+      'uniform vec3 uC1, uC2, uC3, uBg;',
+      'float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }',
+      'float noise(vec2 p){',
+      '  vec2 i=floor(p), f=fract(p);',
+      '  float a=hash(i), b=hash(i+vec2(1.,0.)), c=hash(i+vec2(0.,1.)), d=hash(i+vec2(1.,1.));',
+      '  vec2 u=f*f*(3.-2.*f);',
+      '  return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);',
+      '}',
+      'float fbm(vec2 p){',
+      '  float v=0., a=0.5;',
+      '  for(int i=0;i<5;i++){ v+=a*noise(p); p*=2.03; a*=0.5; }',
+      '  return v;',
+      '}',
+      'void main(){',
+      '  vec2 uv = gl_FragCoord.xy / uRes;',
+      '  vec2 p  = (uv - 0.5) * vec2(uRes.x/uRes.y, 1.0) * 2.4;',
+      '  float t = uTime * 0.06;',
+      '  vec2 q = vec2(fbm(p + t), fbm(p + vec2(5.2, 1.3) - t));',
+      '  vec2 r = vec2(fbm(p + 2.0*q + vec2(1.7, 9.2) + 0.15*t),',
+      '                fbm(p + 2.0*q + vec2(8.3, 2.8) - 0.13*t));',
+      '  float f = fbm(p + 2.3*r);',
+      '  vec3 col = uBg;',
+      '  col = mix(col, uC1, smoothstep(0.25, 0.85, f));',
+      '  col = mix(col, uC2, smoothstep(0.20, 0.78, r.y) * 0.9);',
+      '  col = mix(col, uC3, smoothstep(0.25, 0.80, r.x) * 0.75);',
+      '  gl_FragColor = vec4(col, 1.0);',
+      '}',
+    ].join('\n');
+
+    function compile(src, type) {
+      const sh = gl.createShader(type);
+      gl.shaderSource(sh, src);
+      gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+        console.error('shader compile', gl.getShaderInfoLog(sh));
+        return null;
+      }
+      return sh;
+    }
+    const vs = compile(VERT, gl.VERTEX_SHADER);
+    const fs = compile(FRAG, gl.FRAGMENT_SHADER);
+    if (!vs || !fs) { canvas.style.display = 'none'; return () => {}; }
+    const prog = gl.createProgram();
+    gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      console.error('program link', gl.getProgramInfoLog(prog));
+      canvas.style.display = 'none';
+      return () => {};
+    }
+    gl.useProgram(prog);
+
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+    const aLoc = gl.getAttribLocation(prog, 'a');
+    gl.enableVertexAttribArray(aLoc);
+    gl.vertexAttribPointer(aLoc, 2, gl.FLOAT, false, 0, 0);
+
+    const uRes  = gl.getUniformLocation(prog, 'uRes');
+    const uTime = gl.getUniformLocation(prog, 'uTime');
+    const uC1   = gl.getUniformLocation(prog, 'uC1');
+    const uC2   = gl.getUniformLocation(prog, 'uC2');
+    const uC3   = gl.getUniformLocation(prog, 'uC3');
+    const uBg   = gl.getUniformLocation(prog, 'uBg');
+
+    function resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      const w = Math.max(1, Math.floor(window.innerWidth  * dpr));
+      const h = Math.max(1, Math.floor(window.innerHeight * dpr));
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w; canvas.height = h;
+        gl.viewport(0, 0, w, h);
+      }
+      gl.uniform2f(uRes, w, h);
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const start = performance.now();
+    function frame(now) {
+      const t = reduceMotion ? 7.3 : (now - start) * 0.001;
+      gl.uniform1f(uTime, t);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      if (!reduceMotion) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    function hexToRgb(hex) {
+      hex = (hex || '').trim().replace('#', '');
+      if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+      if (hex.length !== 6) return [1, 1, 1];
+      return [
+        parseInt(hex.slice(0, 2), 16) / 255,
+        parseInt(hex.slice(2, 4), 16) / 255,
+        parseInt(hex.slice(4, 6), 16) / 255,
+      ];
+    }
+
+    // Companion colours per theme. Accent fills slot c1 dynamically.
+    const THEME_PALETTES = {
+      charcoal: { bg: '#000000', c2: '#6a1e1e', c3: '#4a5d3a' },
+      oxblood:  { bg: '#180606', c2: '#8a3018', c3: '#8ec4d4' },
+      paper:    { bg: '#ffffff', c2: '#b8431e', c3: '#7a8a4a' },
+    };
+
+    return function setPalette(theme, accentHex) {
+      const pal = THEME_PALETTES[theme] || THEME_PALETTES.charcoal;
+      const c1 = hexToRgb(accentHex);
+      const c2 = hexToRgb(pal.c2);
+      const c3 = hexToRgb(pal.c3);
+      const bg = hexToRgb(pal.bg);
+      gl.useProgram(prog);
+      gl.uniform3f(uC1, c1[0], c1[1], c1[2]);
+      gl.uniform3f(uC2, c2[0], c2[1], c2[2]);
+      gl.uniform3f(uC3, c3[0], c3[1], c3[2]);
+      gl.uniform3f(uBg, bg[0], bg[1], bg[2]);
+    };
+  })();
+
+  // ============================================================================
   //  Mix data — pulled from the real Linktree export
   // ============================================================================
   const MIXES = [
@@ -113,6 +250,8 @@
     grainVal.textContent = state.grain;
     grainSlider.value = state.grain;
     timelineToggle.checked = !!state.showTimeline;
+
+    setPaintPalette(state.theme, getComputedStyle(root).getPropertyValue('--accent'));
 
     // View toggle
     mixesEl.classList.toggle('cards', state.view === 'cards');

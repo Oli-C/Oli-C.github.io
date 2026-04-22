@@ -11,7 +11,9 @@
       "Bash(git -C /Users/oliverclarke/Git/Website/Oli-C.github.io ls-files assets/)",
       "Bash(git -C /Users/oliverclarke/Git/Website/Oli-C.github.io status)",
       "Bash(grep -E \"^\\(index\\\\.html|style\\\\.css|app\\\\.js|Home\\\\.html\\)$\")",
-      "Bash(git -C /Users/oliverclarke/Git/Website/Oli-C.github.io log --oneline -- Home.html)"
+      "Bash(git -C /Users/oliverclarke/Git/Website/Oli-C.github.io log --oneline -- Home.html)",
+      "Bash(node --check /Users/oliverclarke/Git/Website/Oli-C.github.io/app.js)",
+      "Bash(open /Users/oliverclarke/Git/Website/Oli-C.github.io/index.html)"
     ]
   }
 }
