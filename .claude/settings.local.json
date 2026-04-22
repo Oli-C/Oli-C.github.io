@@ -13,7 +13,11 @@
       "Bash(grep -E \"^\\(index\\\\.html|style\\\\.css|app\\\\.js|Home\\\\.html\\)$\")",
       "Bash(git -C /Users/oliverclarke/Git/Website/Oli-C.github.io log --oneline -- Home.html)",
       "Bash(node --check /Users/oliverclarke/Git/Website/Oli-C.github.io/app.js)",
-      "Bash(open /Users/oliverclarke/Git/Website/Oli-C.github.io/index.html)"
+      "Bash(open /Users/oliverclarke/Git/Website/Oli-C.github.io/index.html)",
+      "WebFetch(domain:www.youtube.com)",
+      "Bash(git mv *)",
+      "Bash(awk '{print $NF}')",
+      "Bash(node --check app.js)"
     ]
   }
 }
