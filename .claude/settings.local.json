@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/oliverclarke/Git/Website/Oli-C.github.io check-ignore .DS_Store .idea)",
+      "Bash(git -C /Users/oliverclarke/Git/Website/Oli-C.github.io ls-files)",
+      "Bash(git -C /Users/oliverclarke/Git/Website/Oli-C.github.io log --all --oneline -- css/styles.css)",
+      "Bash(git -C /Users/oliverclarke/Git/Website/Oli-C.github.io rm --cached .DS_Store resources/.DS_Store resources/icon/.DS_Store resources/img/.DS_Store)",
+      "Bash(git -C /Users/oliverclarke/Git/Website/Oli-C.github.io rm -r --cached .idea)",
+      "Bash(git -C /Users/oliverclarke/Git/Website/Oli-C.github.io rm css/styles.css)",
+      "Bash(git -C /Users/oliverclarke/Git/Website/Oli-C.github.io rm assets/phot30may26.webp)",
+      "Bash(git -C /Users/oliverclarke/Git/Website/Oli-C.github.io ls-files assets/)",
+      "Bash(git -C /Users/oliverclarke/Git/Website/Oli-C.github.io status)",
+      "Bash(grep -E \"^\\(index\\\\.html|style\\\\.css|app\\\\.js|Home\\\\.html\\)$\")",
+      "Bash(git -C /Users/oliverclarke/Git/Website/Oli-C.github.io log --oneline -- Home.html)"
+    ]
+  }
+}

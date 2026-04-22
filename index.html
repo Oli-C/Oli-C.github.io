@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="charcoal">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>allfield</title>
+<link rel="icon" type="image/jpeg" href="assets/allfieldTrees.jpg">
+<meta name="theme-color" content="#000000">
+
+<!-- Link preview (Open Graph / Twitter) -->
+<meta property="og:title" content="allfield">
+<meta property="og:type" content="website">
+<meta property="og:image" content="assets/og-black.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=1">
+<script>
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "theme": "charcoal",
+    "view": "cards",
+    "grain": 12,
+    "accent": "orange",
+    "showTimeline": true
+  }/*EDITMODE-END*/;
+</script>
+</head>
+<body>
+
+<div class="bg-paper"></div>
+<div class="bg-paint">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+  <div class="blob blob-4"></div>
+</div>
+<div class="bg-grain"></div>
+<div class="bg-vignette"></div>
+
+<main class="page">
+
+  <!-- Identity block -->
+  <header class="id">
+
+    <div class="id-body">
+      <div class="id-text">
+        <h1 class="id-name">allfield</h1>
+        <div class="id-handle">
+          <span class="id-hash">♪</span>
+          <span class="jig jig-1">┏(°.°)┛</span>
+          <span class="jig jig-2">┗(°.°)┓</span>
+          <span class="jig jig-3">┗(°.°)┛</span>
+          <span class="id-hash">♪</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Next event -->
+    <a class="next" href="https://ra.co/events/2423368" target="_blank" rel="noopener noreferrer">
+      <img class="next-img" src="assets/posterGig30May26.webp" alt="" width="56" height="56">
+      <div class="next-body">
+        <div class="next-tag">next live</div>
+        <div class="next-title">Chameleon: Residents Night</div>
+        <div class="next-meta">The Crescent, York · Sat 30 May 2026</div>
+      </div>
+      <svg class="next-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M7 17L17 7M17 7H9M17 7v8"/></svg>
+    </a>
+
+    <!-- Quick links row -->
+    <div class="pills">
+      <a href="https://ra.co/dj/allfield" class="pill" data-platform="ra" target="_blank" rel="noopener noreferrer" aria-label="Resident Advisor">
+        <img src="assets/RAlogoWhite.png" alt="" width="22" height="22">
+      </a>
+      <a href="https://soundcloud.com/allfieldmusic" class="pill" data-platform="soundcloud" target="_blank" rel="noopener noreferrer" aria-label="SoundCloud">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M1 18v-4l1 .5v3.5h-1zm2 0v-6l1 .5v5.5h-1zm2 0v-8l1 .5v7.5h-1zm2 0v-9l1 .5v8.5h-1zm2 0v-10l1 .5v9.5h-1zm3-10.5c0-.3.2-.5.5-.5s.5.2.5.5V18h-1V7.5zm2-.5c.3 0 .5.2.5.5V18h-1V7.5c0-.3.2-.5.5-.5zm2 1c2.2 0 4 1.8 4 4 0 .3 0 .5-.1.8 1.8.3 3.1 1.8 3.1 3.7 0 2-1.7 3.7-3.8 3.7H17V8z"/></svg>
+      </a>
+      <a href="mailto:allfieldmusic@gmail.com" class="pill" data-platform="mail" aria-label="Email">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3 6l9 7 9-7"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- Mix list — content injected by JS from the MIXES array -->
+  <div class="mixes" id="mixes"></div>
+
+  </main>
+
+<!-- Tweaks panel -->
+<aside class="tweaks" id="tweaks" aria-label="Tweaks">
+  <div class="tw-head">
+    <span class="tw-title">Tweaks</span>
+    <span class="tw-hint">live preview</span>
+  </div>
+
+  <div class="tw-row">
+    <label class="tw-label">theme</label>
+    <div class="tw-chips" data-chips="theme">
+      <button class="chip" data-value="charcoal">charcoal</button>
+      <button class="chip" data-value="paper">paper</button>
+      <button class="chip" data-value="oxblood">oxblood</button>
+    </div>
+  </div>
+
+  <div class="tw-row">
+    <label class="tw-label">accent</label>
+    <div class="tw-chips" data-chips="accent">
+      <button class="chip swatch" data-value="orange" style="--sw:#d85a2b"></button>
+      <button class="chip swatch" data-value="amber" style="--sw:#e3a23a"></button>
+      <button class="chip swatch" data-value="moss" style="--sw:#7a8a4a"></button>
+      <button class="chip swatch" data-value="ice" style="--sw:#8ec4d4"></button>
+    </div>
+  </div>
+
+  <div class="tw-row">
+    <label class="tw-label">
+      <span>grain</span>
+      <span class="tw-val" id="grainVal">18</span>
+    </label>
+    <input type="range" id="grainSlider" min="0" max="60" step="1" class="tw-slider">
+  </div>
+
+  <label class="tw-toggle">
+    <span>show timeline rail</span>
+    <input type="checkbox" id="timelineToggle">
+    <span class="tw-switch"></span>
+  </label>
+</aside>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="app.js?v=16"></script>
+</body>
+</html>
