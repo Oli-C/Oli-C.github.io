@@ -214,6 +214,14 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   gap: 6px;
 }
 .id-hint { white-space: nowrap; }
+@media (max-width: 639px) {
+  .id-handle {
+    font-size: 10px;
+    gap: 3px;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+}
 .id-handle .jig {
   display: inline-block;
   transform-origin: 50% 70%;
