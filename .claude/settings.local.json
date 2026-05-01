@@ -17,7 +17,9 @@
       "WebFetch(domain:www.youtube.com)",
       "Bash(git mv *)",
       "Bash(awk '{print $NF}')",
-      "Bash(node --check app.js)"
+      "Bash(node --check app.js)",
+      "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless=new --hide-scrollbars --window-size=1200,630 --virtual-time-budget=2000 --screenshot=/tmp/og-render.png file:///tmp/og-template.html)",
+      "Bash(sips -s format jpeg -s formatOptions 88 /tmp/og-render.png --out /Users/oliverclarke/Git/Website/Oli-C.github.io/assets/og-image.jpg)"
     ]
   }
 }
