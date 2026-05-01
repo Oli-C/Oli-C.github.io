@@ -34,7 +34,7 @@
       '}',
       'float fbm(vec2 p){',
       '  float v=0., a=0.5;',
-      '  for(int i=0;i<5;i++){ v+=a*noise(p); p*=2.03; a*=0.5; }',
+      '  for(int i=0;i<6;i++){ v+=a*noise(p); p*=2.03; a*=0.5; }',
       '  return v;',
       '}',
       'void main(){',
@@ -47,14 +47,26 @@
       '  vec2 m = 0.6 * vec2(fbm(p*0.35 + 0.03*uTime), fbm(p*0.35 + vec2(4.0,2.0) - 0.03*uTime));',
       '  p += m;',
       '  float t = uTime * 0.05;',
+      '  // Back layer — slower, larger scale, softer movement. Sits behind everything else.',
+      '  vec2 pBack = p * 0.55 + vec2(7.3, 11.7);',
+      '  float tBack = uTime * 0.025;',
+      '  vec2 qBack = vec2(fbm(pBack + tBack), fbm(pBack + vec2(3.1, 5.7) - tBack));',
+      '  float fBack = fbm(pBack + 1.6 * qBack);',
+      '  // Front layer — existing domain-warped smoke.',
       '  vec2 q = vec2(fbm(p + t), fbm(p + vec2(5.2, 1.3) - t));',
       '  vec2 r = vec2(fbm(p + 2.0*q + vec2(1.7, 9.2) + 0.15*t),',
       '                fbm(p + 2.0*q + vec2(8.3, 2.8) - 0.13*t));',
       '  float f = fbm(p + 2.3*r);',
       '  vec3 col = uBg;',
+      '  // Back layer wash first (further away — wine tone, slightly dimmed).',
+      '  col = mix(col, uC2 * 0.85, smoothstep(0.30, 0.85, fBack) * 0.45 * intro);',
+      '  // Front layer mixes — same as before.',
       '  col = mix(col, uC1, smoothstep(mix(0.10,0.40,intro), mix(0.70,0.92,intro), f) * 0.80);',
       '  col = mix(col, uC2, smoothstep(mix(0.05,0.35,intro), mix(0.65,0.85,intro), r.y) * 0.70);',
       '  col = mix(col, uC3, smoothstep(mix(0.10,0.40,intro), mix(0.70,0.88,intro), r.x) * 0.50);',
+      '  // Density self-shadow — denser smoke darkens slightly, suggesting volume.',
+      '  float density = smoothstep(0.4, 0.95, f);',
+      '  col *= 1.0 - density * 0.15;',
       '  float hot = pow(smoothstep(0.60, 0.94, f), 2.2);',
       '  float vig = smoothstep(1.4, 0.3, length(uv - 0.5));',
       '  col *= 0.55 + 0.45 * vig;',
@@ -139,19 +151,16 @@
       ];
     }
 
-    // Companion colours per theme. Accent fills slot c1 dynamically.
-    const THEME_PALETTES = {
-      charcoal: { bg: '#000000', c2: '#45121a', c3: '#1c2d3e' },
-      oxblood:  { bg: '#120404', c2: '#6e1a14', c3: '#3a5e72' },
-      paper:    { bg: '#ffffff', c2: '#b8431e', c3: '#7a8a4a' },
-    };
-
-    return function setPalette(theme, accentHex) {
-      const pal = THEME_PALETTES[theme] || THEME_PALETTES.charcoal;
+    // Smoke palette is now sourced from CSS — `--smoke-bg/c2/c3` per theme
+    // in style.css. JS reads the active values via getComputedStyle so any
+    // palette tweak only needs to happen in CSS. Accent (uC1) still flows in
+    // via the chip-driven --accent variable.
+    return function setPalette(_theme, accentHex) {
+      const cs = getComputedStyle(document.documentElement);
       const c1 = hexToRgb(accentHex);
-      const c2 = hexToRgb(pal.c2);
-      const c3 = hexToRgb(pal.c3);
-      const bg = hexToRgb(pal.bg);
+      const c2 = hexToRgb(cs.getPropertyValue('--smoke-c2'));
+      const c3 = hexToRgb(cs.getPropertyValue('--smoke-c3'));
+      const bg = hexToRgb(cs.getPropertyValue('--smoke-bg'));
       gl.useProgram(prog);
       gl.uniform3f(uC1, c1[0], c1[1], c1[2]);
       gl.uniform3f(uC2, c2[0], c2[1], c2[2]);
@@ -265,6 +274,17 @@
 
   let state = Object.assign({}, TWEAK_DEFAULTS);
 
+  // Follow the OS dark/light preference until the user manually picks a theme
+  // chip. oxblood is opt-in only; auto resolves to charcoal or light.
+  const sysDark = window.matchMedia('(prefers-color-scheme: dark)');
+  let userChoseTheme = false;
+  state.theme = sysDark.matches ? 'charcoal' : 'light';
+  sysDark.addEventListener('change', e => {
+    if (userChoseTheme) return;
+    state.theme = e.matches ? 'charcoal' : 'light';
+    apply();
+  });
+
   function apply() {
     root.setAttribute('data-theme', state.theme);
     root.setAttribute('data-accent', state.accent);
@@ -294,7 +314,12 @@
   document.querySelectorAll('[data-chips]').forEach(group => {
     const key = group.dataset.chips;
     group.querySelectorAll('.chip').forEach(chip => {
-      chip.addEventListener('click', () => { state[key] = chip.dataset.value; apply(); persist(); });
+      chip.addEventListener('click', () => {
+        state[key] = chip.dataset.value;
+        if (key === 'theme') userChoseTheme = true;
+        apply();
+        persist();
+      });
     });
   });
 
