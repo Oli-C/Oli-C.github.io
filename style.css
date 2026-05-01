@@ -160,8 +160,22 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   from { opacity: 0; filter: blur(6px); }
   to   { opacity: 1; filter: blur(0); }
 }
+@keyframes fly-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.id-name   { animation: fly-in 600ms var(--ease) 0.45s backwards; }
+.id-handle { animation: fly-in 550ms var(--ease) 0.55s backwards; }
+.next      { animation: fly-in 600ms var(--ease) 0.6s backwards; }
+.pill      { animation: fly-in 500ms var(--ease) calc(0.75s + var(--pi, 0) * 60ms) backwards; }
+.pills .pill:nth-child(1) { --pi: 0; }
+.pills .pill:nth-child(2) { --pi: 1; }
+.pills .pill:nth-child(3) { --pi: 2; }
+.pills .pill:nth-child(4) { --pi: 3; }
+.pills .pill:nth-child(5) { --pi: 4; }
+.mix       { animation: fly-in 520ms var(--ease) calc(0.9s + var(--i, 0) * 28ms) backwards; }
 @media (prefers-reduced-motion: reduce) {
-  .page { animation: none; }
+  .page, .id-name, .id-handle, .next, .pill, .mix { animation: none; }
 }
 
 /* =============================================================================
@@ -169,7 +183,6 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
    ============================================================================= */
 .id {
   margin-bottom: 20px;
-  animation: rise 700ms var(--ease) both;
 }
 
 .id-top {
@@ -280,20 +293,37 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   border-radius: 999px;
   color: var(--fg);
   background: var(--bg-2);
-  transition: border-color 160ms var(--ease), color 160ms var(--ease), transform 160ms var(--ease);
+  transition: border-color 220ms var(--ease),
+              color 220ms var(--ease),
+              background 220ms var(--ease),
+              box-shadow 220ms var(--ease),
+              transform 220ms var(--ease);
 }
 .pill:hover {
   border-color: var(--accent);
   color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-2));
+  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent) 45%, transparent);
   transform: translateY(-1px);
 }
-.pill svg { flex-shrink: 0; }
+.pill:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px -2px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.pill svg,
+.pill .pill-mask {
+  flex-shrink: 0;
+  transition: transform 220ms var(--ease);
+}
+.pill:hover svg,
+.pill:hover .pill-mask {
+  transform: scale(1.1);
+}
 .pill .pill-mask {
   display: block;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   background-color: currentColor;
-  transition: background-color 160ms var(--ease);
 }
 .pill .ra-mask {
   -webkit-mask: url('assets/logo-ra.png') center / contain no-repeat;
@@ -321,24 +351,50 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   align-items: center;
   padding: 10px 10px 10px 13px;
   margin-bottom: 20px;
-  background: var(--bg-2);
+  background: color-mix(in srgb, var(--bg-2) 50%, transparent);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
   border: 1px solid var(--border-2);
   border-radius: var(--radius);
   color: var(--fg);
   position: relative;
   overflow: hidden;
-  transition: border-color 160ms var(--ease), transform 160ms var(--ease);
+  box-shadow: 0 8px 32px -12px color-mix(in srgb, var(--accent) 30%, transparent),
+              inset 0 1px 0 0 color-mix(in srgb, var(--fg) 8%, transparent);
+  transition: border-color 200ms var(--ease),
+              transform 200ms var(--ease),
+              box-shadow 200ms var(--ease);
 }
 .next::before {
   content: '';
   position: absolute;
   left: 0; top: 0; bottom: 0;
   width: 3px;
-  background: var(--accent);
+  background: linear-gradient(to bottom,
+              transparent,
+              var(--accent) 25%,
+              var(--accent) 75%,
+              transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 70%, transparent),
+              0 0 28px color-mix(in srgb, var(--accent) 30%, transparent);
+  z-index: 1;
+}
+.next::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 88% 0%,
+              color-mix(in srgb, var(--accent) 22%, transparent),
+              transparent 55%);
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 0;
 }
 .next:hover {
   border-color: var(--accent);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 14px 40px -10px color-mix(in srgb, var(--accent) 50%, transparent),
+              inset 0 1px 0 0 color-mix(in srgb, var(--fg) 14%, transparent);
 }
 .next-img {
   width: 56px;
@@ -346,8 +402,10 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   border-radius: 6px;
   object-fit: cover;
   display: block;
+  position: relative;
+  z-index: 1;
 }
-.next-body { min-width: 0; }
+.next-body { min-width: 0; position: relative; z-index: 1; }
 .next-tag {
   font-family: 'JetBrains Mono', monospace;
   font-size: 9.5px;
@@ -382,6 +440,8 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   color: var(--fg-subtle);
   margin-right: 6px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
   transition: color 160ms var(--ease);
 }
 .next:hover .next-arrow { color: var(--accent); }
@@ -457,18 +517,25 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   padding: 10px 14px 10px 0;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--bg-2);
+  background: color-mix(in srgb, var(--bg-2) 65%, transparent);
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
   position: relative;
   overflow: hidden;
   z-index: 1;
-  transition: border-color 180ms var(--ease), transform 180ms var(--ease), background 180ms var(--ease);
-  animation: rise 600ms var(--ease) both;
-  animation-delay: calc(var(--i, 0) * 30ms + 120ms);
+  box-shadow: 0 4px 18px -10px color-mix(in srgb, var(--accent) 14%, transparent),
+              inset 0 1px 0 0 color-mix(in srgb, var(--fg) 5%, transparent);
+  transition: border-color 200ms var(--ease),
+              transform 200ms var(--ease),
+              background 200ms var(--ease),
+              box-shadow 200ms var(--ease);
 }
 .mix:hover {
   border-color: var(--border-3);
-  background: var(--bg-3);
-  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--bg-3) 70%, transparent);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px -10px color-mix(in srgb, var(--accent) 28%, transparent),
+              inset 0 1px 0 0 color-mix(in srgb, var(--fg) 10%, transparent);
 }
 .mix:hover .mix-arrow { transform: translateX(2px); color: var(--accent); }
 .mix:hover .mix-play { opacity: 1; }
@@ -478,19 +545,6 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   height: 100%;
   min-height: 72px;
 }
-.mix-rail::before {
-  content: '';
-  position: absolute;
-  left: 8px;
-  top: 50%;
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  background: var(--bg-3);
-  border: 1px solid var(--border-3);
-  transform: translateY(-50%);
-}
-.mix[data-series="cham"] .mix-rail::before { background: var(--accent); border-color: var(--accent); }
-.mix[data-series="live"] .mix-rail::before { background: var(--fg); border-color: var(--fg); }
 
 .mix-art {
   width: 72px; height: 72px;
@@ -894,11 +948,6 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 /* =============================================================================
    Animations / responsive
    ============================================================================= */
-@keyframes rise {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .id, .mix {
     animation: none !important;

@@ -23,6 +23,7 @@
       'precision highp float;',
       'uniform vec2 uRes;',
       'uniform float uTime;',
+      'uniform vec2 uSeed;',
       'uniform vec3 uC1, uC2, uC3, uBg;',
       'float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }',
       'float noise(vec2 p){',
@@ -42,7 +43,7 @@
       '  float intro = smoothstep(0.0, 1.6, uTime);',
       '  float zoom  = mix(0.45, 1.0, intro);',
       '  float scale = (2.6 + 0.8 * clamp(1.0 - aspect, 0.0, 0.6)) * zoom;',
-      '  vec2  p     = (uv - 0.5) * vec2(aspect, 1.0) * scale;',
+      '  vec2  p     = (uv - 0.5) * vec2(aspect, 1.0) * scale + uSeed;',
       '  vec2 m = 0.6 * vec2(fbm(p*0.35 + 0.03*uTime), fbm(p*0.35 + vec2(4.0,2.0) - 0.03*uTime));',
       '  p += m;',
       '  float t = uTime * 0.05;',
@@ -94,10 +95,15 @@
 
     const uRes  = gl.getUniformLocation(prog, 'uRes');
     const uTime = gl.getUniformLocation(prog, 'uTime');
+    const uSeed = gl.getUniformLocation(prog, 'uSeed');
     const uC1   = gl.getUniformLocation(prog, 'uC1');
     const uC2   = gl.getUniformLocation(prog, 'uC2');
     const uC3   = gl.getUniformLocation(prog, 'uC3');
     const uBg   = gl.getUniformLocation(prog, 'uBg');
+
+    // Random per-page-load offset so the smoke pattern starts in a different
+    // place every time. Doesn't affect the intro ramp since it leaves uTime alone.
+    gl.uniform2f(uSeed, Math.random() * 100, Math.random() * 100);
 
     function resize() {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
