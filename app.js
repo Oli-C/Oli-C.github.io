@@ -127,7 +127,10 @@
     gl.uniform2f(uSeed, Math.random() * 100, Math.random() * 100);
 
     function resize() {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      // The smoke is naturally soft so a lower render resolution is invisible —
+      // DPR-3 phones especially benefit from a tighter cap.
+      const dprCap = window.innerWidth <= 640 ? 1.25 : 1.5;
+      const dpr = Math.min(window.devicePixelRatio || 1, dprCap);
       const w = Math.max(1, Math.floor(window.innerWidth  * dpr));
       const h = Math.max(1, Math.floor(window.innerHeight * dpr));
       if (canvas.width !== w || canvas.height !== h) {
@@ -140,14 +143,41 @@
     window.addEventListener('resize', resize);
 
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const start = performance.now();
+    // Run the intro at full 60fps; throttle steady-state to 30fps to halve GPU load.
+    const INTRO_MS = 1700;
+    const FRAME_INTERVAL_MS = 1000 / 30;
+    let start = performance.now();
+    let lastDraw = 0;
+    let paused = false;
+    let pausedAt = 0;
+
     function frame(now) {
-      const t = reduceMotion ? 7.3 : (now - start) * 0.001;
-      gl.uniform1f(uTime, t);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      if (paused) return;
+      const elapsed = now - start;
+      const inIntro = elapsed < INTRO_MS;
+      if (inIntro || now - lastDraw >= FRAME_INTERVAL_MS) {
+        const t = reduceMotion ? 7.3 : elapsed * 0.001;
+        gl.uniform1f(uTime, t);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        lastDraw = now;
+      }
       if (!reduceMotion) requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);
+
+    // Pause cleanly when the tab is hidden; on resume, shift `start` so the
+    // smoke continues from where it left off rather than jumping forward.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        paused = true;
+        pausedAt = performance.now();
+      } else if (paused) {
+        paused = false;
+        start += performance.now() - pausedAt;
+        lastDraw = 0;
+        if (!reduceMotion) requestAnimationFrame(frame);
+      }
+    });
 
     function hexToRgb(hex) {
       hex = (hex || '').trim().replace('#', '');
