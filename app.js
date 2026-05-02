@@ -285,7 +285,7 @@
     for (const m of MIXES) {
       if (m.y !== currentY) {
         currentY = m.y;
-        html += `<div class="yr"><span class="yr-num">${m.y}</span><span class="yr-line"></span></div>`;
+        html += `<div class="yr" style="--yi:${i}"><span class="yr-num">${m.y}</span><span class="yr-line"></span></div>`;
       }
       html += `
         <a href="${m.url || '#'}" class="mix" data-series="${m.series}" style="--i:${i++}"${m.url ? ' target="_blank" rel="noopener noreferrer"' : ''}>
