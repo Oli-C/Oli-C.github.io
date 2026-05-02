@@ -231,7 +231,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 
 .id-handle {
   font-family: 'Anek Kannada', sans-serif;
-  font-size: 12px;
+  font-size: 11px;
   letter-spacing: 0.02em;
   color: var(--fg-subtle);
   margin-top: 10px;
@@ -243,7 +243,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 .id-hint { white-space: nowrap; }
 @media (max-width: 639px) {
   .id-handle {
-    font-size: 10px;
+    font-size: 9.5px;
     gap: 3px;
     flex-wrap: nowrap;
     white-space: nowrap;
@@ -432,19 +432,19 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 .next-tag {
   display: inline-block;
   font-family: 'Anek Kannada', sans-serif;
-  font-size: 9px;
-  letter-spacing: 0.22em;
+  font-size: 8px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   font-weight: 500;
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
   border-radius: 999px;
-  padding: 2px 9px 2px 10px;
+  padding: 3px 7px;
   margin-bottom: 6px;
 }
 .next-title {
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 500;
   letter-spacing: -0.02em;
   color: var(--fg);
@@ -455,7 +455,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 }
 .next-meta {
   font-family: 'Anek Kannada', sans-serif;
-  font-size: 10px;
+  font-size: 8.5px;
   letter-spacing: 0.05em;
   color: var(--fg-muted);
   white-space: nowrap;
@@ -508,7 +508,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 .yr-num {
   color: var(--fg);
   font-weight: 500;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 /* Card */
@@ -581,7 +581,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   gap: 8px;
   margin-bottom: 3px;
   font-family: 'Anek Kannada', sans-serif;
-  font-size: 9.5px;
+  font-size: 8.5px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--fg-subtle);
@@ -603,7 +603,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   opacity: 0.6;
 }
 .mix-title {
-  font-size: 14.5px;
+  font-size: 13px;
   font-weight: 500;
   line-height: 1.3;
   letter-spacing: -0.012em;
@@ -617,7 +617,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 }
 .mix-sub {
   font-family: 'Anek Kannada', sans-serif;
-  font-size: 10px;
+  font-size: 9px;
   color: var(--fg-subtle);
   letter-spacing: 0.06em;
   margin-top: 3px;
@@ -625,7 +625,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 
 .mix-tag {
   font-family: 'Anek Kannada', sans-serif;
-  font-size: 9px;
+  font-size: 8px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   padding: 3px 7px;
@@ -964,15 +964,15 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   .id-name { margin-bottom: 6px; letter-spacing: -0.045em; }
   .pills { gap: 5px; flex-wrap: wrap; }
   .next { padding: 12px; min-height: 78px; gap: 10px; }
-  .next-title { font-size: 14px; }
+  .next-title { font-size: 12px; }
 
   .mix {
     padding: 12px 12px 12px 12px;
     min-height: 78px;
   }
-  .mix-title { font-size: 13.5px; }
-  .mix-meta { font-size: 10.5px; gap: 6px; }
-  .mix-tag { font-size: 8.5px; padding: 2px 5px; letter-spacing: 0.14em; }
+  .mix-title { font-size: 12px; }
+  .mix-meta { font-size: 9px; gap: 6px; }
+  .mix-tag { font-size: 7.5px; padding: 2px 5px; letter-spacing: 0.14em; }
   .mix-plat { width: 20px; height: 20px; }
   .mix-right { gap: 8px; }
   .mix-arrow { display: none; }
