@@ -624,11 +624,16 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 }
 
 .mix-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-family: 'Anek Kannada', sans-serif;
   font-size: 8px;
   letter-spacing: 0.14em;
+  text-indent: 0.14em;
   text-transform: uppercase;
-  padding: 3px 7px;
+  line-height: 1;
+  padding: 5px 7px 3px;
   border-radius: 3px;
   color: var(--fg-muted);
   border: 1px solid var(--border-2);
@@ -731,7 +736,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   justify-content: flex-end;
 }
 .mixes.log .mix-arrow { display: none; }
-.mixes.log .mix-tag { font-size: 8.5px; padding: 2px 6px; }
+.mixes.log .mix-tag { font-size: 8.5px; padding: 3px 6px 1px; }
 
 /* Platform badge (SoundCloud / Mixcloud / YouTube) */
 .mix-plat {
@@ -972,7 +977,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   }
   .mix-title { font-size: 12px; }
   .mix-meta { font-size: 9px; gap: 6px; }
-  .mix-tag { font-size: 7.5px; padding: 2px 5px; letter-spacing: 0.14em; }
+  .mix-tag { font-size: 7.5px; padding: 3px 5px 2px; letter-spacing: 0.14em; }
   .mix-plat { width: 20px; height: 20px; }
   .mix-right { gap: 8px; }
   .mix-arrow { display: none; }
