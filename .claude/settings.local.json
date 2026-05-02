@@ -19,7 +19,15 @@
       "Bash(awk '{print $NF}')",
       "Bash(node --check app.js)",
       "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless=new --hide-scrollbars --window-size=1200,630 --virtual-time-budget=2000 --screenshot=/tmp/og-render.png file:///tmp/og-template.html)",
-      "Bash(sips -s format jpeg -s formatOptions 88 /tmp/og-render.png --out /Users/oliverclarke/Git/Website/Oli-C.github.io/assets/og-image.jpg)"
+      "Bash(sips -s format jpeg -s formatOptions 88 /tmp/og-render.png --out /Users/oliverclarke/Git/Website/Oli-C.github.io/assets/og-image.jpg)",
+      "WebFetch(domain:www.pearsonsound.com)",
+      "Bash(curl -s -A \"Mozilla/5.0\" \"https://www.pearsonsound.com/\")",
+      "Bash(curl -s -A \"Mozilla/5.0\" \"https://www.pearsonsound.com/\" -o /tmp/ps.html)",
+      "Read(//tmp/**)",
+      "Bash(curl -s -A \"Mozilla/5.0\" \"https://cdn.prod.website-files.com/66c3231d1be8feb736a4b53f/css/pearson-sound.webflow.shared.7c1f9aa9c.css\" -o /tmp/ps.css)",
+      "Bash(sed -i '' \"s/'JetBrains Mono', monospace/'Anek Kannada', sans-serif/g\" /Users/oliverclarke/Git/Website/Oli-C.github.io/style.css)",
+      "Bash(sed -i '' \"s/'JetBrains Mono'/'Anek Kannada'/g\" /Users/oliverclarke/Git/Website/Oli-C.github.io/style.css)",
+      "Bash('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless=new --hide-scrollbars --window-size=1200,630 --virtual-time-budget=3000 --screenshot=/tmp/og-render.png file:///tmp/og-template.html)"
     ]
   }
 }

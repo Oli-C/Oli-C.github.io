@@ -87,7 +87,8 @@
 html, body {
   background: var(--bg);
   color: var(--fg);
-  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-family: 'Anek Kannada', system-ui, sans-serif;
+  font-stretch: 125%;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   min-height: 100vh;
@@ -205,7 +206,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 20px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Anek Kannada', sans-serif;
 }
 .id-call-label, .id-freq-label {
   font-size: 9px;
@@ -229,7 +230,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 }
 
 .id-handle {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Anek Kannada', sans-serif;
   font-size: 12px;
   letter-spacing: 0.02em;
   color: var(--fg-subtle);
@@ -268,7 +269,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 }
 .id-hash { color: var(--accent); }
 .id-name {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Anek Kannada', sans-serif;
   font-weight: 600;
   font-size: clamp(36px, 9vw, 56px);
   line-height: 0.9;
@@ -430,7 +431,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 }
 .next-tag {
   display: inline-block;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Anek Kannada', sans-serif;
   font-size: 9px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -453,7 +454,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   text-overflow: ellipsis;
 }
 .next-meta {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Anek Kannada', sans-serif;
   font-size: 10px;
   letter-spacing: 0.05em;
   color: var(--fg-muted);
@@ -482,46 +483,22 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   position: relative;
 }
 
-/* timeline rail visible in cards view */
-.mixes.show-rail.cards::before {
-  content: '';
-  position: absolute;
-  left: 13px;
-  top: 10px;
-  bottom: 40px;
-  width: 1px;
-  background: linear-gradient(to bottom, transparent 0%, var(--border-2) 8%, var(--border-2) 92%, transparent 100%);
-  z-index: 0;
-}
 
 /* Year divider */
 .yr {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   margin: 12px 0 4px;
-  padding-left: 32px;
-  font-family: 'JetBrains Mono', monospace;
+  padding-left: 14px;
+  font-family: 'Anek Kannada', sans-serif;
   font-size: 10px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--fg-subtle);
-  position: relative;
 }
 .mixes > .yr:first-child {
   margin-top: 0;
-}
-.yr::before {
-  content: '';
-  position: absolute;
-  left: 9px;
-  top: 50%;
-  width: 9px; height: 9px;
-  border-radius: 50%;
-  border: 1.5px solid var(--accent);
-  background: var(--bg);
-  transform: translateY(-50%);
-  z-index: 1;
 }
 .yr-line {
   flex: 1;
@@ -603,7 +580,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   align-items: center;
   gap: 8px;
   margin-bottom: 3px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Anek Kannada', sans-serif;
   font-size: 9.5px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -639,7 +616,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   word-break: break-word;
 }
 .mix-sub {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Anek Kannada', sans-serif;
   font-size: 10px;
   color: var(--fg-subtle);
   letter-spacing: 0.06em;
@@ -647,7 +624,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 }
 
 .mix-tag {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Anek Kannada', sans-serif;
   font-size: 9px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -740,7 +717,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 }
 .mixes.log .mix-dot { display: none; }
 .mixes.log .mix-title {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Anek Kannada', sans-serif;
   font-size: 11.5px;
   font-weight: 400;
   letter-spacing: 0.01em;
@@ -786,7 +763,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
    ============================================================================= */
 .foot {
   margin-top: 48px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Anek Kannada', sans-serif;
 }
 .foot-line {
   height: 1px;
@@ -808,7 +785,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   gap: 20px;
 }
 .foot-mark {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Anek Kannada', sans-serif;
   font-size: 20px;
   font-weight: 600;
   letter-spacing: -0.035em;
@@ -845,7 +822,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   border-radius: 12px;
   padding: 14px;
   box-shadow: 0 20px 40px -12px rgba(0,0,0,0.5);
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Anek Kannada', sans-serif;
   width: 272px;
   max-width: calc(100vw - 32px);
   display: none;
@@ -859,14 +836,14 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   border-bottom: 1px solid var(--border);
 }
 .tw-title {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Anek Kannada', sans-serif;
   font-size: 10px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--fg);
 }
 .tw-hint {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Anek Kannada', sans-serif;
   font-size: 9px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -877,7 +854,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Anek Kannada', sans-serif;
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -886,7 +863,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 .tw-val { color: var(--fg); letter-spacing: 0.04em; }
 .tw-chips { display: flex; gap: 4px; flex-wrap: wrap; }
 .chip {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Anek Kannada', sans-serif;
   font-size: 9.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -947,7 +924,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   font-size: 11.5px;
   color: var(--fg);
   cursor: pointer;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Anek Kannada', sans-serif;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
