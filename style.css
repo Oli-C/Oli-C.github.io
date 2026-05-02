@@ -365,11 +365,11 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
    Next event
    ============================================================================= */
 .next {
-  display: grid;
-  grid-template-columns: 56px 1fr auto;
-  gap: 12px;
+  display: flex;
   align-items: center;
-  padding: 10px 10px 10px 13px;
+  gap: 12px;
+  padding: 14px;
+  min-height: 88px;
   margin-bottom: 20px;
   background: color-mix(in srgb, var(--bg-2) 38%, transparent);
   backdrop-filter: blur(18px) saturate(1.4);
@@ -386,20 +386,6 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
               transform 200ms var(--ease),
               box-shadow 200ms var(--ease);
 }
-.next::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 3px;
-  background: linear-gradient(to bottom,
-              transparent,
-              var(--accent) 25%,
-              var(--accent) 75%,
-              transparent);
-  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 70%, transparent),
-              0 0 28px color-mix(in srgb, var(--accent) 30%, transparent);
-  z-index: 1;
-}
 .next::after {
   content: '';
   position: absolute;
@@ -411,21 +397,6 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   border-radius: inherit;
   z-index: 0;
 }
-.next .corner {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  border-color: var(--accent);
-  border-style: solid;
-  border-width: 0;
-  opacity: 0.55;
-  pointer-events: none;
-  z-index: 1;
-}
-.next .corner.tl { top: 6px; left: 6px;  border-top-width: 1.5px; border-left-width: 1.5px; }
-.next .corner.tr { top: 6px; right: 6px; border-top-width: 1.5px; border-right-width: 1.5px; }
-.next .corner.bl { bottom: 6px; left: 6px;  border-bottom-width: 1.5px; border-left-width: 1.5px; }
-.next .corner.br { bottom: 6px; right: 6px; border-bottom-width: 1.5px; border-right-width: 1.5px; }
 @media (hover: hover) {
   .next:hover {
     border-color: var(--accent);
@@ -436,30 +407,47 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   .next:hover .next-arrow { color: var(--accent); }
 }
 .next-img {
-  width: 56px;
-  height: 56px;
-  border-radius: 6px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: clamp(80px, 20%, 140px);
+  height: 100%;
+  border-radius: 0;
   object-fit: cover;
   display: block;
+  pointer-events: none;
+  z-index: 0;
+  -webkit-mask-image: linear-gradient(to right, black 0%, black 18%, transparent 100%);
+          mask-image: linear-gradient(to right, black 0%, black 18%, transparent 100%);
+}
+.next-body {
+  min-width: 0;
   position: relative;
   z-index: 1;
+  flex: 1;
+  padding-left: clamp(80px, 24%, 160px);
 }
-.next-body { min-width: 0; position: relative; z-index: 1; }
 .next-tag {
+  display: inline-block;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9.5px;
-  letter-spacing: 0.18em;
+  font-size: 9px;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--accent);
-  margin-bottom: 4px;
   font-weight: 500;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 999px;
+  padding: 2px 9px 2px 10px;
+  margin-bottom: 6px;
 }
 .next-title {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 500;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.02em;
   color: var(--fg);
-  margin-bottom: 2px;
+  margin-bottom: 3px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -548,11 +536,11 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 
 /* Card */
 .mix {
-  display: grid;
-  grid-template-columns: 18px 72px 1fr auto;
-  gap: 14px;
+  display: flex;
   align-items: center;
-  padding: 10px 14px 10px 0;
+  gap: 12px;
+  padding: 14px;
+  min-height: 88px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--bg-2) 42%, transparent);
@@ -579,65 +567,37 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
                 inset 0 1px 0 0 color-mix(in srgb, var(--fg) 10%, transparent);
   }
   .mix:hover .mix-arrow { transform: translateX(2px); color: var(--accent); }
-  .mix:hover .mix-play { opacity: 1; }
 }
 
-.mix-rail {
-  position: relative;
-  height: 100%;
-  min-height: 72px;
-}
-.mix-rail::before {
-  content: '';
-  position: absolute;
-  left: 9px;
-  top: 50%;
-  width: 1px;
-  height: 28px;
-  background: linear-gradient(to bottom,
-              transparent,
-              var(--accent) 40%,
-              var(--accent) 60%,
-              transparent);
-  transform: translateY(-50%);
-  opacity: 0.45;
-}
+.mix-rail { display: none; }
 
 .mix-art {
-  width: 72px; height: 72px;
-  position: relative;
-  border-radius: 6px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: clamp(80px, 20%, 140px);
+  pointer-events: none;
+  z-index: 0;
   overflow: hidden;
-  background: var(--bg-3);
-  box-shadow: 0 0 0 1px var(--border-2);
-  flex-shrink: 0;
+  -webkit-mask-image: linear-gradient(to right, black 0%, black 18%, transparent 100%);
+          mask-image: linear-gradient(to right, black 0%, black 18%, transparent 100%);
 }
 .mix-art img {
   width: 100%; height: 100%;
   object-fit: cover;
+  display: block;
 }
-.mix-art::after {
-  content: '';
-  position: absolute; inset: 0;
-  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='2'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.4 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-  mix-blend-mode: overlay;
-  opacity: 0.6;
-  pointer-events: none;
-}
-.mix-play {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0,0,0,0.55);
-  color: white;
-  opacity: 0;
-  transition: opacity 160ms var(--ease);
-}
-.mix-play svg { width: 20px; height: 20px; }
+.mix-art::after { display: none; }
+.mix-play { display: none; }
 
-.mix-body { min-width: 0; }
+.mix-body {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  padding-left: clamp(80px, 24%, 160px);
+}
 .mix-meta {
   display: flex;
   align-items: center;
@@ -698,6 +658,8 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 }
 
 .mix-right {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -758,6 +720,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 .mixes.log .mix-body {
   grid-column: 2 / 3;
   min-width: 0;
+  padding-left: 0;
 }
 .mixes.log .mix-meta {
   display: contents; /* let children participate in the grid */
@@ -1023,17 +986,13 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   .id-body { grid-template-columns: 72px 1fr; gap: 14px; }
   .id-name { margin-bottom: 6px; letter-spacing: -0.045em; }
   .pills { gap: 5px; flex-wrap: wrap; }
-  .next { grid-template-columns: 48px 1fr auto; gap: 10px; padding: 8px 8px 8px 11px; }
-  .next-img { width: 48px; height: 48px; }
+  .next { padding: 12px; min-height: 78px; gap: 10px; }
   .next-title { font-size: 14px; }
 
   .mix {
-    grid-template-columns: 56px 1fr auto;
-    gap: 12px;
-    padding: 8px 12px 8px 8px;
+    padding: 12px 12px 12px 12px;
+    min-height: 78px;
   }
-  .mix-rail { display: none; }
-  .mix-art { width: 56px; height: 56px; }
   .mix-title { font-size: 13.5px; }
   .mix-meta { font-size: 10.5px; gap: 6px; }
   .mix-tag { font-size: 8.5px; padding: 2px 5px; letter-spacing: 0.14em; }
@@ -1054,6 +1013,5 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 @media (max-width: 400px) {
   .page { padding: 16px 12px 40px; }
   .id-top .id-freq { display: none; }
-  .mix { grid-template-columns: 48px 1fr auto; gap: 10px; padding: 8px 10px 8px 8px; }
-  .mix-art { width: 48px; height: 48px; }
+  .mix { padding: 10px 10px; min-height: 70px; }
 }
