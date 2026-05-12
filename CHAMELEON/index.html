@@ -1276,39 +1276,9 @@ for (let i = 0; i < rest.length; i++) {
   face.position.z = 0.002;
   plaqueGroup.add(face);
 
-  // ---- Event photo overlay — fills the top section edge-to-edge.
-  // Source is 1:1 square (1024×1024). The photo plane is wider than tall, so
-  // the texture's U is shown 0..1 (full width) and V is sampled from a
-  // centred band — centre-crop top + bottom of the source.
-  const PHOTO_TOP_PX    = 210;       // canvas pixel row of photo's top edge (below title band)
-  const PHOTO_BOTTOM_PX = 1040;      // canvas pixel row of photo's bottom edge (above caption at y=1090)
-  const PHOTO_W = w;                                              // full plaque width
-  const PHOTO_H = (PHOTO_BOTTOM_PX - PHOTO_TOP_PX) / PLAQUE_TEX_H * h;       // mesh-space height
-  const photoY  = h * 0.5 - (PHOTO_TOP_PX + PHOTO_BOTTOM_PX) * 0.5 / PLAQUE_TEX_H * h;
-
-  const photoTex = texLoader.load('photos/event.webp', t => {
-    t.colorSpace = THREE.SRGBColorSpace;
-    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    const sourceAspect = 1.0;
-    const targetAspect = PHOTO_W / PHOTO_H;
-    if (targetAspect > sourceAspect) {
-      // Target wider than source — crop top + bottom
-      const r = sourceAspect / targetAspect;
-      t.repeat.set(1, r);
-      t.offset.set(0, (1 - r) * 0.5);
-    } else {
-      const r = targetAspect / sourceAspect;
-      t.repeat.set(r, 1);
-      t.offset.set((1 - r) * 0.5, 0);
-    }
-  });
-
-  const photo = new THREE.Mesh(
-    new THREE.PlaneGeometry(PHOTO_W, PHOTO_H),
-    new THREE.MeshBasicMaterial({ map: photoTex, color: 0xdcdcdc, fog: true })
-  );
-  photo.position.set(0, photoY, 0.005);                           // 3 mm in front of the face plane
-  plaqueGroup.add(photo);
+  // Event photo is now baked directly into plaque.webp (with feathered edges),
+  // so no separate 3D overlay plane is needed — saves a draw call, a texture
+  // upload, and the alpha-blend cost of a transparent plane.
 
   // ---- "made by allfield" credit on the back of the plaque ----
   // Transparent canvas so only the text pixels render over the dark backing.
@@ -1343,8 +1313,8 @@ for (let i = 0; i < rest.length; i++) {
   scene.add(plaqueGroup);
 
   // ---- Make the plaque clickable: it glides the camera to a viewing position
-  // facing it, same affordance as the painting cards. Both the face and the
-  // photo overlay get added as ray-hit targets so anywhere on the plaque works.
+  // facing it, same affordance as the painting cards. The face is now the
+  // single ray-hit target (photo is baked into the same texture).
   plaqueGroup.userData.normal = new THREE.Vector3(0, 0, 1);   // faces +Z (camera spawn side)
   const plaqueMeta = {
     title: '',
@@ -1356,8 +1326,7 @@ for (let i = 0; i < rest.length; i++) {
     viewDistance: 3.6,                    // further back than posters (plaque is taller)
   };
   face.userData  = { ...plaqueMeta };
-  photo.userData = { ...plaqueMeta };
-  interactives.push(face, photo);
+  interactives.push(face);
 
   // Tiny warm spotlight on the plaque so it doesn't sit in pure black
   const plaqueLight = new THREE.SpotLight(0xf1ead4, 1.4, 6, Math.PI / 5, 0.7, 1.2);
