@@ -289,12 +289,20 @@ const VIEW_DISTANCE = 2.0;   // how far from a poster the camera glides
 // =============================================================================
 //  Renderer / scene / camera
 // =============================================================================
+// Cheap mobile detection — used throughout to dial down expensive features.
+// "pointer: coarse" catches touch screens; the user-agent fallback also
+// catches headless / iPad-in-desktop-mode etc.
+const isMobile = window.matchMedia('(pointer: coarse)').matches
+              || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
   powerPreference: 'high-performance',
   logarithmicDepthBuffer: true,   // prevents z-fighting on distant near-coplanar surfaces
 });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+// Mobile retina screens often run at 3x DPR which means 9x the fragment work.
+// Capping at ~1.25 typically halves GPU load with little perceptible quality loss.
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.25 : 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -680,17 +688,29 @@ const floorRoughnessTex = fieldToRoughnessMap(floorField, FLOOR_TEX_SIZE, 0.45, 
 // Floor tile scale — each tile is ~6 m so detail reads at walking distance
 const floorRepeat = [ROOM.radius / 6, ROOM.radius / 6];
 [floorColorTex, floorNormalTex, floorRoughnessTex].forEach(t => t.repeat.set(...floorRepeat));
-const floorMat = new THREE.MeshPhysicalMaterial({
-  map:                floorColorTex,
-  normalMap:          floorNormalTex,
-  roughnessMap:       floorRoughnessTex,
-  normalScale:        new THREE.Vector2(0.55, 0.55),
-  metalness:          0.0,
-  clearcoat:          0.5,
-  clearcoatRoughness: 0.42,
-  anisotropy:         0.7,        // stretches the pillar reflection radially
-  anisotropyRotation: 0,
-});
+// Mobile uses the lighter MeshStandardMaterial — no clearcoat / anisotropy
+// (those are some of the most expensive uniforms / branches in the PBR
+// fragment shader). Visual difference is the pillar's floor reflection is
+// a bit more diffuse and isn't anisotropically stretched.
+const floorMat = isMobile
+  ? new THREE.MeshStandardMaterial({
+      map:          floorColorTex,
+      normalMap:    floorNormalTex,
+      roughnessMap: floorRoughnessTex,
+      normalScale:  new THREE.Vector2(0.45, 0.45),
+      metalness:    0.0,
+    })
+  : new THREE.MeshPhysicalMaterial({
+      map:                floorColorTex,
+      normalMap:          floorNormalTex,
+      roughnessMap:       floorRoughnessTex,
+      normalScale:        new THREE.Vector2(0.55, 0.55),
+      metalness:          0.0,
+      clearcoat:          0.5,
+      clearcoatRoughness: 0.42,
+      anisotropy:         0.7,
+      anisotropyRotation: 0,
+    });
 
 // Floor — ring with an open hole at the centre so the light shaft can
 // pass through. Inner radius matches the halo (1.4 m) so the beam fits
@@ -786,7 +806,7 @@ scene.add(innerLip);
 //  rotunda entrance. The camera flies THROUGH these on the way in.
 // =============================================================================
 {
-  const SMOKE_COUNT = 75;        // fewer = less overlap stacking → softer feel
+  const SMOKE_COUNT = isMobile ? 40 : 75;
   const smokeTex = (() => {
     // Wispier smoke: build from several offset radial gradients rather than
     // a single centred one, so the silhouette isn't a perfect circle. Then
@@ -895,7 +915,7 @@ scene.add(innerLip);
   }
 
   const innerSmoke = [];
-  const INNER = 20;
+  const INNER = isMobile ? 10 : 20;
   for (let i = 0; i < INNER; i++) {
     const mat = new THREE.SpriteMaterial({
       map: smokeTex,
@@ -932,7 +952,7 @@ scene.add(innerLip);
 //  Floating dust particles — slow drift in the air, lit by the central pillar
 // =============================================================================
 {
-  const DUST_COUNT = 220;
+  const DUST_COUNT = isMobile ? 110 : 220;
   const pos = new Float32Array(DUST_COUNT * 3);
   for (let i = 0; i < DUST_COUNT; i++) {
     const a  = Math.random() * Math.PI * 2;
@@ -973,7 +993,7 @@ scene.add(innerLip);
   // --- Pillar dust sparkle — extra bright motes confined inside the halo
   // radius (r < 1.4) so they catch the warm pillar light. Reads as
   // "motes drifting through the beam".
-  const SPARK_COUNT = 80;
+  const SPARK_COUNT = isMobile ? 40 : 80;
   const sparkPos = new Float32Array(SPARK_COUNT * 3);
   for (let i = 0; i < SPARK_COUNT; i++) {
     const r = Math.sqrt(Math.random()) * 1.2;
@@ -1824,11 +1844,19 @@ cardEl.addEventListener('click', () => {
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 
+// Bloom at half-res on desktop, third-res on mobile (4× → 9× cheaper)
+const bloomScale = isMobile ? 0.34 : 0.5;
 const bloom = new UnrealBloomPass(
-  new THREE.Vector2(window.innerWidth * 0.5, window.innerHeight * 0.5),
+  new THREE.Vector2(window.innerWidth * bloomScale, window.innerHeight * bloomScale),
   0.22, 0.3, 1.0
 );
 composer.addPass(bloom);
+
+// Subtle post passes (grade / vignette / grain / smaa) — all skipped on mobile
+// because each is a full-screen pass and together they add ~2-3 ms / frame
+// that mobile GPUs can't always afford. Bloom is preserved as the one
+// signature post-pass.
+const SUBTLE_POST = !isMobile;
 
 // Color grade — subtle cool shadows / warm highlights. Anchors the palette
 // without leaning Instagram-y.
@@ -1855,7 +1883,7 @@ const gradePass = new ShaderPass({
     }
   `,
 });
-composer.addPass(gradePass);
+if (SUBTLE_POST) composer.addPass(gradePass);
 
 // Vignette — radial edge darkening. Subtle, cinematic, drops attention onto the centre.
 const vignettePass = new ShaderPass({
@@ -1886,7 +1914,7 @@ const vignettePass = new ShaderPass({
     }
   `,
 });
-composer.addPass(vignettePass);
+if (SUBTLE_POST) composer.addPass(vignettePass);
 
 // Subtle film grain — kills colour banding in the dark sky and adds a hint
 // of texture. Animated via a time uniform so the grain shimmers.
@@ -1919,11 +1947,11 @@ const grainPass = new ShaderPass({
     }
   `,
 });
-composer.addPass(grainPass);
+if (SUBTLE_POST) composer.addPass(grainPass);
 
-// SMAA — sub-pixel anti-aliasing on the final composite. Smooths painting
-// + plaque edges that the MSAA-disabled bloom-pass chain had been jagged on.
-composer.addPass(new SMAAPass(window.innerWidth, window.innerHeight));
+// SMAA — sub-pixel anti-aliasing on the final composite. ~3 full-screen
+// internal passes — skipped on mobile (renderer's MSAA is good enough there).
+if (SUBTLE_POST) composer.addPass(new SMAAPass(window.innerWidth, window.innerHeight));
 
 composer.addPass(new OutputPass());
 
