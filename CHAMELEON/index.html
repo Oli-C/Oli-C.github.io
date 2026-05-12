@@ -1,0 +1,1864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>allfield · chameleon gallery</title>
+<link rel="icon" type="image/jpeg" href="../assets/favicon.jpg">
+<meta name="theme-color" content="#14120d">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anek+Kannada:wdth,wght@125,400..700&display=swap" rel="stylesheet">
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #05070c;
+    --bg-2:      #0d1018;
+    --fg:        #aab0b8;     /* HUD text — muted grey, not screaming white */
+    --fg-muted:  #6e747c;
+    --fg-subtle: #4a4d54;
+    --border:    rgba(230, 231, 234, 0.08);
+    --border-2:  rgba(230, 231, 234, 0.18);
+    --accent:    #d85a2b;
+    --ease:      cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg); color: var(--fg);
+    font-family: 'Anek Kannada', system-ui, sans-serif;
+    font-stretch: 125%;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+
+  #app { position: fixed; inset: 0; }
+  canvas {
+    display: block; width: 100%; height: 100%;
+    cursor: default;
+    transition: filter 0.4s var(--ease);
+  }
+  canvas.hover-poster { cursor: pointer; }
+  canvas.dragging     { cursor: grabbing; }
+
+  /* --- Loading splash --- */
+  #loading {
+    position: fixed; inset: 0; z-index: 30;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 14px;
+    transition: opacity 0.7s var(--ease);
+  }
+  #loading.hidden { opacity: 0; pointer-events: none; }
+  #loading .label {
+    font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--fg-muted);
+  }
+  #loading .bar {
+    width: min(220px, 50vw); height: 2px;
+    background: var(--border); overflow: hidden; border-radius: 2px;
+  }
+  #loading .bar > i {
+    display: block; height: 100%; width: 0;
+    background: var(--accent);
+    transition: width 0.25s var(--ease);
+  }
+
+  /* --- HUD --- */
+  .hud { position: fixed; inset: 0; z-index: 20; pointer-events: none; }
+  .hud > * { pointer-events: auto; }
+
+  .back {
+    position: fixed;
+    top: calc(16px + env(safe-area-inset-top));
+    left: calc(16px + env(safe-area-inset-left));
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 16px;
+    color: var(--fg);
+    text-decoration: none;
+    font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
+    background: rgba(16, 16, 18, 0.4);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    transition: transform 0.2s var(--ease), color 0.2s var(--ease);
+  }
+  .back:hover { transform: translateY(-1px); color: #d8dce2; }
+
+  .prompt {
+    position: fixed;
+    left: 50%;
+    bottom: calc(28px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    padding: 14px 22px;
+    max-width: min(560px, calc(100vw - 48px));
+    background: transparent;
+    border: none;
+    font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--fg-muted);
+    opacity: 0;
+    transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
+    text-align: center;
+    line-height: 1.7;
+  }
+  .prompt.show { opacity: 0.7; }
+  .prompt.hide { opacity: 0; transform: translate(-50%, 8px); pointer-events: none; }
+  .prompt .sep { color: var(--fg-subtle); margin: 0 10px; }
+  @media (max-width: 560px) {
+    .prompt {
+      font-size: 11px;
+      padding: 12px 18px;
+      bottom: calc(22px + env(safe-area-inset-bottom));
+      letter-spacing: 0.08em;
+      line-height: 1.7;
+    }
+    .prompt .sep { display: block; height: 0; margin: 0; overflow: hidden; visibility: hidden; }
+  }
+
+  /* --- Poster info card --- */
+  .card {
+    position: fixed;
+    left: 50%;
+    bottom: calc(32px + env(safe-area-inset-bottom));
+    transform: translate(-50%, 8px);
+    min-width: 240px; max-width: min(440px, calc(100vw - 48px));
+    padding: 16px 20px 18px;
+    background: rgba(14, 15, 18, 0.78);
+    border: 1px solid var(--border-2);
+    border-radius: 6px;
+    backdrop-filter: blur(18px) saturate(1.2);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    opacity: 0;
+    transition: opacity 0.35s var(--ease), transform 0.35s var(--ease);
+    cursor: pointer;
+  }
+  .card.show { opacity: 1; transform: translate(-50%, 0); }
+  .card .title { font-size: 15px; font-weight: 500; color: var(--fg); line-height: 1.25; }
+  .card .meta  { font-size: 12px; color: var(--fg-muted); margin-top: 6px; letter-spacing: 0.02em; font-style: italic; }
+  .card .meta:empty { display: none; }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<div id="loading">
+  <div class="label">loading gallery</div>
+  <div class="bar"><i id="loadbar"></i></div>
+</div>
+
+<div class="hud">
+  <a class="back" href="../">
+    <span aria-hidden="true">←</span><span>back</span>
+  </a>
+  <div class="prompt" id="prompt">
+    drag to look
+    <span class="sep">·</span>
+    wasd / scroll to move
+    <span class="sep">·</span>
+    click a painting to focus
+  </div>
+  <div class="card" id="card">
+    <div class="title" id="cardTitle">—</div>
+    <div class="meta"  id="cardMeta">—</div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.1/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.1/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE             from 'three';
+import { EffectComposer }     from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }         from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass }    from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass }         from 'three/addons/postprocessing/OutputPass.js';
+
+// =============================================================================
+//  Posters — Chameleon event poster archive (WebP-encoded from the print archive)
+// =============================================================================
+const POSTERS = [
+  { img: 'posters/Chameleon - 3 Nights at the Crescent - 30 May 2026.webp',            title: 'Chameleon · 3 Nights at the Crescent', meta: '24 May 2026, 30 May 2026, 5 Jun 2026', url: 'https://www.seetickets.com/event/chameleon-the-crescent-season-ticket/the-crescent/3634501', featured: true },
+  { img: 'posters/Ben UFO - 10 Aug 2024.webp',               title: 'Ben UFO',                              meta: '10 Aug 2024' },
+  { img: 'posters/Objekt - 29 Nov 2025.webp',         title: 'Objekt',                               meta: '29 Nov 2025' },
+  { img: 'posters/Midland - 9 Jun 2023.webp',               title: 'Midland',                              meta: '9 Jun 2023' },
+  { img: 'posters/Midland & SR (Special Request) - 13 Feb 2026.webp',        title: 'Midland & SR (Special Request)',       meta: '13 Feb 2026' },
+  { img: 'posters/Call Super - 16 Feb 2024.webp',             title: 'Call Super',                           meta: '16 Feb 2024' },
+  { img: 'posters/Call Super - Chameleon 6th Birthday - 12 Dec 2025.webp',          title: 'Call Super · Chameleon 6th Birthday',  meta: '12 Dec 2025' },
+  { img: 'posters/Pearson Sound - 29 Nov 2024.webp',               title: 'Pearson Sound',                        meta: '29 Nov 2024' },
+  { img: 'posters/Barker - 17 Feb 2023.webp',                title: 'Barker',                               meta: '17 Feb 2023' },
+  { img: 'posters/Martyn - 4 May 2024.webp',           title: 'Martyn',                               meta: '4 May 2024' },
+  { img: 'posters/Marv - 17 Mar 2023.webp',                  title: 'Marv',                                 meta: '17 Mar 2023' },
+  { img: 'posters/Deo - 2 Jun 2023.webp',                   title: 'Deo',                                  meta: '2 Jun 2023' },
+  { img: 'posters/Deo b2b Parris - 2 May 2025.webp',            title: 'Deo b2b Parris',                       meta: '2 May 2025' },
+  { img: 'posters/Orla - 15 Feb 2025.webp',      title: 'Or:la',                                meta: '15 Feb 2025' },
+  { img: 'posters/Adam Pits - 21 Jan 2022.webp',           title: 'Adam Pits',                            meta: '21 Jan 2022' },
+  { img: 'posters/Kitsta - 3 Nov 2023.webp',             title: 'Kitsta',                               meta: '3 Nov 2023' },
+  { img: 'posters/Fold - 22 Mar 2024.webp',                  title: 'Fold',                                 meta: '22 Mar 2024' },
+  { img: 'posters/Hutch - Chameleon 3rd Birthday - 3 Dec 2022.webp',                  title: 'Hutch · Chameleon 3rd Birthday',       meta: '3 Dec 2022' },
+  { img: 'posters/Special Request b2b Hutch - 5th Birthday - 13 Dec 2024.webp',                title: 'Special Request b2b Hutch · 5th Birthday', meta: '13 Dec 2024' },
+  { img: 'posters/Space Cadets - 20 Jan 2023.webp',     title: 'Space Cadets',                         meta: '20 Jan 2023' },
+  { img: 'posters/Chameleon 4th Birthday - 15 Dec 2023.webp',       title: 'Chameleon 4th Birthday',               meta: '15 Dec 2023' },
+  { img: 'posters/Cham & Friends - Vol. 1 - 14 Apr 2023.webp',      title: 'Cham & Friends · Vol. 1',              meta: '14 Apr 2023' },
+  { img: 'posters/Cham & Friends - Vol. 2 - 21 Jul 2023.webp',      title: 'Cham & Friends · Vol. 2',              meta: '21 Jul 2023' },
+  { img: 'posters/Cham & Friends - Vol. 3 - 2 Feb 2024.webp',        title: 'Cham & Friends · Vol. 3',              meta: '2 Feb 2024' },
+  { img: 'posters/Cham & Friends - Vol. 2 - 30 Apr 2023.webp', title: 'Cham & Friends · Vol. 2',          meta: '30 Apr 2023' },
+  { img: 'posters/Chameleon 002 x The Lounge - 21 Feb 2020.webp',         title: 'Chameleon 002 × The Lounge',           meta: '21 Feb 2020' },
+  { img: 'posters/Chameleon x Meridian - Peckham Audio - 18 Oct 2024.webp',        title: 'Chameleon × Meridian · Peckham Audio', meta: '18 Oct 2024' },
+  { img: 'posters/Send Return - 1 Oct 2021.webp',            title: 'Send / Return',                        meta: '1 Oct 2021' },
+  { img: 'posters/Chameleon Free Party - 2 - 31 Jan 2025.webp',            title: 'Chameleon Free Party · 2',             meta: '31 Jan 2025' },
+  { img: 'posters/Chameleon Free Party - 21 Sep 2024.webp',            title: 'Chameleon Free Party',                 meta: '21 Sep 2024' },
+  { img: 'posters/The Chameleon - Residents - 18 Mar 2022.webp',            title: 'The Chameleon · Residents',            meta: '18 Mar 2022' },
+  { img: 'posters/OnRo - 29 Jun 2024.webp',                title: 'OnRo',                                 meta: '29 Jun 2024' },
+  { img: 'posters/OnRo x Chameleon - 9th Birthday - 23 Sep 2023.webp',              title: 'OnRo × Chameleon · 9th Birthday',      meta: '23 Sep 2023' },
+  { img: 'posters/Breaka - 17 Apr 2022.webp',                title: 'Breaka',                               meta: '17 Apr 2022' },
+  { img: 'posters/Bakey b2b Breaka - 19 Jan 2024.webp',                title: 'Bakey b2b Breaka',                     meta: '19 Jan 2024' },
+  { img: 'posters/Breaka & Tom VR - 18 Jun 2022.webp',                 title: 'Breaka & Tom VR',                      meta: '18 Jun 2022' },
+  { img: 'posters/Reni b2b Ploy - 13 Oct 2023.webp',             title: 'Re:ni b2b Ploy',                       meta: '13 Oct 2023' },
+  { img: 'posters/Rene Wise - 14 Mar 2024.webp',                    title: 'Rene Wise',                            meta: '14 Mar 2024' },
+  { img: 'posters/Stenny - 1 Mar 2024.webp',                      title: 'Stenny',                               meta: '1 Mar 2024' },
+  { img: 'posters/Tan - 3 Feb 2023.webp',           title: 'Tan',                                  meta: '3 Feb 2023' },
+  { img: 'posters/Residents Night - 22 Sep 2023.webp',    title: 'Residents Night',                      meta: '22 Sep 2023' },
+  { img: 'posters/Community Night - 19 Apr 2024.webp',              title: 'Community Night',                      meta: '19 Apr 2024' },
+  { img: 'posters/Chameleon Residents - 29 Sep 2022.webp',                title: 'Chameleon Residents',                  meta: '29 Sep 2022' },
+  { img: 'posters/Hutch - 29 Oct 2021.webp',                 title: 'Hutch',                                meta: '29 Oct 2021' },
+  { img: 'posters/Back to Basics - 3 Dec 2021.webp',          title: 'Back to Basics',                       meta: '3 Dec 2021' },
+  { img: 'posters/Lenzman & Fox - 13 Feb 2022.webp',              title: 'Lenzman & Fox',                        meta: '13 Feb 2022' },
+  { img: 'posters/Barker - 25 Feb 2022.webp',         title: 'Barker',                               meta: '25 Feb 2022' },
+  { img: 'posters/Pangaea - 14 Oct 2022.webp',         title: 'Pangaea',                              meta: '14 Oct 2022' },
+];
+
+// Chronological sort — featured stays at the anchor, the rest run oldest → newest
+// around the rotunda starting one slot clockwise from the featured.
+{
+  const MONTHS = { jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11 };
+  const parseMeta = s => {
+    if (!s) return Infinity;
+    if (/^\d{4}$/.test(s)) return Date.UTC(+s, 0, 1);
+    const m = s.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+    if (m) {
+      const mon = MONTHS[m[2].toLowerCase().slice(0, 3)];
+      if (mon !== undefined) return Date.UTC(+m[3], mon, +m[1]);
+    }
+    return Infinity;
+  };
+  POSTERS.sort((a, b) => {
+    if (a.featured) return -1;
+    if (b.featured) return 1;
+    return parseMeta(a.meta) - parseMeta(b.meta);
+  });
+}
+
+// =============================================================================
+//  Gallery dimensions (metres) — open-air circular rotunda
+// =============================================================================
+const ROOM = { radius: 18, height: 6.0 };
+const EYE_Y = 1.65;
+const WALK_MARGIN = 1.5;
+const WALKABLE_R   = ROOM.radius - WALK_MARGIN;
+const VIEW_DISTANCE = 2.0;   // how far from a poster the camera glides
+
+// =============================================================================
+//  Renderer / scene / camera
+// =============================================================================
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  powerPreference: 'high-performance',
+  logarithmicDepthBuffer: true,   // prevents z-fighting on distant near-coplanar surfaces
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.95;
+const canvasEl = renderer.domElement;
+document.getElementById('app').appendChild(canvasEl);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#000000');
+// Heavy atmospheric fog — distant paintings dissolve into black like kamimae's space
+scene.fog = new THREE.FogExp2('#000000', 0.022);
+
+const camera = new THREE.PerspectiveCamera(78, window.innerWidth / window.innerHeight, 0.05, 600);
+
+// =============================================================================
+//  Intro fly-through (Artisans d'idées style) — camera starts deep in the fog
+//  far behind the spawn point, glides forward, and lands at eye height.
+// =============================================================================
+const INTRO_SPAWN = new THREE.Vector3(0, EYE_Y, ROOM.radius * 0.55);
+const intro = {
+  active: false,            // flipped on by manager.onLoad once textures are in
+  t0: 0,
+  duration: 5400,           // ms
+  fromPos:   new THREE.Vector3(2.5, 0.55, ROOM.radius * 2.4),
+  toPos:     INTRO_SPAWN.clone(),
+  fromYaw:   0.08,          // slight off-axis so the pillar drifts into centre
+  toYaw:     0,
+  fromPitch: 0.12,          // tilted up — feels like approaching from below
+  toPitch:   0,
+};
+// Camera lives at the start of the fly path until manager.onLoad fires
+camera.position.copy(intro.fromPos);
+camera.lookAt(0, 2.0, 0);
+
+// =============================================================================
+//  Loading manager
+// =============================================================================
+const manager = new THREE.LoadingManager();
+const loadbar = document.getElementById('loadbar');
+const splash  = document.getElementById('loading');
+const promptEl = document.getElementById('prompt');
+
+manager.onProgress = (_url, loaded, total) => {
+  const pct = total ? Math.round((loaded / total) * 100) : 0;
+  loadbar.style.width = pct + '%';
+};
+manager.onLoad = () => {
+  loadbar.style.width = '100%';
+  setTimeout(() => splash.classList.add('hidden'), 200);
+  setTimeout(() => splash.remove(), 1200);
+  // Kick the fly-through the moment the splash starts fading away.
+  setTimeout(() => {
+    intro.active = true;
+    intro.t0 = performance.now();
+  }, 280);
+};
+
+const texLoader = new THREE.TextureLoader(manager);
+
+// =============================================================================
+//  Lighting — moody: almost no ambient, just the pillar and a hint of moon
+// =============================================================================
+// Very faint hemisphere — barely lifts the floor / paintings out of pure black
+scene.add(new THREE.HemisphereLight(0x4a525e, 0x06080c, 0.15));
+
+// Moon — cool directional, dim
+const moon = new THREE.DirectionalLight(0xb4c0d0, 0.18);
+moon.position.set(-8, 18, -6);
+scene.add(moon);
+
+// === Central pillar of light ===
+// A bright vertical column at the rotunda's centre, the "axis mundi"
+// kamimae's intro text refers to as "the central pillar of light".
+// Symmetric gradient — brightest at the cylinder's mid-height (floor level).
+// CylinderGeometry UV: v=0 at cylinder bottom, v=1 at top. With CanvasTexture
+// default flipY=true: canvas BOTTOM → v=0 → cylinder bottom, canvas TOP → v=1
+// → cylinder top. The MIDDLE of the canvas = the middle of the cylinder.
+const pillarTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = 4; c.height = 512;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, 512);
+  g.addColorStop(0.00, 'rgba(255,250,235,0)');      // top of canvas / cylinder = far sky → gone
+  g.addColorStop(0.15, 'rgba(255,250,235,0.08)');
+  g.addColorStop(0.35, 'rgba(255,250,235,0.55)');
+  g.addColorStop(0.50, 'rgba(255,250,235,1)');      // middle of canvas / cylinder = floor level → brightest
+  g.addColorStop(0.65, 'rgba(255,250,235,0.55)');
+  g.addColorStop(0.85, 'rgba(255,250,235,0.08)');
+  g.addColorStop(1.00, 'rgba(255,250,235,0)');      // bottom of canvas / cylinder = far below floor → gone
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 4, 512);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+
+// Beam centred on the floor: extends 60 m up AND 60 m down through the hole.
+// Fog + the texture gradient combine so both ends dissolve into atmosphere.
+const PILLAR_H = 120;
+const PILLAR_Y = 0;            // cylinder centred ON the floor
+
+const pillar = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.22, 0.22, PILLAR_H, 24, 1, true),
+  new THREE.MeshBasicMaterial({
+    map: pillarTex,
+    color: 0xfff4dc,
+    transparent: true,
+    opacity: 0.9,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    fog: true,
+  })
+);
+pillar.position.y = PILLAR_Y;
+scene.add(pillar);
+
+// Wider, softer outer glow cylinder
+const halo = new THREE.Mesh(
+  new THREE.CylinderGeometry(1.4, 1.4, PILLAR_H, 24, 1, true),
+  new THREE.MeshBasicMaterial({
+    map: pillarTex,
+    color: 0xfff4dc,
+    transparent: true,
+    opacity: 0.18,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    fog: true,
+  })
+);
+halo.position.y = PILLAR_Y;
+scene.add(halo);
+
+// Warm pointlight at the foot — kept tight so it doesn't bleed onto the
+// dark concrete floor across the whole rotunda. Faster decay = sharper falloff.
+const pillarLight = new THREE.PointLight(0xffe6b8, 1.8, ROOM.radius * 0.6, 2.0);
+pillarLight.position.set(0, 1.2, 0);
+scene.add(pillarLight);
+
+// Store base values so the pulse code in the tick loop can modulate around them
+pillar.userData.baseOpacity      = pillar.material.opacity;
+halo.userData.baseOpacity        = halo.material.opacity;
+pillarLight.userData.baseIntensity = pillarLight.intensity;
+
+// Floor disc at the pillar's foot, glowing warmly — kept small and faint so
+// it doesn't cream-out the dark concrete floor beyond the hole.
+const pillarPool = new THREE.Mesh(
+  new THREE.CircleGeometry(1.7, 48),
+  new THREE.MeshBasicMaterial({
+    color: 0xffe6b8,
+    transparent: true,
+    opacity: 0.18,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    fog: false,
+  })
+);
+pillarPool.rotation.x = -Math.PI / 2;
+pillarPool.position.y = 0.01;
+scene.add(pillarPool);
+
+// =============================================================================
+//  Procedural PBR texture pipeline — height field, normal map, roughness map
+//  Multi-octave value noise drives albedo, surface normal (from Sobel of the
+//  height field) and roughness. Gives real micro-relief instead of flat noise.
+// =============================================================================
+function makeNoiseField(size, octaves = 5, persistence = 0.5) {
+  const field = new Float32Array(size * size);
+  for (let o = 0; o < octaves; o++) {
+    const freq = Math.pow(2, o + 1);
+    const amp  = Math.pow(persistence, o);
+    // Use `freq × freq` grid cells with index wrap so the noise field tiles seamlessly.
+    const grid = new Float32Array(freq * freq);
+    for (let i = 0; i < grid.length; i++) grid[i] = Math.random();
+    for (let y = 0; y < size; y++) {
+      const fyAbs = (y / size) * freq;
+      const y0   = Math.floor(fyAbs);
+      const y0i  = ((y0 % freq) + freq) % freq;
+      const y1i  = (y0i + 1) % freq;
+      const ty   = fyAbs - y0;
+      const sy   = ty * ty * (3 - 2 * ty);
+      for (let x = 0; x < size; x++) {
+        const fxAbs = (x / size) * freq;
+        const x0  = Math.floor(fxAbs);
+        const x0i = ((x0 % freq) + freq) % freq;
+        const x1i = (x0i + 1) % freq;
+        const tx  = fxAbs - x0;
+        const sx  = tx * tx * (3 - 2 * tx);
+        const a = grid[y0i * freq + x0i];
+        const b = grid[y0i * freq + x1i];
+        const c = grid[y1i * freq + x0i];
+        const d = grid[y1i * freq + x1i];
+        const ab = a + (b - a) * sx;
+        const cd = c + (d - c) * sx;
+        field[y * size + x] += (ab + (cd - ab) * sy) * amp;
+      }
+    }
+  }
+  let mn = Infinity, mx = -Infinity;
+  for (const v of field) { if (v < mn) mn = v; if (v > mx) mx = v; }
+  const inv = 1 / (mx - mn || 1);
+  for (let i = 0; i < field.length; i++) field[i] = (field[i] - mn) * inv;
+  return field;
+}
+
+// Fault-lines / cracks layered onto a height field
+function addCracks(field, size, count, depth = 0.5) {
+  for (let n = 0; n < count; n++) {
+    let x = Math.random() * size;
+    let y = Math.random() * size;
+    let a = Math.random() * Math.PI * 2;
+    const len = 60 + Math.random() * 220;
+    for (let i = 0; i < len; i++) {
+      a += (Math.random() - 0.5) * 0.18;
+      x += Math.cos(a);
+      y += Math.sin(a);
+      const ix = ((Math.round(x) % size) + size) % size;
+      const iy = ((Math.round(y) % size) + size) % size;
+      field[iy * size + ix] = Math.max(0, field[iy * size + ix] - depth * (1 - i / len));
+    }
+  }
+}
+
+// Irregular dark / light patches — pour stains, oil spots, water rings
+function addStains(field, size, count, rMin = 30, rMax = 200, depth = 0.5) {
+  for (let n = 0; n < count; n++) {
+    const cx = Math.random() * size;
+    const cy = Math.random() * size;
+    const r = rMin + Math.random() * (rMax - rMin);
+    const dark = Math.random() < 0.75;
+    const d = dark ? -depth : depth * 0.35;
+    // Slight ellipse + noise edge gives a more organic shape
+    const ax = 0.7 + Math.random() * 0.6;
+    const ay = 0.7 + Math.random() * 0.6;
+    const rot = Math.random() * Math.PI;
+    const cosR = Math.cos(rot), sinR = Math.sin(rot);
+    const rSq = r * r;
+    const yMin = Math.floor(-r), yMax = Math.ceil(r);
+    const xMin = Math.floor(-r), xMax = Math.ceil(r);
+    for (let y = yMin; y <= yMax; y++) {
+      for (let x = xMin; x <= xMax; x++) {
+        // Rotate / scale into ellipse coords
+        const xr =  cosR * x + sinR * y;
+        const yr = -sinR * x + cosR * y;
+        const distSq = (xr * xr) / (ax * ax) + (yr * yr) / (ay * ay);
+        if (distSq >= rSq) continue;
+        const fall = 1 - Math.sqrt(distSq) / r;
+        const ix = ((Math.round(cx + x) % size) + size) % size;
+        const iy = ((Math.round(cy + y) % size) + size) % size;
+        const idx = iy * size + ix;
+        const jitter = 0.55 + Math.random() * 0.45;
+        field[idx] = Math.max(0, Math.min(1, field[idx] + d * fall * fall * jitter));
+      }
+    }
+  }
+}
+
+// Fine aggregate speckle — single-pixel dark / light dots, like the
+// stone bits embedded in poured concrete
+function addSpeckle(field, size, count, intensity = 0.18) {
+  for (let n = 0; n < count; n++) {
+    const x = Math.floor(Math.random() * size);
+    const y = Math.floor(Math.random() * size);
+    const dark = Math.random() < 0.5;
+    const delta = (dark ? -1 : 1) * intensity * (0.4 + Math.random() * 0.6);
+    field[y * size + x] = Math.max(0, Math.min(1, field[y * size + x] + delta));
+  }
+}
+
+function fieldToColorTex(field, size, palette) {
+  // palette: array of [t, [r,g,b]] stops in 0..1
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(size, size);
+  const sample = (t) => {
+    for (let i = 1; i < palette.length; i++) {
+      if (t <= palette[i][0]) {
+        const [t0, c0] = palette[i - 1];
+        const [t1, c1] = palette[i];
+        const k = (t - t0) / (t1 - t0 || 1);
+        return [
+          c0[0] + (c1[0] - c0[0]) * k,
+          c0[1] + (c1[1] - c0[1]) * k,
+          c0[2] + (c1[2] - c0[2]) * k,
+        ];
+      }
+    }
+    return palette[palette.length - 1][1];
+  };
+  for (let i = 0; i < field.length; i++) {
+    const [r, g, b] = sample(field[i]);
+    img.data[i * 4]     = r;
+    img.data[i * 4 + 1] = g;
+    img.data[i * 4 + 2] = b;
+    img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function fieldToNormalMap(field, size, strength = 2.0) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(size, size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const xl = field[y * size + ((x - 1 + size) % size)];
+      const xr = field[y * size + ((x + 1) % size)];
+      const yt = field[((y - 1 + size) % size) * size + x];
+      const yb = field[((y + 1) % size) * size + x];
+      let dx = (xl - xr) * strength;
+      let dy = (yt - yb) * strength;
+      const dz = 1.0;
+      const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      dx /= len; dy /= len;
+      const idx = (y * size + x) * 4;
+      img.data[idx]     = (dx * 0.5 + 0.5) * 255;
+      img.data[idx + 1] = (dy * 0.5 + 0.5) * 255;
+      img.data[idx + 2] = (dz / len * 0.5 + 0.5) * 255;
+      img.data[idx + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return tex;
+}
+
+function fieldToRoughnessMap(field, size, lo = 0.18, hi = 0.55) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(size, size);
+  for (let i = 0; i < field.length; i++) {
+    const g = Math.round((lo + field[i] * (hi - lo)) * 255);
+    img.data[i * 4]     = g;
+    img.data[i * 4 + 1] = g;
+    img.data[i * 4 + 2] = g;
+    img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return tex;
+}
+
+// ---- Floor: industrial grey concrete — heavy weathering at 2048 px ----
+const FLOOR_TEX_SIZE = 2048;
+const floorField = makeNoiseField(FLOOR_TEX_SIZE, 7, 0.58);
+addCracks (floorField, FLOOR_TEX_SIZE, 22, 0.50);   // many hairline fractures
+addStains (floorField, FLOOR_TEX_SIZE,  8, 120, 420, 0.55);   // big dark pour stains
+addStains (floorField, FLOOR_TEX_SIZE, 22,  40, 180, 0.40);   // medium stains
+addStains (floorField, FLOOR_TEX_SIZE, 40,  10,  60, 0.32);   // small spots
+addSpeckle(floorField, FLOOR_TEX_SIZE, 12000, 0.22);          // aggregate dots
+const floorColorTex     = fieldToColorTex(floorField, FLOOR_TEX_SIZE, [
+  [0.00, [  8,   8,  10]],
+  [0.25, [ 22,  23,  26]],
+  [0.45, [ 42,  44,  48]],
+  [0.65, [ 64,  67,  71]],
+  [0.85, [ 92,  95, 100]],
+  [1.00, [125, 128, 132]],
+]);
+const floorNormalTex    = fieldToNormalMap(floorField, FLOOR_TEX_SIZE, 1.1);
+const floorRoughnessTex = fieldToRoughnessMap(floorField, FLOOR_TEX_SIZE, 0.45, 0.95);
+
+// =============================================================================
+//  Rotunda shell — circular floor disc only. No walls, no ceiling.
+//  Posters float in open space; fog hides the absence of architecture.
+// =============================================================================
+
+// Floor material: MeshPhysicalMaterial with clearcoat for polished-concrete reflectivity
+// Floor tile scale — each tile is ~6 m so detail reads at walking distance
+const floorRepeat = [ROOM.radius / 6, ROOM.radius / 6];
+[floorColorTex, floorNormalTex, floorRoughnessTex].forEach(t => t.repeat.set(...floorRepeat));
+const floorMat = new THREE.MeshPhysicalMaterial({
+  map:               floorColorTex,
+  normalMap:         floorNormalTex,
+  roughnessMap:      floorRoughnessTex,
+  normalScale:       new THREE.Vector2(0.55, 0.55),
+  metalness:         0.0,
+  clearcoat:         0.3,           // less polish — reads more like raw concrete
+  clearcoatRoughness:0.55,
+});
+
+// Floor — ring with an open hole at the centre so the light shaft can
+// pass through. Inner radius matches the halo (1.4 m) so the beam fits
+// neatly through the cut-out.
+const FLOOR_INNER = 1.5;
+const floor = new THREE.Mesh(
+  new THREE.RingGeometry(FLOOR_INNER, ROOM.radius, 96, 1),
+  floorMat
+);
+floor.rotation.x = -Math.PI / 2;
+floor.userData.isFloor = true;
+scene.add(floor);
+
+// Dark inner-edge band — gives the hole a defined lip rather than melting
+// into the air
+const innerLip = new THREE.Mesh(
+  new THREE.RingGeometry(FLOOR_INNER - 0.05, FLOOR_INNER, 96, 1),
+  new THREE.MeshBasicMaterial({ color: 0x0a0b0d, side: THREE.DoubleSide, fog: false })
+);
+innerLip.rotation.x = -Math.PI / 2;
+innerLip.position.y = 0.002;
+scene.add(innerLip);
+
+// No wall. The posters float in open space — fog + the floor disc are the
+// only things that suggest a "room" boundary now.
+
+
+// =============================================================================
+//  Star field — points on a large hemisphere overhead
+// =============================================================================
+{
+  const STAR_COUNT = 2200;
+  const STAR_R = 380;
+  const pos    = new Float32Array(STAR_COUNT * 3);
+  const colour = new Float32Array(STAR_COUNT * 3);
+  for (let i = 0; i < STAR_COUNT; i++) {
+    // Uniform on sphere, but biased toward upper hemisphere
+    const u = Math.random();
+    const v = Math.random() * 0.55 + 0.45;   // 0.45..1  → upper hemisphere
+    const theta = 2 * Math.PI * u;
+    const phi   = Math.acos(2 * v - 1);
+    pos[3*i]   = STAR_R * Math.sin(phi) * Math.cos(theta);
+    pos[3*i+1] = STAR_R * Math.cos(phi);
+    pos[3*i+2] = STAR_R * Math.sin(phi) * Math.sin(theta);
+
+    // Slight colour variance — most white, a few cooler / warmer
+    const tint = Math.random();
+    const b    = 0.55 + Math.random() * 0.45;   // brightness
+    if (tint < 0.7)      { colour[3*i] = b; colour[3*i+1] = b; colour[3*i+2] = b; }
+    else if (tint < 0.85){ colour[3*i] = b * 0.85; colour[3*i+1] = b * 0.92; colour[3*i+2] = b; }
+    else                  { colour[3*i] = b; colour[3*i+1] = b * 0.88; colour[3*i+2] = b * 0.75; }
+  }
+  const starGeo = new THREE.BufferGeometry();
+  starGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  starGeo.setAttribute('color',    new THREE.BufferAttribute(colour, 3));
+
+  // Round-pixel sprite via a small canvas texture
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const cx = c.getContext('2d');
+  const g = cx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0,   'rgba(255,255,255,1)');
+  g.addColorStop(0.3, 'rgba(255,255,255,0.7)');
+  g.addColorStop(1,   'rgba(255,255,255,0)');
+  cx.fillStyle = g;
+  cx.fillRect(0, 0, 64, 64);
+  const starSprite = new THREE.CanvasTexture(c);
+
+  const starMat = new THREE.PointsMaterial({
+    size: 1.2,
+    sizeAttenuation: true,
+    map: starSprite,
+    vertexColors: true,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    fog: false,
+  });
+  const stars = new THREE.Points(starGeo, starMat);
+  scene.add(stars);
+}
+
+// =============================================================================
+//  Smoke clouds — fill the tunnel between the camera's intro start and the
+//  rotunda entrance. The camera flies THROUGH these on the way in.
+// =============================================================================
+{
+  const SMOKE_COUNT = 36;
+  const smokeTex = (() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 256;
+    const ctx = c.getContext('2d');
+    const r = 128;
+    const g = ctx.createRadialGradient(r, r, 4, r, r, r);
+    g.addColorStop(0,    'rgba(220, 222, 230, 0.92)');
+    g.addColorStop(0.35, 'rgba(180, 184, 196, 0.55)');
+    g.addColorStop(0.7,  'rgba(120, 124, 138, 0.18)');
+    g.addColorStop(1,    'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 256, 256);
+    // Break the perfectly round silhouette with internal alpha noise
+    const img = ctx.getImageData(0, 0, 256, 256);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const cx = (i / 4) % 256, cy = Math.floor((i / 4) / 256);
+      const dx = cx - 128, dy = cy - 128;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      const k = Math.max(0, 1 - d / 128);
+      const n = (Math.random() - 0.5) * 90 * k;
+      img.data[i + 3] = Math.max(0, Math.min(255, img.data[i + 3] + n));
+    }
+    ctx.putImageData(img, 0, 0);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  })();
+
+  const smoke = [];
+  // Clouds fill the corridor BETWEEN the rotunda wall (z≈32) and the camera's
+  // start position (z≈76.8). The camera enters the field at z≈75 and passes
+  // through cloud after cloud as it flies inward.
+  for (let i = 0; i < SMOKE_COUNT; i++) {
+    const mat = new THREE.SpriteMaterial({
+      map: smokeTex,
+      color: 0xb6bcc8,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      fog: true,
+    });
+    const s = new THREE.Sprite(mat);
+    const scale = 8 + Math.random() * 14;
+    s.scale.set(scale, scale, 1);
+    // z range 28..76 covers the entire flight corridor
+    s.position.set(
+      (Math.random() - 0.5) * 24,
+      Math.random() * 6 - 0.5,
+      28 + Math.random() * 48,
+    );
+    s.userData.targetOpacity = 0.35 + Math.random() * 0.25;
+    s.userData.driftX        = (Math.random() - 0.5) * 0.06;
+    s.userData.driftY        = 0.02 + Math.random() * 0.05;
+    scene.add(s);
+    smoke.push(s);
+  }
+  scene.userData.smoke = smoke;
+
+  // ---- Gallery smoke ---- soft clouds drifting inside the rotunda,
+  // permanently visible. Denser near the central pillar so they catch the
+  // light as they rise through it.
+  //
+  // Reject positions whose sprite quad would land behind the central plaque
+  // (plaque @ ~(0, 1.7, 1.9), opaque ~1.7 × 2.9 m) — without this the plaque
+  // silhouette cuts hard rectangular holes through nearby smoke clouds.
+  const PLAQUE_CX = 0, PLAQUE_CZ = 1.9;
+  const PLAQUE_MIN_DIST = 2.6;   // metres from plaque centre (X,Z) below which a sprite gets rejected
+  function pickSmokeXZ(scale) {
+    for (let i = 0; i < 12; i++) {
+      const r = 1.7 + Math.pow(Math.random(), 1.4) * (ROOM.radius - 3.5);
+      const a = Math.random() * Math.PI * 2;
+      const sx = r * Math.cos(a), sz = r * Math.sin(a);
+      const d = Math.hypot(sx - PLAQUE_CX, sz - PLAQUE_CZ);
+      if (d >= PLAQUE_MIN_DIST + scale * 0.3) return [sx, sz];
+    }
+    // After several rejections, push the sample tangentially clear of the plaque
+    const a = Math.random() * Math.PI * 2;
+    const r = 5 + Math.random() * 6;
+    return [r * Math.cos(a), r * Math.sin(a) - PLAQUE_CZ * 0.5];
+  }
+
+  const innerSmoke = [];
+  const INNER = 20;
+  for (let i = 0; i < INNER; i++) {
+    const mat = new THREE.SpriteMaterial({
+      map: smokeTex,
+      color: 0x868e9a,
+      transparent: true,
+      opacity: 0.0,
+      depthWrite: false,
+      fog: true,
+    });
+    const s = new THREE.Sprite(mat);
+    const scale = 1.5 + Math.random() * 1.6;     // 1.5–3.1 m
+    s.scale.set(scale, scale, 1);
+    const [sx, sz] = pickSmokeXZ(scale);
+    const minY = scale / 2 + 0.3;
+    const maxY = ROOM.height - scale / 2 - 0.2;
+    const yPos = minY + Math.random() * Math.max(0.1, maxY - minY);
+    s.position.set(sx, yPos, sz);
+    s.userData.targetOpacity = 0.18 + Math.random() * 0.14;
+    s.userData.scale         = scale;
+    s.userData.minY          = minY;
+    s.userData.maxY          = maxY;
+    s.userData.driftX        = (Math.random() - 0.5) * 0.05;
+    s.userData.driftY        = 0.04 + Math.random() * 0.05;
+    scene.add(s);
+    innerSmoke.push(s);
+  }
+  scene.userData.innerSmoke   = innerSmoke;
+  scene.userData.pickSmokeXZ  = pickSmokeXZ;
+}
+
+// =============================================================================
+//  Floating dust particles — slow drift in the air, lit by the central pillar
+// =============================================================================
+{
+  const DUST_COUNT = 220;
+  const pos = new Float32Array(DUST_COUNT * 3);
+  for (let i = 0; i < DUST_COUNT; i++) {
+    const a  = Math.random() * Math.PI * 2;
+    const r  = Math.sqrt(Math.random()) * ROOM.radius * 0.92;
+    pos[3*i]     = r * Math.cos(a);
+    pos[3*i + 1] = 0.4 + Math.random() * (ROOM.height - 0.6);
+    pos[3*i + 2] = r * Math.sin(a);
+  }
+  const dustGeo = new THREE.BufferGeometry();
+  dustGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+
+  const dc = document.createElement('canvas');
+  dc.width = dc.height = 32;
+  const dctx = dc.getContext('2d');
+  const dg = dctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+  dg.addColorStop(0,   'rgba(255,240,220,0.9)');
+  dg.addColorStop(0.5, 'rgba(255,240,220,0.25)');
+  dg.addColorStop(1,   'rgba(255,240,220,0)');
+  dctx.fillStyle = dg;
+  dctx.fillRect(0, 0, 32, 32);
+  const dustSprite = new THREE.CanvasTexture(dc);
+
+  const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({
+    map: dustSprite,
+    size: 0.08,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    fog: true,
+  }));
+  scene.add(dust);
+
+  // Hook for slow drift each frame
+  scene.userData.dust = dust;
+}
+
+// =============================================================================
+//  Posters
+// =============================================================================
+// Painting "frames" — kamimae style: no thick mat / no dark surround.
+// Each painting is rendered as a slightly luminous panel floating on the wall
+// with a hairline edge. The painting reads as the OBJECT, not a "framed photo".
+const interactives = [];
+
+// Painting groups collected so the tick loop can bob them in place
+const paintings = [];
+
+// Card resources shared across all paintings — single material instance saves
+// per-draw uniform updates; geometries shared per size so 47 non-featured cards
+// reference the same BoxGeometry on the GPU.
+const CARD_PAD   = 0.07;
+const CARD_DEPTH = 0.025;
+const cardMat = new THREE.MeshStandardMaterial({ color: 0x1f2125, roughness: 0.9, metalness: 0 });
+const _cardGeomCache = new Map();
+function _cardGeom(w, h) {
+  const key = `${w.toFixed(3)}x${h.toFixed(3)}`;
+  let g = _cardGeomCache.get(key);
+  if (!g) {
+    g = new THREE.BoxGeometry(w + CARD_PAD * 2, h + CARD_PAD * 2, CARD_DEPTH);
+    _cardGeomCache.set(key, g);
+  }
+  return g;
+}
+
+function makePoster({ img, title, meta, url, w, h }, parent) {
+  const tex = texLoader.load(img, t => {
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  });
+
+  const group = new THREE.Group();
+
+  // Backing card — shared geometry (size keyed) + shared material across all paintings
+  const card = new THREE.Mesh(_cardGeom(w, h), cardMat);
+  card.position.z = -CARD_DEPTH / 2;
+  card.renderOrder = 0;
+  group.add(card);
+
+  // The painting itself — unlit basic material so colours stay true
+  // regardless of how dim the room is. Color multiplier dims pure-white pixels
+  // so they don't punch through the moody ambient and trigger bloom.
+  const artMat = new THREE.MeshBasicMaterial({ map: tex, color: 0xdcdcdc, fog: true });
+  const art = new THREE.Mesh(new THREE.PlaneGeometry(w, h), artMat);
+  art.position.z = 0.002;
+  art.renderOrder = 1;
+  art.userData = { title, meta, url, isPoster: true, group, edge: card, artMat };
+  group.add(art);
+  interactives.push(art);
+
+  // Floating motion params — each painting bobs at a slightly different
+  // freq + phase so the ring isn't in lockstep
+  group.userData.bobAmp   = 0.015 + Math.random() * 0.018;   // 1.5–3.3 cm (subtle)
+  group.userData.bobFreq  = 0.3 + Math.random() * 0.3;
+  group.userData.bobPhase = Math.random() * Math.PI * 2;
+  paintings.push(group);
+
+  parent.add(group);
+  return group;
+}
+
+// Posters placed evenly around the cylinder. Angle θ = 0 is +X. The featured
+// poster is anchored at -Z (north), opposite the camera spawn at +Z.
+const ALL = POSTERS;       // featured first in the list, then the rest
+const N   = ALL.length;    // 8 total
+
+function placePosterAt(p, angle, isFeatured) {
+  const w = isFeatured ? 1.8 : 1.15;
+  const h = isFeatured ? 2.3 : 1.5;
+  const y = isFeatured ? h / 2 + 0.9 : 1.7;
+
+  const g = makePoster({ ...p, w, h }, scene);
+
+  // Float at this radius (no wall — paintings are free-standing)
+  const r = ROOM.radius - 0.3;
+  g.position.set(r * Math.cos(angle), y, r * Math.sin(angle));
+  g.userData.baseY = y;
+
+  // Face the centre (inward normal)
+  const normal = new THREE.Vector3(-Math.cos(angle), 0, -Math.sin(angle));
+  g.userData.normal = normal;
+  g.rotation.y = Math.atan2(normal.x, normal.z);
+
+  // Only the featured poster gets a real spotlight — N=43 dynamic lights
+  // explodes shader cost and creates overlapping hotspots on the curved wall.
+  // The paintings themselves use MeshBasicMaterial (unlit) so they always
+  // read clearly against the dim wall.
+  if (isFeatured) {
+    const lightDist = 1.6;
+    const spotX = (ROOM.radius - lightDist) * Math.cos(angle);
+    const spotZ = (ROOM.radius - lightDist) * Math.sin(angle);
+    const spot = new THREE.SpotLight(0xf0e8d6, 3.5, 7, Math.PI / 6, 0.7, 1.4);
+    spot.position.set(spotX, ROOM.height - 0.6, spotZ);
+    spot.target.position.set(g.position.x, y + 0.05, g.position.z);
+    scene.add(spot); scene.add(spot.target);
+
+    // Brighten the painting itself so it pops as the next-event focus
+    const art = g.children.find(c => c.userData && c.userData.isPoster);
+    if (art) art.material.color.setHex(0xffffff);
+
+    // Warm additive halo behind the painting — marks it as "upcoming"
+    const haloMat = new THREE.MeshBasicMaterial({
+      color: 0xffc880,
+      transparent: true,
+      opacity: 0.45,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: true,
+    });
+    const featuredHalo = new THREE.Mesh(
+      new THREE.PlaneGeometry(w + 0.7, h + 0.7),
+      haloMat
+    );
+    featuredHalo.position.z = -0.04;          // sit just behind the backing card
+    featuredHalo.renderOrder = -1;            // draw before the card so it bleeds out from behind
+    g.add(featuredHalo);
+    g.userData.featuredHalo    = featuredHalo;
+    g.userData.featuredHaloBase = haloMat.opacity;
+  }
+}
+
+// Featured at north (-Z) = angle 3π/2 (so cos=0, sin=-1)
+placePosterAt(ALL[0], -Math.PI / 2, true);
+
+// Remaining 7 distributed across the other 7/8 slots evenly around the circle
+const rest = ALL.slice(1);
+for (let i = 0; i < rest.length; i++) {
+  // Skip the featured slot (-π/2). Offset by half-step so neighbours don't crowd.
+  const angle = -Math.PI / 2 + (i + 1) * (Math.PI * 2 / N);
+  placePosterAt(rest[i], angle, false);
+}
+
+// =============================================================================
+//  Central plaque — shrine of names + community thanks
+// =============================================================================
+{
+  const NAMES = [
+    'Adam Pits','Allfield','Andy Kidd','B:Cam','Bakey','Barker','Ben UFO','benjics',
+    'Breaka','Burley','Call Super','Cognition','Chris l’Anson','Deo','Donk Fantisee',
+    'Filip U','Flo Ruby','Fold','forms','Fox','Gastah','Harkirit','Hudson','Hutch',
+    'Kitsta','Laqai','Lara David','Lenzman','Lilo','Lisene','Litherland','lo.pan',
+    'Martyn','Marv B','Midland','Mike Jones','New Ends','Objekt','Oren','Or:la',
+    'Owari','Pangaea','Parris','Pearson Sound','Perseus Traxx','Ploy','re:ni',
+    'Rene Wise','Savio','se.arle','Sizeup','Special Request','Stenny','Tañ',
+    'Tom VR','Tor','Yuba',
+  ];
+
+  // -- Build the plaque texture --
+  // Top ~1030 px of the canvas is intentionally left blank — a separate
+  // textured plane overlays it in 3D with the event photo.
+  const W = 1536, H = 2600;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+
+  // Dark plaque body with subtle radial gradient
+  ctx.fillStyle = '#0e1014';
+  ctx.fillRect(0, 0, W, H);
+  const grad = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W * 0.9);
+  grad.addColorStop(0, 'rgba(80, 84, 96, 0.18)');
+  grad.addColorStop(1, 'rgba(0, 0, 0, 0.4)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Thin inner border
+  ctx.strokeStyle = 'rgba(230, 234, 240, 0.15)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(48, 48, W - 96, H - 96);
+
+  const font = (size, weight = 400, italic = false) =>
+    `${italic ? 'italic ' : ''}${weight} ${size}px "Anek Kannada", system-ui, sans-serif`;
+  const hairline = (xCentre, yPos, halfLen, alpha = 0.22) => {
+    ctx.strokeStyle = `rgba(230, 234, 240, ${alpha})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(xCentre - halfLen, yPos);
+    ctx.lineTo(xCentre + halfLen, yPos);
+    ctx.stroke();
+  };
+
+  // ---- Caption: quiet italic year range + hairline (sits just below the photo zone)
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#7d828a';
+  ctx.font = font(40, 400, true);
+  ctx.fillText('2019 — present', W / 2, 1090);
+  hairline(W / 2, 1150, 220, 0.22);
+
+  // ---- Names: 4 columns, slightly tightened to fit the longer canvas
+  ctx.fillStyle = '#dee1e7';
+  ctx.font = font(40, 500);
+  const COLS  = 4;
+  const rows  = Math.ceil(NAMES.length / COLS);
+  const NAME_TOP   = 1230;
+  const NAME_ROW   = 60;
+  const NAME_INSET = 120;
+  const colW = (W - NAME_INSET * 2) / COLS;
+  for (let i = 0; i < NAMES.length; i++) {
+    const col = i % COLS;
+    const row = Math.floor(i / COLS);
+    const x = NAME_INSET + colW * col + colW / 2;
+    const y = NAME_TOP + row * NAME_ROW;
+    ctx.fillText(NAMES[i], x, y);
+  }
+
+  // ---- Community thanks ----
+  let y = NAME_TOP + (rows - 1) * NAME_ROW + 60;
+  hairline(W / 2, y, 280, 0.18);
+  y += 60;
+
+  ctx.fillStyle = '#b8becb';
+  ctx.font = font(42, 400, true);
+  const LINE = 52;
+
+  // Re-wrapped for balanced line lengths (33–50 chars each)
+  const lines = [
+    'And to everyone who made it real —',
+    'the artworkers, the Crescent and BlueBox,',
+    'the door, bar and sound crew who held it together.',
+    'To York, the regulars, the out-of-towners,',
+    'the strangers who turned into family',
+    'and showed up. A community event.',
+  ];
+  lines.forEach((line, i) => ctx.fillText(line, W / 2, y + i * LINE));
+  y += lines.length * LINE + 60;
+  ctx.fillStyle = '#e8ebef';
+  ctx.font = font(66, 600);
+  ctx.fillText('Thank you.', W / 2, y);
+
+  const plaqueTex = new THREE.CanvasTexture(c);
+  plaqueTex.colorSpace = THREE.SRGBColorSpace;
+  plaqueTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+  // -- Build the plaque mesh --
+  const w = 1.7;
+  const h = w * (H / W);   // preserve canvas aspect
+  const plaqueGroup = new THREE.Group();
+
+  // Dark metal backing (frame)
+  const backing = new THREE.Mesh(
+    new THREE.BoxGeometry(w + 0.06, h + 0.06, 0.04),
+    new THREE.MeshStandardMaterial({ color: 0x0a0c10, roughness: 0.5, metalness: 0.35 })
+  );
+  backing.position.z = -0.02;
+  plaqueGroup.add(backing);
+
+  // The plaque face — unlit so it reads cleanly in the dim moonlit room
+  const face = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, h),
+    new THREE.MeshBasicMaterial({ map: plaqueTex, color: 0xc8c8c8, fog: true })
+  );
+  face.position.z = 0.002;
+  plaqueGroup.add(face);
+
+  // ---- Event photo overlay — fills the top section edge-to-edge.
+  // Source is 1:1 square (1024×1024). The photo plane is wider than tall, so
+  // the texture's U is shown 0..1 (full width) and V is sampled from a
+  // centred band — centre-crop top + bottom of the source.
+  const PHOTO_TOP_PX    = 60;        // canvas pixel row of photo's top edge
+  const PHOTO_BOTTOM_PX = 1040;      // canvas pixel row of photo's bottom edge (above caption at y=1090)
+  const PHOTO_W = w;                                              // full plaque width
+  const PHOTO_H = (PHOTO_BOTTOM_PX - PHOTO_TOP_PX) / H * h;       // mesh-space height
+  const photoY  = h * 0.5 - (PHOTO_TOP_PX + PHOTO_BOTTOM_PX) * 0.5 / H * h;
+
+  const photoTex = texLoader.load('photos/event.webp', t => {
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    const sourceAspect = 1.0;
+    const targetAspect = PHOTO_W / PHOTO_H;
+    if (targetAspect > sourceAspect) {
+      // Target wider than source — crop top + bottom
+      const r = sourceAspect / targetAspect;
+      t.repeat.set(1, r);
+      t.offset.set(0, (1 - r) * 0.5);
+    } else {
+      const r = targetAspect / sourceAspect;
+      t.repeat.set(r, 1);
+      t.offset.set((1 - r) * 0.5, 0);
+    }
+  });
+
+  const photo = new THREE.Mesh(
+    new THREE.PlaneGeometry(PHOTO_W, PHOTO_H),
+    new THREE.MeshBasicMaterial({ map: photoTex, color: 0xdcdcdc, fog: true })
+  );
+  photo.position.set(0, photoY, 0.005);                           // 3 mm in front of the face plane
+  plaqueGroup.add(photo);
+
+  // At the foot of the pillar — just outside its glow halo (~1.4 m radius)
+  const plaqueZ = 1.9;
+  plaqueGroup.position.set(0, EYE_Y + 0.05, plaqueZ);
+  scene.add(plaqueGroup);
+
+  // Tiny warm spotlight on the plaque so it doesn't sit in pure black
+  const plaqueLight = new THREE.SpotLight(0xf1ead4, 1.4, 6, Math.PI / 5, 0.7, 1.2);
+  plaqueLight.position.set(0, EYE_Y + 2.5, plaqueZ);
+  plaqueLight.target.position.set(0, EYE_Y, plaqueZ);
+  scene.add(plaqueLight); scene.add(plaqueLight.target);
+}
+
+// =============================================================================
+//  Click ripple marker on the floor
+// =============================================================================
+const ripple = (() => {
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.16, 0.3, 48),
+    new THREE.MeshBasicMaterial({ color: 0xbfc6d0, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.visible = false;
+  scene.add(ring);
+
+  let t0 = 0, dur = 0.7, active = false;
+  function fire(x, z) {
+    ring.position.set(x, 0.02, z);
+    ring.visible = true;
+    ring.scale.setScalar(0.5);
+    ring.material.opacity = 0.9;
+    t0 = performance.now();
+    active = true;
+  }
+  function update() {
+    if (!active) return;
+    const t = (performance.now() - t0) / 1000 / dur;
+    if (t >= 1) { active = false; ring.visible = false; return; }
+    const e = 1 - Math.pow(1 - t, 3);
+    ring.scale.setScalar(0.5 + e * 1.4);
+    ring.material.opacity = (1 - e) * 0.9;
+  }
+  return { fire, update };
+})();
+
+// =============================================================================
+//  Camera rig — independent yaw / pitch (no PointerLockControls)
+// =============================================================================
+const cam = {
+  yaw:        intro.fromYaw,
+  pitch:      intro.fromPitch,
+  targetYaw:  intro.fromYaw,
+  targetPitch:intro.fromPitch,
+};
+camera.rotation.order = 'YXZ';
+
+function applyCameraRotation() {
+  camera.rotation.y = cam.yaw;
+  camera.rotation.x = cam.pitch;
+  camera.rotation.z = 0;
+}
+applyCameraRotation();
+
+// =============================================================================
+//  Drag-to-look (mouse + touch)
+// =============================================================================
+const LOOK_SENS_DESKTOP = 0.0035;
+const LOOK_SENS_TOUCH   = 0.0042;
+const PITCH_MAX = Math.PI / 180 * 70;
+
+let pointerDown = false;
+let pointerDragging = false;
+let pointerStartX = 0, pointerStartY = 0;
+let pointerLastX = 0, pointerLastY = 0;
+let pointerStartT = 0;
+let pointerKind = 'mouse';          // 'mouse' | 'touch'
+const DRAG_THRESHOLD_PX = 6;
+const CLICK_MAX_DUR_MS = 350;
+
+canvasEl.addEventListener('pointerdown', e => {
+  if (intro.active) return;
+  if (e.button !== undefined && e.button !== 0) return;
+  markInteraction();
+  pointerDown = true;
+  pointerDragging = false;
+  pointerStartX = pointerLastX = e.clientX;
+  pointerStartY = pointerLastY = e.clientY;
+  pointerStartT = performance.now();
+  pointerKind = e.pointerType === 'touch' ? 'touch' : 'mouse';
+  canvasEl.setPointerCapture(e.pointerId);
+});
+
+canvasEl.addEventListener('pointermove', e => {
+  if (intro.active) return;
+  markInteraction();
+  if (!pointerDown) {
+    handleHover(e.clientX, e.clientY);
+    return;
+  }
+  const dx = e.clientX - pointerLastX;
+  const dy = e.clientY - pointerLastY;
+  pointerLastX = e.clientX;
+  pointerLastY = e.clientY;
+
+  if (!pointerDragging) {
+    const moved = Math.hypot(e.clientX - pointerStartX, e.clientY - pointerStartY);
+    if (moved > DRAG_THRESHOLD_PX) {
+      pointerDragging = true;
+      canvasEl.classList.add('dragging');
+      promptEl.classList.add('hide');
+    } else {
+      return;
+    }
+  }
+
+  const sens = pointerKind === 'touch' ? LOOK_SENS_TOUCH : LOOK_SENS_DESKTOP;
+  cam.targetYaw   -= dx * sens;
+  cam.targetPitch -= dy * sens;
+  if (cam.targetPitch >  PITCH_MAX) cam.targetPitch =  PITCH_MAX;
+  if (cam.targetPitch < -PITCH_MAX) cam.targetPitch = -PITCH_MAX;
+});
+
+canvasEl.addEventListener('pointerup', e => {
+  if (!pointerDown) return;
+  pointerDown = false;
+  canvasEl.classList.remove('dragging');
+  try { canvasEl.releasePointerCapture(e.pointerId); } catch (_) {}
+
+  const dur = performance.now() - pointerStartT;
+  if (!pointerDragging && dur < CLICK_MAX_DUR_MS) {
+    handleClick(e.clientX, e.clientY);
+  }
+  pointerDragging = false;
+});
+
+canvasEl.addEventListener('pointercancel', () => {
+  pointerDown = false;
+  pointerDragging = false;
+  canvasEl.classList.remove('dragging');
+});
+
+// Prevent the context menu so right-clicks (some trackpads) don't pop up
+canvasEl.addEventListener('contextmenu', e => e.preventDefault());
+
+// =============================================================================
+//  Mouse wheel — dolly along the camera's forward vector, clamped to room
+// =============================================================================
+const WHEEL_DOLLY = 0.012;   // metres per pixel of deltaY
+const dollyTarget = { dist: 0 };  // signed metres to apply over the next few frames
+
+// =============================================================================
+//  Keyboard movement — WASD + arrow keys for free walking
+// =============================================================================
+const moveKeys = { f: false, b: false, l: false, r: false };
+
+window.addEventListener('keydown', e => {
+  if (intro.active) return;
+  let handled = true;
+  switch (e.code) {
+    case 'KeyW': case 'ArrowUp':    moveKeys.f = true; break;
+    case 'KeyS': case 'ArrowDown':  moveKeys.b = true; break;
+    case 'KeyA': case 'ArrowLeft':  moveKeys.l = true; break;
+    case 'KeyD': case 'ArrowRight': moveKeys.r = true; break;
+    default: handled = false;
+  }
+  if (handled) {
+    if (glide.active) glide.active = false;   // keyboard cancels click-glide
+    promptEl.classList.add('hide');
+    markInteraction();
+    e.preventDefault();
+  }
+});
+
+window.addEventListener('keyup', e => {
+  switch (e.code) {
+    case 'KeyW': case 'ArrowUp':    moveKeys.f = false; break;
+    case 'KeyS': case 'ArrowDown':  moveKeys.b = false; break;
+    case 'KeyA': case 'ArrowLeft':  moveKeys.l = false; break;
+    case 'KeyD': case 'ArrowRight': moveKeys.r = false; break;
+  }
+});
+
+canvasEl.addEventListener('wheel', e => {
+  if (intro.active) { e.preventDefault(); return; }
+  e.preventDefault();
+  markInteraction();
+  // Normalise deltas across line/page modes
+  let delta = e.deltaY;
+  if (e.deltaMode === 1) delta *= 16;       // lines
+  else if (e.deltaMode === 2) delta *= 100; // pages
+  // Scroll down = forward, scroll up = back. Inverted feels more natural.
+  dollyTarget.dist += -delta * WHEEL_DOLLY;
+  promptEl.classList.add('hide');
+}, { passive: false });
+
+// =============================================================================
+//  Raycasting — hover + click
+// =============================================================================
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+
+function clientToNdc(x, y) {
+  ndc.x = (x / window.innerWidth)  *  2 - 1;
+  ndc.y = (y / window.innerHeight) * -2 + 1;
+}
+
+function pickPoster(x, y) {
+  clientToNdc(x, y);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObjects(interactives, false);
+  return hits[0] || null;
+}
+
+function pickFloor(x, y) {
+  clientToNdc(x, y);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObject(floor, false);
+  return hits[0] || null;
+}
+
+let hoverTimer = 0;
+let hoveredArt = null;
+function handleHover(x, y) {
+  // Throttle: only check every ~50 ms
+  const now = performance.now();
+  if (now - hoverTimer < 50) return;
+  hoverTimer = now;
+  const hit = pickPoster(x, y);
+  const newArt = hit ? hit.object : null;
+
+  if (newArt !== hoveredArt) {
+    // Restore the previous one
+    if (hoveredArt && hoveredArt.userData.edge) {
+      hoveredArt.userData.edge.material.opacity = 0.55;
+    }
+    hoveredArt = newArt;
+    if (hoveredArt && hoveredArt.userData.edge) {
+      hoveredArt.userData.edge.material.opacity = 1.0;
+    }
+  }
+
+  if (newArt) canvasEl.classList.add('hover-poster');
+  else        canvasEl.classList.remove('hover-poster');
+}
+
+function handleClick(x, y) {
+  promptEl.classList.add('hide');
+  // Priority: poster first, then floor
+  const poster = pickPoster(x, y);
+  if (poster) {
+    glideToPoster(poster.object);
+    return;
+  }
+  const floorHit = pickFloor(x, y);
+  if (floorHit) {
+    const p = floorHit.point;
+    glideToFloor(p.x, p.z);
+    ripple.fire(p.x, p.z);
+  }
+}
+
+// =============================================================================
+//  Glide / tween system
+// =============================================================================
+const glide = {
+  active: false,
+  t0: 0, dur: 1,
+  fromPos: new THREE.Vector3(), toPos: new THREE.Vector3(),
+  fromYaw: 0, toYaw: 0,
+  fromPitch: 0, toPitch: 0,
+  onDone: null,
+};
+
+function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+
+function wrapYawDelta(from, to) {
+  // Find shortest signed rotation from -> to within [-PI, PI]
+  let d = to - from;
+  while (d >  Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return from + d;
+}
+
+const INNER_BAN_R = 1.7;   // can't walk inside the floor hole
+function clampWalkable(x, z) {
+  const r = Math.hypot(x, z);
+  if (r > WALKABLE_R) {
+    const k = WALKABLE_R / r;
+    return { x: x * k, z: z * k };
+  }
+  if (r < INNER_BAN_R) {
+    if (r < 0.0001) return { x: 0, z: INNER_BAN_R };
+    const k = INNER_BAN_R / r;
+    return { x: x * k, z: z * k };
+  }
+  return { x, z };
+}
+
+function startGlide(toX, toZ, toYaw, toPitch, onDone) {
+  const fromX = camera.position.x;
+  const fromZ = camera.position.z;
+  const dist = Math.hypot(toX - fromX, toZ - fromZ);
+  const dur = Math.min(2.2, 0.6 + 0.18 * dist);
+
+  glide.fromPos.set(fromX, EYE_Y, fromZ);
+  glide.toPos.set(toX, EYE_Y, toZ);
+  glide.fromYaw   = cam.yaw;
+  glide.toYaw     = wrapYawDelta(cam.yaw, toYaw);
+  glide.fromPitch = cam.pitch;
+  glide.toPitch   = toPitch;
+  glide.dur = dur;
+  glide.t0  = performance.now();
+  glide.active = true;
+  glide.onDone = onDone || null;
+
+  // Also seed look targets so smoothing matches the tween
+  cam.targetYaw   = glide.toYaw;
+  cam.targetPitch = toPitch;
+}
+
+function updateGlide() {
+  if (!glide.active) return;
+  const t = (performance.now() - glide.t0) / 1000 / glide.dur;
+  if (t >= 1) {
+    camera.position.set(glide.toPos.x, EYE_Y, glide.toPos.z);
+    cam.yaw   = glide.toYaw;
+    cam.pitch = glide.toPitch;
+    glide.active = false;
+    if (glide.onDone) { const fn = glide.onDone; glide.onDone = null; fn(); }
+    return;
+  }
+  const e = easeOutCubic(t);
+  camera.position.x = glide.fromPos.x + (glide.toPos.x - glide.fromPos.x) * e;
+  camera.position.z = glide.fromPos.z + (glide.toPos.z - glide.fromPos.z) * e;
+  cam.yaw   = glide.fromYaw   + (glide.toYaw   - glide.fromYaw)   * e;
+  cam.pitch = glide.fromPitch + (glide.toPitch - glide.fromPitch) * e;
+}
+
+function glideToFloor(targetX, targetZ) {
+  const c = clampWalkable(targetX, targetZ);
+  // Face direction of travel (only if meaningful distance)
+  const dx = c.x - camera.position.x;
+  const dz = c.z - camera.position.z;
+  const distSq = dx*dx + dz*dz;
+  let yaw = cam.yaw;
+  if (distSq > 0.04) {
+    yaw = Math.atan2(dx, dz) + Math.PI;  // camera looks down -Z by default, so atan2 of forward
+  }
+  hideCard();
+  startGlide(c.x, c.z, yaw, cam.pitch);
+}
+
+function glideToPoster(art) {
+  const group = art.userData.group;
+  const normal = group.userData.normal.clone();
+  // Position: in front of poster, at eye height
+  const wx = group.position.x + normal.x * VIEW_DISTANCE;
+  const wz = group.position.z + normal.z * VIEW_DISTANCE;
+  const c = clampWalkable(wx, wz);
+  // Yaw to face poster: look from camera toward poster centre
+  const yaw = Math.atan2(group.position.x - c.x, group.position.z - c.z) + Math.PI;
+  // Use the painting's baseY so the pitch target doesn't jitter with the bob
+  const targetY = group.userData.baseY ?? group.position.y;
+  const dy = targetY - EYE_Y;
+  const flatDist = Math.hypot(group.position.x - c.x, group.position.z - c.z);
+  const pitch = Math.atan2(dy, flatDist);
+  hideCard();
+  startGlide(c.x, c.z, yaw, pitch, () => showCard(art));
+}
+
+// =============================================================================
+//  Info card
+// =============================================================================
+const cardEl    = document.getElementById('card');
+const cardTitle = document.getElementById('cardTitle');
+const cardMeta  = document.getElementById('cardMeta');
+let cardArt = null;
+
+// "29 Jun 2024" → "Saturday 29th June 2024"; "2021" stays "2021"; empty stays empty.
+const _FULL_MONTH = {
+  jan: 'January', feb: 'February', mar: 'March',     apr: 'April',
+  may: 'May',     jun: 'June',     jul: 'July',      aug: 'August',
+  sep: 'September', oct: 'October', nov: 'November', dec: 'December',
+};
+const _MONTH_IDX = {
+  jan: 0, feb: 1, mar: 2, apr: 3, may: 4,  jun: 5,
+  jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+};
+const _DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+function _ordinal(n) {
+  if (n >= 11 && n <= 13) return n + 'th';
+  switch (n % 10) {
+    case 1: return n + 'st';
+    case 2: return n + 'nd';
+    case 3: return n + 'rd';
+    default: return n + 'th';
+  }
+}
+function _parseOne(p) {
+  const m = p.trim().match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+  if (!m) return null;
+  const monKey = m[2].toLowerCase().slice(0, 3);
+  if (!_FULL_MONTH[monKey]) return null;
+  return { day: +m[1], monKey, year: +m[3] };
+}
+function _formatOne(p, withYear) {
+  const dow = _DAYS[new Date(Date.UTC(p.year, _MONTH_IDX[p.monKey], p.day)).getUTCDay()];
+  return `${dow} ${_ordinal(p.day)} ${_FULL_MONTH[p.monKey]}${withYear ? ` ${p.year}` : ''}`;
+}
+function formalDate(s) {
+  if (!s) return '';
+  if (/^\d{4}$/.test(s)) return s;
+
+  // Multi-date: comma-separated. Drop the year on all but the last entry
+  // when every date shares the same year, to keep the line scannable.
+  if (s.includes(',')) {
+    const parts = s.split(',').map(_parseOne);
+    if (parts.every(Boolean)) {
+      const sameYear = parts.every(p => p.year === parts[0].year);
+      return parts
+        .map((p, i) => _formatOne(p, !sameYear || i === parts.length - 1))
+        .join(' · ');
+    }
+  }
+
+  const single = _parseOne(s);
+  return single ? _formatOne(single, true) : s;
+}
+
+function showCard(art) {
+  cardArt = art;
+  cardTitle.textContent = art.userData.title;
+  cardMeta.textContent  = formalDate(art.userData.meta);
+  cardEl.classList.add('show');
+}
+function hideCard() {
+  cardArt = null;
+  cardEl.classList.remove('show');
+}
+cardEl.addEventListener('click', () => {
+  if (cardArt && cardArt.userData.url) window.open(cardArt.userData.url, '_blank', 'noopener');
+});
+
+// =============================================================================
+//  Environment map — baked from the scene (PMREM) so the floor's clearcoat
+//  reflects the pillar and the ambient atmosphere coherently
+// =============================================================================
+{
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  pmrem.compileEquirectangularShader();
+  scene.environment = pmrem.fromScene(scene, 0.4).texture;
+}
+
+// =============================================================================
+//  Post-processing — UnrealBloomPass so the pillar of light blooms naturally
+// =============================================================================
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+
+const bloom = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth * 0.5, window.innerHeight * 0.5),
+  0.22,    // strength — softer halo
+  0.3,     // radius   — tight halo
+  1.0      // threshold — only HDR-clamped pillar pixels (>1.0 linear) bloom
+);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+// =============================================================================
+//  Main loop — look smoothing + glide + ripple + render
+// =============================================================================
+const LOOK_DAMP = 14;       // higher = snappier; lower = silkier
+let last = performance.now();
+
+// Allocations lifted out of the tick loop to avoid per-frame GC pressure
+const _tmpFwd = new THREE.Vector3();
+
+// Idle frame-rate throttle — drop to ~30 fps when the user isn't moving
+// or interacting. Pulse / bob / dust still animate smoothly at 30.
+let lastInteraction = performance.now();
+const IDLE_DELAY = 4000;          // ms of no input before throttling
+const markInteraction = () => { lastInteraction = performance.now(); };
+
+function tick() {
+  const now = performance.now();
+  const dt  = Math.min(0.05, (now - last) / 1000);
+  last = now;
+
+  // ----- Floating paintings: each bobs gently in place -----
+  {
+    const t = now * 0.001;
+    for (const p of paintings) {
+      p.position.y = p.userData.baseY +
+        Math.sin(t * p.userData.bobFreq + p.userData.bobPhase) * p.userData.bobAmp;
+    }
+  }
+
+  // ----- Pillar of light: slow pulse (~7s period, ±12 % amplitude) -----
+  {
+    const tt = now * 0.001;
+    const pulse = 0.88 + Math.sin(tt * (Math.PI * 2 / 7)) * 0.12;
+    pillar.material.opacity      = pillar.userData.baseOpacity * pulse;
+    halo.material.opacity        = halo.userData.baseOpacity   * pulse;
+    pillarLight.intensity        = pillarLight.userData.baseIntensity * pulse;
+
+    // Featured poster halo — pulses out of phase with the pillar so the
+    // "next event" highlight breathes independently
+    for (const p of paintings) {
+      if (p.userData.featuredHalo) {
+        const fp = 0.78 + Math.sin(tt * (Math.PI * 2 / 4.5) + 1.3) * 0.22;
+        p.userData.featuredHalo.material.opacity = p.userData.featuredHaloBase * fp;
+      }
+    }
+  }
+
+  // ----- Gallery smoke: drift + slow fade-in to target opacity -----
+  if (scene.userData.innerSmoke) {
+    const k = 1 - Math.exp(-0.6 * dt);
+    for (const s of scene.userData.innerSmoke) {
+      s.position.x += s.userData.driftX * dt;
+      s.position.y += s.userData.driftY * dt;
+      // Wrap back to the floor when the sprite's TOP edge passes the ceiling
+      if (s.position.y > s.userData.maxY) {
+        s.position.y = s.userData.minY;
+        const [sx, sz] = scene.userData.pickSmokeXZ(s.userData.scale);
+        s.position.x = sx;
+        s.position.z = sz;
+      }
+      const dop = s.userData.targetOpacity - s.material.opacity;
+      if (dop < -0.001 || dop > 0.001) s.material.opacity += dop * k;
+    }
+  }
+
+  // ----- Smoke clouds: drift + fade. Runs every frame, even during intro -----
+  if (scene.userData.smoke) {
+    const k = 1 - Math.exp(-1.6 * dt);
+    for (const s of scene.userData.smoke) {
+      s.position.x += s.userData.driftX * dt;
+      s.position.y += s.userData.driftY * dt;
+      if (s.position.y > 8) s.position.y = -1;
+      // Camera flies from +z toward -z, so "ahead" = smaller z
+      const ahead = s.position.z < camera.position.z - 1.5;
+      const target = ahead ? s.userData.targetOpacity : 0;
+      const delta = target - s.material.opacity;
+      if (delta < -0.001 || delta > 0.001) s.material.opacity += delta * k;
+    }
+  }
+
+  // ----- slow dust drift -----
+  if (scene.userData.dust) {
+    const dust = scene.userData.dust;
+    dust.rotation.y += dt * 0.012;
+    const arr = dust.geometry.attributes.position.array;
+    for (let i = 0; i < arr.length; i += 3) {
+      arr[i + 1] += dt * 0.08;
+      if (arr[i + 1] > ROOM.height) arr[i + 1] = 0.4;
+    }
+    dust.geometry.attributes.position.needsUpdate = true;
+  }
+
+  // ----- Intro fly-through: take over everything until landed -----
+  if (intro.active) {
+    const t = Math.min(1, (now - intro.t0) / intro.duration);
+    // easeInOutCubic
+    const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    camera.position.lerpVectors(intro.fromPos, intro.toPos, e);
+    cam.yaw   = intro.fromYaw   + (intro.toYaw   - intro.fromYaw)   * e;
+    cam.pitch = intro.fromPitch + (intro.toPitch - intro.fromPitch) * e;
+    cam.targetYaw   = cam.yaw;
+    cam.targetPitch = cam.pitch;
+
+    if (t >= 1) {
+      intro.active = false;
+      // Hand off control: show prompt, then auto-hide it after 7 s
+      promptEl.classList.add('show');
+      setTimeout(() => promptEl.classList.add('hide'), 7000);
+    }
+
+    applyCameraRotation();
+    composer.render();
+    requestAnimationFrame(tick);
+    return;
+  }
+
+  // Exponential smoother on yaw/pitch toward targets (skipped during glide
+  // because glide already drives cam.yaw / cam.pitch directly).
+  if (!glide.active) {
+    const k = 1 - Math.exp(-LOOK_DAMP * dt);
+    cam.yaw   += (cam.targetYaw   - cam.yaw)   * k;
+    cam.pitch += (cam.targetPitch - cam.pitch) * k;
+  }
+
+  updateGlide();
+  ripple.update();
+
+  // ----- wheel-dolly drain: ease accumulated wheel input into camera motion -----
+  if (Math.abs(dollyTarget.dist) > 0.0005 && !glide.active) {
+    const dk = 1 - Math.exp(-9 * dt);   // smoother for dolly
+    const step = dollyTarget.dist * dk;
+    dollyTarget.dist -= step;
+    camera.getWorldDirection(_tmpFwd);
+    _tmpFwd.y = 0; _tmpFwd.normalize();
+    let nx = camera.position.x + _tmpFwd.x * step;
+    let nz = camera.position.z + _tmpFwd.z * step;
+    const c = clampWalkable(nx, nz);
+    camera.position.x = c.x;
+    camera.position.z = c.z;
+  }
+
+  // ----- keyboard movement (WASD / arrows) -----
+  if (!glide.active && (moveKeys.f || moveKeys.b || moveKeys.l || moveKeys.r)) {
+    const SPEED = 4.2;   // m/s
+    let mx = (moveKeys.r ? 1 : 0) - (moveKeys.l ? 1 : 0);
+    let mz = (moveKeys.f ? 1 : 0) - (moveKeys.b ? 1 : 0);
+    const len = Math.hypot(mx, mz);
+    if (len > 0) { mx /= len; mz /= len; }
+    camera.getWorldDirection(_tmpFwd);
+    _tmpFwd.y = 0; _tmpFwd.normalize();
+    // right = forward × up  →  for forward (fx,0,fz):  right = (-fz, 0, fx)
+    const rx = -_tmpFwd.z;
+    const rz =  _tmpFwd.x;
+    const dx = (_tmpFwd.x * mz + rx * mx) * SPEED * dt;
+    const dz = (_tmpFwd.z * mz + rz * mx) * SPEED * dt;
+    const c = clampWalkable(camera.position.x + dx, camera.position.z + dz);
+    camera.position.x = c.x;
+    camera.position.z = c.z;
+  }
+
+  camera.position.y = EYE_Y;
+  applyCameraRotation();
+
+  composer.render();
+
+  // ----- Idle frame throttle: drop to ~30 fps when nothing is happening -----
+  // Slow background animations (bob 0.3-0.6 Hz, pulse 0.14-0.22 Hz) read fine
+  // at 30 fps. Any input bumps us back to vsync immediately.
+  const idle = !glide.active
+            && Math.abs(dollyTarget.dist) < 0.0005
+            && !moveKeys.f && !moveKeys.b && !moveKeys.l && !moveKeys.r
+            && (now - lastInteraction) > IDLE_DELAY;
+  if (idle) setTimeout(() => requestAnimationFrame(tick), 33);
+  else      requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+// =============================================================================
+//  Resize
+// =============================================================================
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+
+</body>
+</html>
