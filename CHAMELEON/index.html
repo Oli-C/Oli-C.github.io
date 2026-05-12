@@ -300,9 +300,10 @@ const renderer = new THREE.WebGLRenderer({
   powerPreference: 'high-performance',
   logarithmicDepthBuffer: true,   // prevents z-fighting on distant near-coplanar surfaces
 });
-// Mobile retina screens often run at 3x DPR which means 9x the fragment work.
-// Capping at ~1.25 typically halves GPU load with little perceptible quality loss.
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.25 : 2));
+// Phones often run at 3× DPR which means 9× the fragment work. Capping at
+// 1.75 still upscales to the native screen but renders at ~34 % of the pixels
+// — keeps text + edges sharp while saving significant GPU.
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.75 : 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
