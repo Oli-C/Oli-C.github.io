@@ -94,16 +94,44 @@
     top: calc(16px + env(safe-area-inset-top));
     left: calc(16px + env(safe-area-inset-left));
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 9px 16px;
+    padding: 6px 10px;
     color: var(--fg);
     text-decoration: none;
     font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
-    background: rgba(16, 16, 18, 0.4);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    transition: transform 0.2s var(--ease), color 0.2s var(--ease);
+    background: transparent;
+    border: none;
+    opacity: 0.8;
+    transition: opacity 0.2s var(--ease), color 0.2s var(--ease);
   }
-  .back:hover { transform: translateY(-1px); color: #d8dce2; }
+  .back:hover { opacity: 1; color: #ffffff; }
+
+  /* Left / right navigation arrows — just chevrons, no chrome */
+  .nav-arrow {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 50px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    margin: 0;
+    color: var(--fg);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s var(--ease), color 0.2s var(--ease);
+  }
+  .nav-arrow.show { opacity: 0.7; pointer-events: auto; }
+  .nav-arrow:hover { opacity: 1; color: #ffffff; }
+  .nav-arrow:active { transform: translateY(-50%) scale(0.92); }
+  .nav-prev { left:  calc(8px + env(safe-area-inset-left)); }
+  .nav-next { right: calc(8px + env(safe-area-inset-right)); }
 
   .prompt {
     position: fixed;
@@ -115,13 +143,14 @@
     background: transparent;
     border: none;
     font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
-    color: var(--fg-muted);
+    color: #969ba2;
     opacity: 0;
     transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
     text-align: center;
     line-height: 1.7;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
   }
-  .prompt.show { opacity: 0.7; }
+  .prompt.show { opacity: 0.85; }
   .prompt.hide { opacity: 0; transform: translate(-50%, 8px); pointer-events: none; }
   .prompt .sep { color: var(--fg-subtle); margin: 0 10px; }
   @media (max-width: 560px) {
@@ -139,22 +168,23 @@
   .card {
     position: fixed;
     left: 50%;
-    bottom: calc(32px + env(safe-area-inset-bottom));
-    transform: translate(-50%, 8px);
+    bottom: calc(96px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
     min-width: 240px; max-width: min(440px, calc(100vw - 48px));
-    padding: 16px 20px 18px;
-    background: rgba(14, 15, 18, 0.78);
-    border: 1px solid var(--border-2);
-    border-radius: 6px;
-    backdrop-filter: blur(18px) saturate(1.2);
-    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    padding: 10px 18px 12px;
+    background: #0b0b0d;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
     opacity: 0;
-    transition: opacity 0.35s var(--ease), transform 0.35s var(--ease);
+    transition: opacity 0.32s var(--ease);
     cursor: pointer;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+    text-align: center;
   }
-  .card.show { opacity: 1; transform: translate(-50%, 0); }
-  .card .title { font-size: 15px; font-weight: 500; color: var(--fg); line-height: 1.25; }
-  .card .meta  { font-size: 12px; color: var(--fg-muted); margin-top: 6px; letter-spacing: 0.02em; font-style: italic; }
+  .card.show { opacity: 1; }
+  .card .title { font-size: 15px; font-weight: 500; color: #d6dadf; line-height: 1.25; }
+  .card .meta  { font-size: 12px; color: #969ba2; margin-top: 6px; letter-spacing: 0.02em; font-style: italic; }
   .card .meta:empty { display: none; }
 </style>
 </head>
@@ -171,6 +201,12 @@
   <a class="back" href="../">
     <span aria-hidden="true">←</span><span>back</span>
   </a>
+  <button class="nav-arrow nav-prev" id="navPrev" aria-label="Previous painting">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 5 8 12 15 19"/></svg>
+  </button>
+  <button class="nav-arrow nav-next" id="navNext" aria-label="Next painting">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 5 16 12 9 19"/></svg>
+  </button>
   <div class="prompt" id="prompt">
     drag to look
     <span class="sep">·</span>
@@ -1078,6 +1114,7 @@ function makePoster({ img, title, meta, url, w, h }, parent) {
   group.userData.bobAmp   = 0.015 + Math.random() * 0.018;   // 1.5–3.3 cm (subtle)
   group.userData.bobFreq  = 0.3 + Math.random() * 0.3;
   group.userData.bobPhase = Math.random() * Math.PI * 2;
+  group.userData.paintingIdx = paintings.length;
   paintings.push(group);
 
   parent.add(group);
@@ -1106,42 +1143,8 @@ function placePosterAt(p, angle, isFeatured) {
   g.userData.normal = normal;
   g.rotation.y = Math.atan2(normal.x, normal.z);
 
-  // Only the featured poster gets a real spotlight — N=43 dynamic lights
-  // explodes shader cost and creates overlapping hotspots on the curved wall.
-  // The paintings themselves use MeshBasicMaterial (unlit) so they always
-  // read clearly against the dim wall.
-  if (isFeatured) {
-    const lightDist = 1.6;
-    const spotX = (ROOM.radius - lightDist) * Math.cos(angle);
-    const spotZ = (ROOM.radius - lightDist) * Math.sin(angle);
-    const spot = new THREE.SpotLight(0xf0e8d6, 3.5, 7, Math.PI / 6, 0.7, 1.4);
-    spot.position.set(spotX, ROOM.height - 0.6, spotZ);
-    spot.target.position.set(g.position.x, y + 0.05, g.position.z);
-    scene.add(spot); scene.add(spot.target);
-
-    // Brighten the painting itself so it pops as the next-event focus
-    const art = g.children.find(c => c.userData && c.userData.isPoster);
-    if (art) art.material.color.setHex(0xffffff);
-
-    // Warm additive halo behind the painting — marks it as "upcoming"
-    const haloMat = new THREE.MeshBasicMaterial({
-      color: 0xffc880,
-      transparent: true,
-      opacity: 0.45,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      fog: true,
-    });
-    const featuredHalo = new THREE.Mesh(
-      new THREE.PlaneGeometry(w + 0.7, h + 0.7),
-      haloMat
-    );
-    featuredHalo.position.z = -0.04;          // sit just behind the backing card
-    featuredHalo.renderOrder = -1;            // draw before the card so it bleeds out from behind
-    g.add(featuredHalo);
-    g.userData.featuredHalo    = featuredHalo;
-    g.userData.featuredHaloBase = haloMat.opacity;
-  }
+  // Featured poster keeps its larger size but no longer gets a spotlight or
+  // halo — it should read like the rest of the gallery, just bigger.
 }
 
 // Featured at north (-Z) = angle 3π/2 (so cos=0, sin=-1)
@@ -1539,6 +1542,15 @@ const moveKeys = { f: false, b: false, l: false, r: false };
 
 window.addEventListener('keydown', e => {
   if (intro.active) return;
+  // When focused on a painting (info card visible), left/right arrows step
+  // between posters instead of strafing — matches the on-screen nav arrows.
+  const onPoster = document.getElementById('card').classList.contains('show');
+  if (onPoster && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
+    navigatePainting(e.code === 'ArrowLeft' ? -1 : +1);
+    markInteraction();
+    e.preventDefault();
+    return;
+  }
   let handled = true;
   switch (e.code) {
     case 'KeyW': case 'ArrowUp':    moveKeys.f = true; break;
@@ -1648,6 +1660,7 @@ function handleClick(x, y) {
 // =============================================================================
 const glide = {
   active: false,
+  pending: false,    // true during the jiggle wind-up before startGlide fires
   t0: 0, dur: 1,
   fromPos: new THREE.Vector3(), toPos: new THREE.Vector3(),
   fromYaw: 0, toYaw: 0,
@@ -1683,8 +1696,22 @@ function clampWalkable(x, z) {
 function startGlide(toX, toZ, toYaw, toPitch, onDone) {
   const fromX = camera.position.x;
   const fromZ = camera.position.z;
-  const dist = Math.hypot(toX - fromX, toZ - fromZ);
-  const dur = Math.min(2.2, 0.6 + 0.18 * dist);
+  const dist  = Math.hypot(toX - fromX, toZ - fromZ);
+  const yawDelta = Math.abs(wrapYawDelta(cam.yaw, toYaw) - cam.yaw);
+
+  // Short-range clicks: skip the position glide entirely and just hand the
+  // look targets to the exponential damping. A real glide here would cram a
+  // significant yaw change into ~0.6 s and read as a "spasm".
+  if (dist < 0.6) {
+    cam.targetYaw   = wrapYawDelta(cam.yaw, toYaw);
+    cam.targetPitch = toPitch;
+    if (onDone) onDone();
+    return;
+  }
+
+  // Duration scales with whichever motion is larger so that short-but-
+  // heavily-rotating glides don't whip past too quickly.
+  const dur = Math.min(2.2, Math.max(0.6 + 0.18 * dist, 0.5 + 0.45 * yawDelta));
 
   glide.fromPos.set(fromX, EYE_Y, fromZ);
   glide.toPos.set(toX, EYE_Y, toZ);
@@ -1734,8 +1761,42 @@ function glideToFloor(targetX, targetZ) {
   startGlide(c.x, c.z, yaw, cam.pitch);
 }
 
+let currentPaintingIdx = -1;  // -1 = none focused yet; bumped to the painting's index on each glideToPoster
+
+function navigatePainting(delta) {
+  if (intro.active || !paintings.length) return;
+  if (currentPaintingIdx < 0) {
+    // First nav: pick the painting whose angular position is closest to the
+    // direction the camera is currently facing (skipping the featured slot
+    // if it's behind us, so the first arrow tap moves to something nearby).
+    camera.getWorldDirection(_tmpFwd);
+    const camAng = Math.atan2(_tmpFwd.z, _tmpFwd.x);
+    let bestIdx = 0, bestDist = Infinity;
+    for (let i = 0; i < paintings.length; i++) {
+      const p = paintings[i];
+      const a = Math.atan2(p.position.z, p.position.x);
+      let d = Math.abs(a - camAng);
+      while (d > Math.PI) d = Math.PI * 2 - d;
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    currentPaintingIdx = bestIdx;
+  } else {
+    currentPaintingIdx = (currentPaintingIdx + delta + paintings.length) % paintings.length;
+  }
+  const group = paintings[currentPaintingIdx];
+  const art = group.children.find(c => c.userData && c.userData.isPoster);
+  if (art) glideToPoster(art);
+}
+
+document.getElementById('navPrev').addEventListener('click', () => navigatePainting(-1));
+document.getElementById('navNext').addEventListener('click', () => navigatePainting(+1));
+
 function glideToPoster(art) {
   const group = art.userData.group;
+  // Track which painting is "current" for the prev/next arrow nav (not for the plaque)
+  if (!art.userData.isPlaque && group.userData.paintingIdx !== undefined) {
+    currentPaintingIdx = group.userData.paintingIdx;
+  }
   const normal = group.userData.normal.clone();
   // Allow per-target override (plaque needs more distance than a painting)
   const viewDist = art.userData.viewDistance ?? VIEW_DISTANCE;
@@ -1750,10 +1811,24 @@ function glideToPoster(art) {
   const dy = targetY - EYE_Y;
   const flatDist = Math.hypot(group.position.x - c.x, group.position.z - c.z);
   const pitch = Math.atan2(dy, flatDist);
-  hideCard();
-  // Plaque has no title/meta — glide silently with no info card pop-up.
-  const onDone = art.userData.isPlaque ? null : () => showCard(art);
-  startGlide(c.x, c.z, yaw, pitch, onDone);
+  // Paintings: show the info card + nav arrows immediately at click time so
+  // there's no waiting through the glide to see what you clicked.
+  // Plaque: no card (it has no title/meta).
+  if (art.userData.isPlaque) hideCard();
+  else                       showCard(art);
+  // Posters: kick off a damped jiggle, then start the glide a beat later so
+  // the user sees the click register before the camera takes over. Plaque
+  // is already the central focus, so skip the wind-up for it.
+  if (art.userData.isPlaque) {
+    startGlide(c.x, c.z, yaw, pitch, null);
+  } else {
+    group.userData.rockT0 = performance.now();
+    glide.pending = true;
+    setTimeout(() => {
+      glide.pending = false;
+      startGlide(c.x, c.z, yaw, pitch, null);
+    }, 130);
+  }
 }
 
 // =============================================================================
@@ -1815,15 +1890,22 @@ function formalDate(s) {
   return single ? _formatOne(single, true) : s;
 }
 
+const navPrevEl = document.getElementById('navPrev');
+const navNextEl = document.getElementById('navNext');
+
 function showCard(art) {
   cardArt = art;
   cardTitle.textContent = art.userData.title;
   cardMeta.textContent  = formalDate(art.userData.meta);
   cardEl.classList.add('show');
+  navPrevEl.classList.add('show');
+  navNextEl.classList.add('show');
 }
 function hideCard() {
   cardArt = null;
   cardEl.classList.remove('show');
+  navPrevEl.classList.remove('show');
+  navNextEl.classList.remove('show');
 }
 cardEl.addEventListener('click', () => {
   if (cardArt && cardArt.userData.url) window.open(cardArt.userData.url, '_blank', 'noopener');
@@ -1965,6 +2047,11 @@ let last = performance.now();
 // Allocations lifted out of the tick loop to avoid per-frame GC pressure
 const _tmpFwd = new THREE.Vector3();
 
+// Idle-bob ramp anchor: timestamp of the last frame a controlling animation
+// (glide / intro / movement / pinch) was active. The bob amplitude smoothly
+// ramps from 0 back to full over the seconds following.
+let bobControlledLast = performance.now();
+
 // Idle frame-rate throttle — drop to ~30 fps when the user isn't moving
 // or interacting. Pulse / bob / dust still animate smoothly at 30.
 // (idle-throttle helpers removed — render is always vsync-paced now)
@@ -1975,12 +2062,26 @@ function tick() {
   const dt  = Math.min(0.05, (now - last) / 1000);
   last = now;
 
-  // ----- Floating paintings: each bobs gently in place -----
+  // ----- Floating paintings: each bobs gently in place + click rock -----
   {
     const t = now * 0.001;
     for (const p of paintings) {
       p.position.y = p.userData.baseY +
         Math.sin(t * p.userData.bobFreq + p.userData.bobPhase) * p.userData.bobAmp;
+      // Click-rock: damped left-right tilt around the poster's local Z axis
+      // for ~240 ms — a quick "jiggle" before the camera starts gliding.
+      if (p.userData.rockT0 !== undefined) {
+        const elapsed = (now - p.userData.rockT0) / 1000;
+        const dur = 0.24;
+        if (elapsed >= dur) {
+          p.rotation.z = 0;
+          p.userData.rockT0 = undefined;
+        } else {
+          const norm = elapsed / dur;
+          const amp = (1 - norm) * 0.07;             // peak ~4°, decays linearly
+          p.rotation.z = Math.sin(norm * Math.PI * 4) * amp;   // 2 oscillations
+        }
+      }
     }
   }
 
@@ -1991,15 +2092,6 @@ function tick() {
     pillar.material.opacity      = pillar.userData.baseOpacity * pulse;
     halo.material.opacity        = halo.userData.baseOpacity   * pulse;
     pillarLight.intensity        = pillarLight.userData.baseIntensity * pulse;
-
-    // Featured poster halo — pulses out of phase with the pillar so the
-    // "next event" highlight breathes independently
-    for (const p of paintings) {
-      if (p.userData.featuredHalo) {
-        const fp = 0.78 + Math.sin(tt * (Math.PI * 2 / 4.5) + 1.3) * 0.22;
-        p.userData.featuredHalo.material.opacity = p.userData.featuredHaloBase * fp;
-      }
-    }
   }
 
   // ----- Gallery smoke: drift + slow fade-in to target opacity -----
@@ -2115,7 +2207,8 @@ function tick() {
 
     if (t >= 1) {
       intro.active = false;
-      // Hand off control: show prompt, then auto-hide it after 7 s
+      // Hand off control: show prompt. Auto-hide it after 7s. Nav arrows
+      // are tied to the info card — they only appear when focused on a poster.
       promptEl.classList.add('show');
       setTimeout(() => promptEl.classList.add('hide'), 7000);
     }
@@ -2172,15 +2265,51 @@ function tick() {
   }
 
   // Idle camera bob — barely-there breathing motion when the user is still.
-  // Stops the scene feeling like a frozen tripod shot.
-  if (!glide.active && !moveKeys.f && !moveKeys.b && !moveKeys.l && !moveKeys.r
-      && Math.abs(dollyTarget.dist) < 0.001 && pointers.size === 0) {
-    const tt = now * 0.001;
-    const bob = Math.sin(tt * 1.05) * 0.011 + Math.sin(tt * 0.43) * 0.006;
+  // Ramped in via a 3 s smoothstep after any controlling animation ends so
+  // there's no perceptible "jump" the moment the intro fly-through or a glide
+  // hands off control.
+  if (intro.active || glide.active || moveKeys.f || moveKeys.b
+      || moveKeys.l || moveKeys.r
+      || Math.abs(dollyTarget.dist) >= 0.001
+      || pointers.size > 0) {
+    bobControlledLast = now;
+  }
+  if (!intro.active && !glide.active) {
+    // Drive the sine off elapsed-since-handoff so the bob always starts at
+    // phase 0 (sin = 0). Combined with the smoothstep amplitude ramp this
+    // gives a true zero-value, zero-velocity start.
+    // Long deadband + slow ramp + tiny amplitude — the breathing is meant to
+    // be almost subliminal so arrivals at posters / the plaque feel settled.
+    const tHandoff = Math.max(0, (now - bobControlledLast) * 0.001 - 1.5);  // 1.5 s deadband
+    const raw = Math.min(1, tHandoff / 6);                                  // 6 s ramp
+    const bobRamp = raw * raw * (3 - 2 * raw);                              // smoothstep
+    const bob = (Math.sin(tHandoff * 1.05) * 0.005 + Math.sin(tHandoff * 0.43) * 0.003) * bobRamp;
     camera.position.y = EYE_Y + bob;
   } else {
     camera.position.y = EYE_Y;
   }
+
+  // Step-away / look-away dismiss: fade the info card + nav arrows out once
+  // the camera has visibly moved on from the focused poster — either past the
+  // viewing distance, or turned far enough away that the poster is offscreen.
+  if (cardArt && !glide.active && !glide.pending && !intro.active) {
+    const cg = cardArt.userData.group;
+    const cdx = cg.position.x - camera.position.x;
+    const cdz = cg.position.z - camera.position.z;
+    const distSq = cdx * cdx + cdz * cdz;
+    if (distSq > 3.2 * 3.2) {
+      hideCard();
+    } else if (distSq > 0.04) {
+      camera.getWorldDirection(_tmpFwd);
+      const flat = Math.hypot(_tmpFwd.x, _tmpFwd.z) || 1;
+      const fx = _tmpFwd.x / flat, fz = _tmpFwd.z / flat;
+      const len = Math.sqrt(distSq);
+      const dot = (cdx * fx + cdz * fz) / len;
+      // cos(22°) ≈ 0.93 — even small head-turns dismiss the card
+      if (dot < 0.93) hideCard();
+    }
+  }
+
   applyCameraRotation();
 
   grainPass.uniforms.time.value = now * 0.001;
