@@ -1210,6 +1210,23 @@ for (let i = 0; i < rest.length; i++) {
   plaqueGroup.position.set(0, EYE_Y + 0.05, plaqueZ);
   scene.add(plaqueGroup);
 
+  // ---- Make the plaque clickable: it glides the camera to a viewing position
+  // facing it, same affordance as the painting cards. Both the face and the
+  // photo overlay get added as ray-hit targets so anywhere on the plaque works.
+  plaqueGroup.userData.normal = new THREE.Vector3(0, 0, 1);   // faces +Z (camera spawn side)
+  const plaqueMeta = {
+    title: '',
+    meta:  '',
+    url:   '',
+    isPoster:     true,                  // re-uses the existing click-to-glide path
+    isPlaque:     true,
+    group:        plaqueGroup,
+    viewDistance: 3.6,                    // further back than posters (plaque is taller)
+  };
+  face.userData  = { ...plaqueMeta };
+  photo.userData = { ...plaqueMeta };
+  interactives.push(face, photo);
+
   // Tiny warm spotlight on the plaque so it doesn't sit in pure black
   const plaqueLight = new THREE.SpotLight(0xf1ead4, 1.4, 6, Math.PI / 5, 0.7, 1.2);
   plaqueLight.position.set(0, EYE_Y + 2.5, plaqueZ);
@@ -1274,75 +1291,124 @@ const LOOK_SENS_DESKTOP = 0.0035;
 const LOOK_SENS_TOUCH   = 0.0042;
 const PITCH_MAX = Math.PI / 180 * 70;
 
-let pointerDown = false;
-let pointerDragging = false;
-let pointerStartX = 0, pointerStartY = 0;
-let pointerLastX = 0, pointerLastY = 0;
-let pointerStartT = 0;
-let pointerKind = 'mouse';          // 'mouse' | 'touch'
+// Active pointers, keyed by pointerId. Supports:
+//   • 1 pointer down → drag-to-look
+//   • 2 pointers down → pinch-to-dolly (mobile zoom = move forward / back)
+const pointers = new Map();              // id → { x, y, startX, startY, startT, kind, dragging }
+let primaryId   = null;                  // pointer driving the drag-to-look
+let pinchActive = false;
+let pinchPrevDist = 0;
 const DRAG_THRESHOLD_PX = 6;
-const CLICK_MAX_DUR_MS = 350;
+const CLICK_MAX_DUR_MS  = 350;
+const PINCH_SCALE       = 0.014;          // similar feel to wheel-dolly
+
+function pinchDistance() {
+  const arr = [...pointers.values()];
+  if (arr.length < 2) return 0;
+  return Math.hypot(arr[0].x - arr[1].x, arr[0].y - arr[1].y);
+}
 
 canvasEl.addEventListener('pointerdown', e => {
   if (intro.active) return;
   if (e.button !== undefined && e.button !== 0) return;
   markInteraction();
-  pointerDown = true;
-  pointerDragging = false;
-  pointerStartX = pointerLastX = e.clientX;
-  pointerStartY = pointerLastY = e.clientY;
-  pointerStartT = performance.now();
-  pointerKind = e.pointerType === 'touch' ? 'touch' : 'mouse';
+  pointers.set(e.pointerId, {
+    x: e.clientX, y: e.clientY,
+    startX: e.clientX, startY: e.clientY,
+    startT: performance.now(),
+    kind: e.pointerType === 'touch' ? 'touch' : 'mouse',
+    dragging: false,
+  });
   canvasEl.setPointerCapture(e.pointerId);
+
+  if (pointers.size === 1) {
+    primaryId = e.pointerId;
+  } else if (pointers.size === 2) {
+    // Second finger landed — switch to pinch mode
+    pinchActive = true;
+    pinchPrevDist = pinchDistance();
+    canvasEl.classList.remove('dragging');
+    promptEl.classList.add('hide');
+  }
 });
 
 canvasEl.addEventListener('pointermove', e => {
   if (intro.active) return;
   markInteraction();
-  if (!pointerDown) {
-    handleHover(e.clientX, e.clientY);
+  const p = pointers.get(e.pointerId);
+  if (!p) { handleHover(e.clientX, e.clientY); return; }
+  const prevX = p.x, prevY = p.y;
+  p.x = e.clientX;
+  p.y = e.clientY;
+
+  if (pinchActive) {
+    // Two-finger pinch — feed the distance delta into the existing dolly drain
+    const d = pinchDistance();
+    const delta = d - pinchPrevDist;
+    pinchPrevDist = d;
+    dollyTarget.dist += delta * PINCH_SCALE;
     return;
   }
-  const dx = e.clientX - pointerLastX;
-  const dy = e.clientY - pointerLastY;
-  pointerLastX = e.clientX;
-  pointerLastY = e.clientY;
 
-  if (!pointerDragging) {
-    const moved = Math.hypot(e.clientX - pointerStartX, e.clientY - pointerStartY);
-    if (moved > DRAG_THRESHOLD_PX) {
-      pointerDragging = true;
+  if (e.pointerId !== primaryId) return;
+  if (!p.dragging) {
+    const movedTotal = Math.hypot(p.x - p.startX, p.y - p.startY);
+    if (movedTotal > DRAG_THRESHOLD_PX) {
+      p.dragging = true;
       canvasEl.classList.add('dragging');
       promptEl.classList.add('hide');
     } else {
       return;
     }
   }
-
-  const sens = pointerKind === 'touch' ? LOOK_SENS_TOUCH : LOOK_SENS_DESKTOP;
-  cam.targetYaw   -= dx * sens;
-  cam.targetPitch -= dy * sens;
+  // Per-frame delta against the previous reported position
+  const stepX = p.x - prevX;
+  const stepY = p.y - prevY;
+  const sens = p.kind === 'touch' ? LOOK_SENS_TOUCH : LOOK_SENS_DESKTOP;
+  cam.targetYaw   -= stepX * sens;
+  cam.targetPitch -= stepY * sens;
   if (cam.targetPitch >  PITCH_MAX) cam.targetPitch =  PITCH_MAX;
   if (cam.targetPitch < -PITCH_MAX) cam.targetPitch = -PITCH_MAX;
 });
 
 canvasEl.addEventListener('pointerup', e => {
-  if (!pointerDown) return;
-  pointerDown = false;
-  canvasEl.classList.remove('dragging');
+  const p = pointers.get(e.pointerId);
+  if (!p) return;
+  pointers.delete(e.pointerId);
   try { canvasEl.releasePointerCapture(e.pointerId); } catch (_) {}
 
-  const dur = performance.now() - pointerStartT;
-  if (!pointerDragging && dur < CLICK_MAX_DUR_MS) {
-    handleClick(e.clientX, e.clientY);
+  // Was this a quick tap (no drag, no pinch)? Trigger click-to-glide.
+  const dur = performance.now() - p.startT;
+  if (!p.dragging && !pinchActive && dur < CLICK_MAX_DUR_MS) {
+    handleClick(p.x, p.y);
   }
-  pointerDragging = false;
+
+  if (pinchActive) {
+    if (pointers.size < 2) {
+      // Second finger lifted — pinch over. If a finger remains, treat as fresh drag
+      pinchActive = false;
+      const remaining = pointers.values().next().value;
+      if (remaining) {
+        primaryId = [...pointers.keys()][0];
+        remaining.startX = remaining.x;
+        remaining.startY = remaining.y;
+        remaining.startT = performance.now();
+        remaining.dragging = false;
+      }
+    }
+  } else if (e.pointerId === primaryId) {
+    canvasEl.classList.remove('dragging');
+    primaryId = pointers.size ? [...pointers.keys()][0] : null;
+  }
 });
 
-canvasEl.addEventListener('pointercancel', () => {
-  pointerDown = false;
-  pointerDragging = false;
-  canvasEl.classList.remove('dragging');
+canvasEl.addEventListener('pointercancel', e => {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinchActive = false;
+  if (pointers.size === 0) {
+    canvasEl.classList.remove('dragging');
+    primaryId = null;
+  }
 });
 
 // Prevent the context menu so right-clicks (some trackpads) don't pop up
@@ -1559,9 +1625,11 @@ function glideToFloor(targetX, targetZ) {
 function glideToPoster(art) {
   const group = art.userData.group;
   const normal = group.userData.normal.clone();
-  // Position: in front of poster, at eye height
-  const wx = group.position.x + normal.x * VIEW_DISTANCE;
-  const wz = group.position.z + normal.z * VIEW_DISTANCE;
+  // Allow per-target override (plaque needs more distance than a painting)
+  const viewDist = art.userData.viewDistance ?? VIEW_DISTANCE;
+  // Position: in front of target, at eye height
+  const wx = group.position.x + normal.x * viewDist;
+  const wz = group.position.z + normal.z * viewDist;
   const c = clampWalkable(wx, wz);
   // Yaw to face poster: look from camera toward poster centre
   const yaw = Math.atan2(group.position.x - c.x, group.position.z - c.z) + Math.PI;
@@ -1571,7 +1639,9 @@ function glideToPoster(art) {
   const flatDist = Math.hypot(group.position.x - c.x, group.position.z - c.z);
   const pitch = Math.atan2(dy, flatDist);
   hideCard();
-  startGlide(c.x, c.z, yaw, pitch, () => showCard(art));
+  // Plaque has no title/meta — glide silently with no info card pop-up.
+  const onDone = art.userData.isPlaque ? null : () => showCard(art);
+  startGlide(c.x, c.z, yaw, pitch, onDone);
 }
 
 // =============================================================================
