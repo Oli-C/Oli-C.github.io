@@ -3,9 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>allfield · chameleon gallery</title>
+<title>allfield · chameleon archive</title>
+<meta name="description" content="A 3D archive of Chameleon events — 48 posters, the people who played, and a thank-you to everyone who made it real.">
 <link rel="icon" type="image/jpeg" href="../assets/favicon.jpg">
-<meta name="theme-color" content="#14120d">
+<meta name="theme-color" content="#05070c">
+
+<!-- Link preview (Open Graph / Twitter card) — uses the event photo -->
+<meta property="og:title"       content="allfield · chameleon archive">
+<meta property="og:description" content="A 3D archive of Chameleon events — 48 posters, the people who played, and a thank-you to everyone who made it real.">
+<meta property="og:type"        content="website">
+<meta property="og:url"         content="https://oli-c.github.io/CHAMELEON/">
+<meta property="og:image"       content="https://oli-c.github.io/CHAMELEON/photos/event-og.jpg">
+<meta property="og:image:width"  content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card"        content="summary_large_image">
+<meta name="twitter:title"       content="allfield · chameleon archive">
+<meta name="twitter:description" content="A 3D archive of Chameleon events.">
+<meta name="twitter:image"       content="https://oli-c.github.io/CHAMELEON/photos/event-og.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anek+Kannada:wdth,wght@125,400..700&display=swap" rel="stylesheet">
@@ -301,12 +315,14 @@ const INTRO_SPAWN = new THREE.Vector3(0, EYE_Y, ROOM.radius * 0.55);
 const intro = {
   active: false,            // flipped on by manager.onLoad once textures are in
   t0: 0,
-  duration: 5400,           // ms
-  fromPos:   new THREE.Vector3(2.5, 0.55, ROOM.radius * 2.4),
+  duration: 6800,           // ms
+  // Start WAY further out and ABOVE — the easeOutCubic curve below makes the
+  // camera enter at peak speed and decelerate as it approaches the rotunda.
+  fromPos:   new THREE.Vector3(5.0, 5.5, ROOM.radius * 10.0),
   toPos:     INTRO_SPAWN.clone(),
-  fromYaw:   0.08,          // slight off-axis so the pillar drifts into centre
+  fromYaw:   0.10,
   toYaw:     0,
-  fromPitch: 0.12,          // tilted up — feels like approaching from below
+  fromPitch: -0.05,
   toPitch:   0,
 };
 // Camera lives at the start of the fly path until manager.onLoad fires
@@ -758,7 +774,7 @@ scene.add(innerLip);
 //  rotunda entrance. The camera flies THROUGH these on the way in.
 // =============================================================================
 {
-  const SMOKE_COUNT = 36;
+  const SMOKE_COUNT = 110;
   const smokeTex = (() => {
     const c = document.createElement('canvas');
     c.width = c.height = 256;
@@ -788,28 +804,31 @@ scene.add(innerLip);
   })();
 
   const smoke = [];
-  // Clouds fill the corridor BETWEEN the rotunda wall (z≈32) and the camera's
-  // start position (z≈76.8). The camera enters the field at z≈75 and passes
-  // through cloud after cloud as it flies inward.
+  // Clouds fill the long corridor between the rotunda (z ≈ ROOM.radius) and
+  // well beyond the new camera start (z ≈ 10·ROOM.radius). Density biased
+  // heavily toward the far end so the camera fades in already deep in smoke.
   for (let i = 0; i < SMOKE_COUNT; i++) {
     const mat = new THREE.SpriteMaterial({
       map: smokeTex,
-      color: 0xb6bcc8,
+      color: 0xc2c8d4,
       transparent: true,
       opacity: 0,
       depthWrite: false,
       fog: true,
     });
     const s = new THREE.Sprite(mat);
-    const scale = 8 + Math.random() * 14;
+    const scale = 12 + Math.random() * 24;
     s.scale.set(scale, scale, 1);
-    // z range 28..76 covers the entire flight corridor
+    // Distribute over the full flight corridor with bias toward the far end
+    // (sqrt-skew toward 1 means most clouds cluster near the camera start).
+    const t = Math.random();
+    const z = ROOM.radius * 0.8 + Math.pow(t, 0.5) * ROOM.radius * 9.6;
     s.position.set(
-      (Math.random() - 0.5) * 24,
-      Math.random() * 6 - 0.5,
-      28 + Math.random() * 48,
+      (Math.random() - 0.5) * 38,
+      Math.random() * 7 - 0.5,
+      z,
     );
-    s.userData.targetOpacity = 0.35 + Math.random() * 0.25;
+    s.userData.targetOpacity = 0.55 + Math.random() * 0.30;
     s.userData.driftX        = (Math.random() - 0.5) * 0.06;
     s.userData.driftY        = 0.02 + Math.random() * 0.05;
     scene.add(s);
@@ -1288,7 +1307,7 @@ applyCameraRotation();
 //  Drag-to-look (mouse + touch)
 // =============================================================================
 const LOOK_SENS_DESKTOP = 0.0035;
-const LOOK_SENS_TOUCH   = 0.0042;
+const LOOK_SENS_TOUCH   = 0.0060;        // a touch more responsive on small screens
 const PITCH_MAX = Math.PI / 180 * 70;
 
 // Active pointers, keyed by pointerId. Supports:
@@ -1365,8 +1384,15 @@ canvasEl.addEventListener('pointermove', e => {
   const stepX = p.x - prevX;
   const stepY = p.y - prevY;
   const sens = p.kind === 'touch' ? LOOK_SENS_TOUCH : LOOK_SENS_DESKTOP;
-  cam.targetYaw   -= stepX * sens;
-  cam.targetPitch -= stepY * sens;
+  // Touch: swipe in the direction you want to look (FPS-style — finger right → view turns right).
+  // Desktop: drag-the-world style (finger right → view turns left, matches the rest of the web).
+  if (p.kind === 'touch') {
+    cam.targetYaw   += stepX * sens;
+    cam.targetPitch += stepY * sens;
+  } else {
+    cam.targetYaw   -= stepX * sens;
+    cam.targetPitch -= stepY * sens;
+  }
   if (cam.targetPitch >  PITCH_MAX) cam.targetPitch =  PITCH_MAX;
   if (cam.targetPitch < -PITCH_MAX) cam.targetPitch = -PITCH_MAX;
 });
@@ -1809,7 +1835,7 @@ function tick() {
 
   // ----- Smoke clouds: drift + fade. Runs every frame, even during intro -----
   if (scene.userData.smoke) {
-    const k = 1 - Math.exp(-1.6 * dt);
+    const k = 1 - Math.exp(-2.2 * dt);   // a little faster fade so smoke reads as smokey from frame 1
     for (const s of scene.userData.smoke) {
       s.position.x += s.userData.driftX * dt;
       s.position.y += s.userData.driftY * dt;
@@ -1837,9 +1863,27 @@ function tick() {
   // ----- Intro fly-through: take over everything until landed -----
   if (intro.active) {
     const t = Math.min(1, (now - intro.t0) / intro.duration);
-    // easeInOutCubic
-    const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-    camera.position.lerpVectors(intro.fromPos, intro.toPos, e);
+    // easeOutCubic — max velocity at t=0, decelerating to a stop at t=1.
+    // The camera fades in already moving fast, then settles into the rotunda.
+    const e = 1 - Math.pow(1 - t, 3);
+
+    // Horizontal: eased lerp on x + z
+    camera.position.x = intro.fromPos.x + (intro.toPos.x - intro.fromPos.x) * e;
+    camera.position.z = intro.fromPos.z + (intro.toPos.z - intro.fromPos.z) * e;
+
+    // Vertical: HOLD the high start altitude until the camera is inside the
+    // rotunda (z < ROOM.radius + 4), then descend over the last few metres.
+    // This keeps the camera safely above the painting ring (tops at y ≈ 2.45 m)
+    // when crossing the south poster band.
+    const Y_HOLD_Z = ROOM.radius + 4;
+    let yProg = 0;
+    if (camera.position.z < Y_HOLD_Z) {
+      yProg = (Y_HOLD_Z - camera.position.z) / (Y_HOLD_Z - intro.toPos.z);
+      if (yProg < 0) yProg = 0; else if (yProg > 1) yProg = 1;
+      yProg = yProg < 0.5 ? 4 * yProg * yProg * yProg : 1 - Math.pow(-2 * yProg + 2, 3) / 2;
+    }
+    camera.position.y = intro.fromPos.y + (intro.toPos.y - intro.fromPos.y) * yProg;
+
     cam.yaw   = intro.fromYaw   + (intro.toYaw   - intro.fromYaw)   * e;
     cam.pitch = intro.fromPitch + (intro.toPitch - intro.fromPitch) * e;
     cam.targetYaw   = cam.yaw;
