@@ -198,6 +198,8 @@ import * as THREE             from 'three';
 import { EffectComposer }     from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass }         from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass }    from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass }         from 'three/addons/postprocessing/ShaderPass.js';
+import { SMAAPass }           from 'three/addons/postprocessing/SMAAPass.js';
 import { OutputPass }         from 'three/addons/postprocessing/OutputPass.js';
 
 // =============================================================================
@@ -311,7 +313,7 @@ const camera = new THREE.PerspectiveCamera(78, window.innerWidth / window.innerH
 //  Intro fly-through (Artisans d'idées style) — camera starts deep in the fog
 //  far behind the spawn point, glides forward, and lands at eye height.
 // =============================================================================
-const INTRO_SPAWN = new THREE.Vector3(0, EYE_Y, ROOM.radius * 0.55);
+const INTRO_SPAWN = new THREE.Vector3(0, EYE_Y, ROOM.radius * 0.30);
 const intro = {
   active: false,            // flipped on by manager.onLoad once textures are in
   t0: 0,
@@ -679,13 +681,15 @@ const floorRoughnessTex = fieldToRoughnessMap(floorField, FLOOR_TEX_SIZE, 0.45, 
 const floorRepeat = [ROOM.radius / 6, ROOM.radius / 6];
 [floorColorTex, floorNormalTex, floorRoughnessTex].forEach(t => t.repeat.set(...floorRepeat));
 const floorMat = new THREE.MeshPhysicalMaterial({
-  map:               floorColorTex,
-  normalMap:         floorNormalTex,
-  roughnessMap:      floorRoughnessTex,
-  normalScale:       new THREE.Vector2(0.55, 0.55),
-  metalness:         0.0,
-  clearcoat:         0.3,           // less polish — reads more like raw concrete
-  clearcoatRoughness:0.55,
+  map:                floorColorTex,
+  normalMap:          floorNormalTex,
+  roughnessMap:       floorRoughnessTex,
+  normalScale:        new THREE.Vector2(0.55, 0.55),
+  metalness:          0.0,
+  clearcoat:          0.5,
+  clearcoatRoughness: 0.42,
+  anisotropy:         0.7,        // stretches the pillar reflection radially
+  anisotropyRotation: 0,
 });
 
 // Floor — ring with an open hole at the centre so the light shaft can
@@ -767,6 +771,14 @@ scene.add(innerLip);
   });
   const stars = new THREE.Points(starGeo, starMat);
   scene.add(stars);
+
+  // Expose for twinkle in the tick loop — keep an immutable copy of the base
+  // colours so we can dim individual stars then restore them on a sine.
+  scene.userData.stars = {
+    points: stars,
+    base:   new Float32Array(colour),
+    count:  STAR_COUNT,
+  };
 }
 
 // =============================================================================
@@ -850,9 +862,9 @@ scene.add(innerLip);
     s.userData.targetOpacity = 0.40 + Math.random() * 0.25;
     s.userData.driftX        = (Math.random() - 0.5) * 0.06;
     s.userData.driftY        = 0.02 + Math.random() * 0.05;
+    s.userData.rotRate       = (Math.random() - 0.5) * 0.06;     // rad/s — gentle swirl
     // Start AT target opacity — the splash covers the canvas during the first
     // ~700 ms of intro anyway, so there's no visible "pop into existence".
-    // The opacity update loop will fade them out as the camera flies past.
     s.material.opacity = s.userData.targetOpacity;
     scene.add(s);
     smoke.push(s);
@@ -907,6 +919,8 @@ scene.add(innerLip);
     s.userData.maxY          = maxY;
     s.userData.driftX        = (Math.random() - 0.5) * 0.05;
     s.userData.driftY        = 0.04 + Math.random() * 0.05;
+    s.userData.rotRate       = (Math.random() - 0.5) * 0.05;     // swirl
+    mat.rotation             = Math.random() * Math.PI * 2;
     scene.add(s);
     innerSmoke.push(s);
   }
@@ -955,6 +969,34 @@ scene.add(innerLip);
 
   // Hook for slow drift each frame
   scene.userData.dust = dust;
+
+  // --- Pillar dust sparkle — extra bright motes confined inside the halo
+  // radius (r < 1.4) so they catch the warm pillar light. Reads as
+  // "motes drifting through the beam".
+  const SPARK_COUNT = 80;
+  const sparkPos = new Float32Array(SPARK_COUNT * 3);
+  for (let i = 0; i < SPARK_COUNT; i++) {
+    const r = Math.sqrt(Math.random()) * 1.2;
+    const a = Math.random() * Math.PI * 2;
+    sparkPos[3*i]   = r * Math.cos(a);
+    sparkPos[3*i+1] = Math.random() * (ROOM.height - 0.4) + 0.2;
+    sparkPos[3*i+2] = r * Math.sin(a);
+  }
+  const sparkGeo = new THREE.BufferGeometry();
+  sparkGeo.setAttribute('position', new THREE.BufferAttribute(sparkPos, 3));
+  const spark = new THREE.Points(sparkGeo, new THREE.PointsMaterial({
+    map: dustSprite,
+    color: 0xfff0c8,           // warm — matches the pillar light
+    size: 0.06,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: 0.85,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    fog: false,                // no fog inside the bright halo
+  }));
+  scene.add(spark);
+  scene.userData.spark = spark;
 }
 
 // =============================================================================
@@ -1175,12 +1217,12 @@ for (let i = 0; i < rest.length; i++) {
 
   // Re-wrapped for balanced line lengths (33–50 chars each)
   const lines = [
-    'And to everyone who made it real —',
+    'And to everyone who makes it real —',
     'the artworkers, the Crescent and BlueBox,',
-    'the door, bar and sound crew who held it together.',
+    'the door, bar and sound crew who hold it together.',
     'To York, the regulars, the out-of-towners,',
-    'the strangers who turned into family',
-    'and showed up. A community event.',
+    'the strangers who turn into family',
+    'and show up. A community event.',
   ];
   lines.forEach((line, i) => ctx.fillText(line, W / 2, y + i * LINE));
   y += lines.length * LINE + 60;
@@ -1777,18 +1819,112 @@ cardEl.addEventListener('click', () => {
 }
 
 // =============================================================================
-//  Post-processing — UnrealBloomPass so the pillar of light blooms naturally
+//  Post-processing — bloom + vignette + subtle grain
 // =============================================================================
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 
 const bloom = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth * 0.5, window.innerHeight * 0.5),
-  0.22,    // strength — softer halo
-  0.3,     // radius   — tight halo
-  1.0      // threshold — only HDR-clamped pillar pixels (>1.0 linear) bloom
+  0.22, 0.3, 1.0
 );
 composer.addPass(bloom);
+
+// Color grade — subtle cool shadows / warm highlights. Anchors the palette
+// without leaning Instagram-y.
+const gradePass = new ShaderPass({
+  uniforms: {
+    tDiffuse: { value: null },
+    strength: { value: 0.6 },                                  // blend amount
+    shadowTint:    { value: new THREE.Color(0.88, 0.93, 1.04) }, // slight teal in darks
+    highlightTint: { value: new THREE.Color(1.03, 1.00, 0.95) }, // slight warm in lights
+  },
+  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float strength;
+    uniform vec3 shadowTint;
+    uniform vec3 highlightTint;
+    varying vec2 vUv;
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      float l = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+      vec3 tint = mix(shadowTint, highlightTint, smoothstep(0.25, 0.75, l));
+      c.rgb = mix(c.rgb, c.rgb * tint, strength);
+      gl_FragColor = c;
+    }
+  `,
+});
+composer.addPass(gradePass);
+
+// Vignette — radial edge darkening. Subtle, cinematic, drops attention onto the centre.
+const vignettePass = new ShaderPass({
+  uniforms: {
+    tDiffuse: { value: null },
+    strength: { value: 0.05 },     // a hint of edge dim, no more
+    softness: { value: 0.80 },     // only the outer ~20 % of screen sees any darkening
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float strength;
+    uniform float softness;
+    varying vec2 vUv;
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      vec2 p = vUv - 0.5;
+      float d = dot(p, p) * 4.0;   // 0 at centre, ~1 at corners
+      float v = smoothstep(softness, 1.0, d);
+      c.rgb *= 1.0 - v * strength;
+      gl_FragColor = c;
+    }
+  `,
+});
+composer.addPass(vignettePass);
+
+// Subtle film grain — kills colour banding in the dark sky and adds a hint
+// of texture. Animated via a time uniform so the grain shimmers.
+const grainPass = new ShaderPass({
+  uniforms: {
+    tDiffuse: { value: null },
+    time:     { value: 0 },
+    amount:   { value: 0.020 },     // barely-visible grain — just enough to break banding
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float time;
+    uniform float amount;
+    varying vec2 vUv;
+    float hash(vec2 p) {
+      return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+    }
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      float n = hash(vUv + fract(time)) - 0.5;
+      c.rgb += n * amount;
+      gl_FragColor = c;
+    }
+  `,
+});
+composer.addPass(grainPass);
+
+// SMAA — sub-pixel anti-aliasing on the final composite. Smooths painting
+// + plaque edges that the MSAA-disabled bloom-pass chain had been jagged on.
+composer.addPass(new SMAAPass(window.innerWidth, window.innerHeight));
+
 composer.addPass(new OutputPass());
 
 // =============================================================================
@@ -1802,9 +1938,8 @@ const _tmpFwd = new THREE.Vector3();
 
 // Idle frame-rate throttle — drop to ~30 fps when the user isn't moving
 // or interacting. Pulse / bob / dust still animate smoothly at 30.
-let lastInteraction = performance.now();
-const IDLE_DELAY = 4000;          // ms of no input before throttling
-const markInteraction = () => { lastInteraction = performance.now(); };
+// (idle-throttle helpers removed — render is always vsync-paced now)
+const markInteraction = () => {};
 
 function tick() {
   const now = performance.now();
@@ -1844,6 +1979,7 @@ function tick() {
     for (const s of scene.userData.innerSmoke) {
       s.position.x += s.userData.driftX * dt;
       s.position.y += s.userData.driftY * dt;
+      s.material.rotation += s.userData.rotRate * dt;
       // Wrap back to the floor when the sprite's TOP edge passes the ceiling
       if (s.position.y > s.userData.maxY) {
         s.position.y = s.userData.minY;
@@ -1856,19 +1992,38 @@ function tick() {
     }
   }
 
-  // ----- Smoke clouds: drift + fade. Runs every frame, even during intro -----
+  // ----- Smoke clouds: drift + swirl + fade. Runs every frame, even during intro -----
   if (scene.userData.smoke) {
-    const k = 1 - Math.exp(-2.2 * dt);   // a little faster fade so smoke reads as smokey from frame 1
+    const k = 1 - Math.exp(-2.2 * dt);
     for (const s of scene.userData.smoke) {
       s.position.x += s.userData.driftX * dt;
       s.position.y += s.userData.driftY * dt;
       if (s.position.y > 8) s.position.y = -1;
-      // Camera flies from +z toward -z, so "ahead" = smaller z
+      s.material.rotation += s.userData.rotRate * dt;
       const ahead = s.position.z < camera.position.z - 1.5;
       const target = ahead ? s.userData.targetOpacity : 0;
       const delta = target - s.material.opacity;
       if (delta < -0.001 || delta > 0.001) s.material.opacity += delta * k;
     }
+  }
+
+  // ----- star twinkle -----
+  if (scene.userData.stars) {
+    const S = scene.userData.stars;
+    const arr = S.points.geometry.attributes.color.array;
+    const base = S.base;
+    const tt = now * 0.001;
+    // Update a random subset each frame — 30 stars / 2200 total = light cost
+    for (let i = 0; i < 30; i++) {
+      const idx = (Math.random() * S.count) | 0;
+      const phase = idx * 0.137;
+      const k = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(tt * 0.9 + phase));
+      const o = idx * 3;
+      arr[o]     = base[o]     * k;
+      arr[o + 1] = base[o + 1] * k;
+      arr[o + 2] = base[o + 2] * k;
+    }
+    S.points.geometry.attributes.color.needsUpdate = true;
   }
 
   // ----- slow dust drift -----
@@ -1883,12 +2038,29 @@ function tick() {
     dust.geometry.attributes.position.needsUpdate = true;
   }
 
+  // ----- pillar sparkle: drift up + reset into halo when above ceiling -----
+  if (scene.userData.spark) {
+    const spark = scene.userData.spark;
+    const arr = spark.geometry.attributes.position.array;
+    for (let i = 0; i < arr.length; i += 3) {
+      arr[i + 1] += dt * 0.12;
+      if (arr[i + 1] > ROOM.height) {
+        const r = Math.sqrt(Math.random()) * 1.2;
+        const a = Math.random() * Math.PI * 2;
+        arr[i]     = r * Math.cos(a);
+        arr[i + 1] = 0.2;
+        arr[i + 2] = r * Math.sin(a);
+      }
+    }
+    spark.geometry.attributes.position.needsUpdate = true;
+  }
+
   // ----- Intro fly-through: take over everything until landed -----
   if (intro.active) {
     const t = Math.min(1, (now - intro.t0) / intro.duration);
-    // easeOutCubic — max velocity at t=0, decelerating to a stop at t=1.
-    // The camera fades in already moving fast, then settles into the rotunda.
-    const e = 1 - Math.pow(1 - t, 3);
+    // easeOutQuart — max velocity at t=0, decelerating more gradually than
+    // easeOutCubic. The camera coasts longer, the deceleration is more felt.
+    const e = 1 - Math.pow(1 - t, 4);
 
     // Horizontal: eased lerp on x + z
     camera.position.x = intro.fromPos.x + (intro.toPos.x - intro.fromPos.x) * e;
@@ -1920,6 +2092,7 @@ function tick() {
     }
 
     applyCameraRotation();
+    grainPass.uniforms.time.value = now * 0.001;
     composer.render();
     requestAnimationFrame(tick);
     return;
@@ -1969,20 +2142,21 @@ function tick() {
     camera.position.z = c.z;
   }
 
-  camera.position.y = EYE_Y;
+  // Idle camera bob — barely-there breathing motion when the user is still.
+  // Stops the scene feeling like a frozen tripod shot.
+  if (!glide.active && !moveKeys.f && !moveKeys.b && !moveKeys.l && !moveKeys.r
+      && Math.abs(dollyTarget.dist) < 0.001 && pointers.size === 0) {
+    const tt = now * 0.001;
+    const bob = Math.sin(tt * 1.05) * 0.011 + Math.sin(tt * 0.43) * 0.006;
+    camera.position.y = EYE_Y + bob;
+  } else {
+    camera.position.y = EYE_Y;
+  }
   applyCameraRotation();
 
+  grainPass.uniforms.time.value = now * 0.001;
   composer.render();
-
-  // ----- Idle frame throttle: drop to ~30 fps when nothing is happening -----
-  // Slow background animations (bob 0.3-0.6 Hz, pulse 0.14-0.22 Hz) read fine
-  // at 30 fps. Any input bumps us back to vsync immediately.
-  const idle = !glide.active
-            && Math.abs(dollyTarget.dist) < 0.0005
-            && !moveKeys.f && !moveKeys.b && !moveKeys.l && !moveKeys.r
-            && (now - lastInteraction) > IDLE_DELAY;
-  if (idle) setTimeout(() => requestAnimationFrame(tick), 33);
-  else      requestAnimationFrame(tick);
+  requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
 
