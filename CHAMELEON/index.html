@@ -774,53 +774,72 @@ scene.add(innerLip);
 //  rotunda entrance. The camera flies THROUGH these on the way in.
 // =============================================================================
 {
-  const SMOKE_COUNT = 110;
+  const SMOKE_COUNT = 75;        // fewer = less overlap stacking → softer feel
   const smokeTex = (() => {
+    // Wispier smoke: build from several offset radial gradients rather than
+    // a single centred one, so the silhouette isn't a perfect circle. Then
+    // overlay turbulence-style alpha noise to break up the soft edges.
+    const SIZE = 512;
     const c = document.createElement('canvas');
-    c.width = c.height = 256;
+    c.width = c.height = SIZE;
     const ctx = c.getContext('2d');
-    const r = 128;
-    const g = ctx.createRadialGradient(r, r, 4, r, r, r);
-    g.addColorStop(0,    'rgba(220, 222, 230, 0.92)');
-    g.addColorStop(0.35, 'rgba(180, 184, 196, 0.55)');
-    g.addColorStop(0.7,  'rgba(120, 124, 138, 0.18)');
-    g.addColorStop(1,    'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 256, 256);
-    // Break the perfectly round silhouette with internal alpha noise
-    const img = ctx.getImageData(0, 0, 256, 256);
+
+    // 7 overlapping soft puffs at random offsets
+    for (let i = 0; i < 7; i++) {
+      const cx = SIZE / 2 + (Math.random() - 0.5) * SIZE * 0.5;
+      const cy = SIZE / 2 + (Math.random() - 0.5) * SIZE * 0.5;
+      const rr = SIZE * (0.22 + Math.random() * 0.20);
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rr);
+      g.addColorStop(0,   'rgba(230, 232, 240, 0.55)');
+      g.addColorStop(0.5, 'rgba(190, 194, 206, 0.22)');
+      g.addColorStop(1,   'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, SIZE, SIZE);
+    }
+
+    // Soft falloff at the edges so the sprite quad's corners are always
+    // fully transparent — kills any rectangular billboard outline.
+    const edge = ctx.createRadialGradient(SIZE / 2, SIZE / 2, SIZE * 0.30, SIZE / 2, SIZE / 2, SIZE * 0.50);
+    edge.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    edge.addColorStop(1, 'rgba(0, 0, 0, 1)');
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.fillStyle = edge;
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Subtle alpha jitter — high-freq, low amplitude. No more visible "bubbles".
+    const img = ctx.getImageData(0, 0, SIZE, SIZE);
     for (let i = 0; i < img.data.length; i += 4) {
-      const cx = (i / 4) % 256, cy = Math.floor((i / 4) / 256);
-      const dx = cx - 128, dy = cy - 128;
-      const d = Math.sqrt(dx * dx + dy * dy);
-      const k = Math.max(0, 1 - d / 128);
-      const n = (Math.random() - 0.5) * 90 * k;
-      img.data[i + 3] = Math.max(0, Math.min(255, img.data[i + 3] + n));
+      const a = img.data[i + 3];
+      if (a < 4) continue;
+      img.data[i + 3] = Math.max(0, Math.min(255, a + (Math.random() - 0.5) * 30));
     }
     ctx.putImageData(img, 0, 0);
+
     const t = new THREE.CanvasTexture(c);
     t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
     return t;
   })();
 
   const smoke = [];
-  // Clouds fill the long corridor between the rotunda (z ≈ ROOM.radius) and
-  // well beyond the new camera start (z ≈ 10·ROOM.radius). Density biased
-  // heavily toward the far end so the camera fades in already deep in smoke.
+  // Clouds fill the corridor between the rotunda and the camera's start
+  // position. Each sprite gets a unique texture rotation so the field doesn't
+  // read as "the same shape over and over".
   for (let i = 0; i < SMOKE_COUNT; i++) {
     const mat = new THREE.SpriteMaterial({
       map: smokeTex,
-      color: 0xc2c8d4,
+      color: 0xb2b9c6,
       transparent: true,
       opacity: 0,
       depthWrite: false,
       fog: true,
+      rotation: Math.random() * Math.PI * 2,    // every puff oriented differently
     });
     const s = new THREE.Sprite(mat);
-    const scale = 12 + Math.random() * 24;
+    const scale = 14 + Math.random() * 22;
     s.scale.set(scale, scale, 1);
-    // Distribute over the full flight corridor with bias toward the far end
-    // (sqrt-skew toward 1 means most clouds cluster near the camera start).
+    // Distribute along the corridor with bias toward the camera start
     const t = Math.random();
     const z = ROOM.radius * 0.8 + Math.pow(t, 0.5) * ROOM.radius * 9.6;
     s.position.set(
@@ -828,9 +847,13 @@ scene.add(innerLip);
       Math.random() * 7 - 0.5,
       z,
     );
-    s.userData.targetOpacity = 0.55 + Math.random() * 0.30;
+    s.userData.targetOpacity = 0.40 + Math.random() * 0.25;
     s.userData.driftX        = (Math.random() - 0.5) * 0.06;
     s.userData.driftY        = 0.02 + Math.random() * 0.05;
+    // Start AT target opacity — the splash covers the canvas during the first
+    // ~700 ms of intro anyway, so there's no visible "pop into existence".
+    // The opacity update loop will fade them out as the camera flies past.
+    s.material.opacity = s.userData.targetOpacity;
     scene.add(s);
     smoke.push(s);
   }
