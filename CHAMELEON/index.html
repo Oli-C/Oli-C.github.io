@@ -178,12 +178,12 @@
     left: 50%;
     bottom: calc(96px + env(safe-area-inset-bottom));
     transform: translateX(-50%);
-    min-width: 260px; max-width: min(440px, calc(100vw - 48px));
-    padding: 18px 26px 18px;
+    min-width: 220px; max-width: min(380px, calc(100vw - 48px));
+    padding: 13px 20px;
     background: #0b0b0d;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
     opacity: 0;
     transition: opacity 0.32s var(--ease);
     cursor: pointer;
@@ -191,36 +191,35 @@
   }
   .card.show { opacity: 1; }
   .card-body { display: flex; flex-direction: column; align-items: center; }
+  .card .index {
+    font-size: 9px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: #6e747c;
+    margin-bottom: 6px;
+  }
   .card .artist {
-    font-size: 19px;
+    font-size: 16px;
     font-weight: 600;
     color: #e8ebef;
     line-height: 1.18;
     letter-spacing: 0.005em;
   }
-  .card .conj {
-    font-size: 10px;
-    font-weight: 500;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: #6e747c;
-    margin: 4px 0 2px;
-  }
   .card .subtitle {
-    font-size: 12.5px;
+    font-size: 11px;
     font-style: italic;
     color: #9aa0a8;
-    margin-top: 6px;
+    margin-top: 5px;
   }
   .card .divider {
     display: block;
-    width: 28px;
+    width: 24px;
     height: 1px;
-    margin: 12px 0 10px;
+    margin: 9px 0 8px;
     background: rgba(255, 255, 255, 0.18);
   }
   .card .meta {
-    font-size: 10.5px;
+    font-size: 9.5px;
     letter-spacing: 0.22em;
     text-transform: uppercase;
     color: #8a8f97;
@@ -235,6 +234,7 @@
       border-radius: 9px;
       box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
     }
+    .card .index    { font-size: 8px; letter-spacing: 0.24em; margin-bottom: 5px; }
     .card .artist   { font-size: 13px; line-height: 1.15; }
     .card .conj     { font-size: 8.5px; letter-spacing: 0.2em; margin: 2px 0 1px; }
     .card .subtitle { font-size: 10px; margin-top: 3px; }
@@ -359,6 +359,31 @@ const POSTERS = [
     if (b.featured) return 1;
     return parseMeta(a.meta) - parseMeta(b.meta);
   });
+
+  // Assign museum-style index labels — each comma-separated date in meta
+  // counts as a distinct event, so the Crescent residency (3 nights) takes
+  // 3 slots. Featured/multi-date posters get a range like "48–50".
+  const dateEvents = [];
+  for (const p of POSTERS) {
+    const dates = (p.meta || '').split(',').map(s => s.trim()).filter(Boolean);
+    for (const d of dates) dateEvents.push({ poster: p, time: parseMeta(d) });
+  }
+  dateEvents.sort((a, b) => a.time - b.time);
+  const totalEvents = dateEvents.length;
+  const posterPositions = new Map();
+  dateEvents.forEach((e, i) => {
+    const pos = i + 1;
+    const arr = posterPositions.get(e.poster);
+    if (arr) arr.push(pos); else posterPositions.set(e.poster, [pos]);
+  });
+  for (const p of POSTERS) {
+    const positions = posterPositions.get(p) || [];
+    if (positions.length === 0) { p.indexLabel = ''; continue; }
+    const first = positions[0], last = positions[positions.length - 1];
+    p.indexLabel = first === last
+      ? `${first} / ${totalEvents}`
+      : `${first}–${last} / ${totalEvents}`;
+  }
 }
 
 // =============================================================================
@@ -1142,7 +1167,7 @@ function _cardGeom(w, h) {
   return g;
 }
 
-function makePoster({ img, title, meta, url, w, h }, parent) {
+function makePoster({ img, title, meta, url, indexLabel, w, h }, parent) {
   const tex = texLoader.load(img, t => {
     t.colorSpace = THREE.SRGBColorSpace;
     t.anisotropy = renderer.capabilities.getMaxAnisotropy();
@@ -1163,7 +1188,7 @@ function makePoster({ img, title, meta, url, w, h }, parent) {
   const art = new THREE.Mesh(new THREE.PlaneGeometry(w, h), artMat);
   art.position.z = 0.002;
   art.renderOrder = 1;
-  art.userData = { title, meta, url, isPoster: true, group, edge: card, artMat };
+  art.userData = { title, meta, url, indexLabel, isPoster: true, group, edge: card, artMat };
   group.add(art);
   interactives.push(art);
 
@@ -1503,13 +1528,17 @@ function pinchDistance() {
 
 canvasEl.addEventListener('pointerdown', e => {
   if (intro.active) return;
-  if (e.button !== undefined && e.button !== 0) return;
+  // Left (0) clicks-and-drags; middle (1) is drag-only (no click) so users
+  // can pan the view without triggering navigation. Right-click left alone.
+  if (e.button !== undefined && e.button !== 0 && e.button !== 1) return;
+  if (e.button === 1) e.preventDefault();   // suppress browser autoscroll
   markInteraction();
   pointers.set(e.pointerId, {
     x: e.clientX, y: e.clientY,
     startX: e.clientX, startY: e.clientY,
     startT: performance.now(),
     kind: e.pointerType === 'touch' ? 'touch' : 'mouse',
+    button: e.button ?? 0,
     dragging: false,
   });
   canvasEl.setPointerCapture(e.pointerId);
@@ -1578,8 +1607,9 @@ canvasEl.addEventListener('pointerup', e => {
   try { canvasEl.releasePointerCapture(e.pointerId); } catch (_) {}
 
   // Was this a quick tap (no drag, no pinch)? Trigger click-to-glide.
+  // Middle-button presses are drag-only — never count as a click.
   const dur = performance.now() - p.startT;
-  if (!p.dragging && !pinchActive && dur < CLICK_MAX_DUR_MS) {
+  if (!p.dragging && !pinchActive && dur < CLICK_MAX_DUR_MS && p.button !== 1) {
     handleClick(p.x, p.y);
   }
 
@@ -1996,31 +2026,27 @@ const navNextEl = document.getElementById('navNext');
 
 function showCard(art) {
   cardArt = art;
-  const { title, meta } = art.userData;
+  const { title, meta, indexLabel } = art.userData;
 
-  // "Artist1 b2b Artist2 · Subtitle" → stacked artists + italic subtitle
+  // "Artists · Subtitle" — artists stay on a single line (b2b / & preserved);
+  // anything after " · " becomes the small italic event subtitle.
   const dotSplit = title.split(' · ');
   const primary   = dotSplit[0];
   const subtitle  = dotSplit.slice(1).join(' · ');
-  const artists   = primary.split(/\s+b2b\s+/i);
 
   cardBody.replaceChildren();
 
-  const lineup = document.createElement('div');
-  lineup.className = 'lineup';
-  artists.forEach((name, i) => {
-    const a = document.createElement('div');
-    a.className = 'artist';
-    a.textContent = name;
-    lineup.appendChild(a);
-    if (i < artists.length - 1) {
-      const c = document.createElement('div');
-      c.className = 'conj';
-      c.textContent = 'b2b';
-      lineup.appendChild(c);
-    }
-  });
-  cardBody.appendChild(lineup);
+  if (indexLabel) {
+    const idx = document.createElement('div');
+    idx.className = 'index';
+    idx.textContent = indexLabel;
+    cardBody.appendChild(idx);
+  }
+
+  const artistEl = document.createElement('div');
+  artistEl.className = 'artist';
+  artistEl.textContent = primary;
+  cardBody.appendChild(artistEl);
 
   if (subtitle) {
     const sub = document.createElement('div');
