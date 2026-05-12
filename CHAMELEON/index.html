@@ -1245,105 +1245,19 @@ for (let i = 0; i < rest.length; i++) {
 //  Central plaque — shrine of names + community thanks
 // =============================================================================
 {
-  const NAMES = [
-    'Adam Pits','Allfield','Andy Kidd','B:Cam','Bakey','Barker','Ben UFO','benjics',
-    'Breaka','Burley','Call Super','Cognition','Chris l’Anson','Deo','Donk Fantisee',
-    'Filip U','Flo Ruby','Fold','forms','Fox','Gastah','Harkirit','Hudson','Hutch',
-    'Kitsta','Laqai','Lara David','Lenzman','Lilo','Lisene','Litherland','lo.pan',
-    'Martyn','Marv B','Midland','Mike Jones','New Ends','Objekt','Oren','Or:la',
-    'Owari','Pangaea','Parris','Pearson Sound','Perseus Traxx','Ploy','re:ni',
-    'Rene Wise','Savio','se.arle','Sizeup','Special Request','Stenny','Tañ',
-    'Tom VR','Tor','Yuba',
-  ];
-
-  // -- Build the plaque texture --
-  // Top ~1030 px of the canvas is intentionally left blank — a separate
-  // textured plane overlays it in 3D with the event photo.
-  const W = 1536, H = 2600;
-  const c = document.createElement('canvas');
-  c.width = W; c.height = H;
-  const ctx = c.getContext('2d');
-
-  // Dark plaque body with subtle radial gradient
-  ctx.fillStyle = '#0e1014';
-  ctx.fillRect(0, 0, W, H);
-  const grad = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W * 0.9);
-  grad.addColorStop(0, 'rgba(80, 84, 96, 0.18)');
-  grad.addColorStop(1, 'rgba(0, 0, 0, 0.4)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
-
-  // Thin inner border
-  ctx.strokeStyle = 'rgba(230, 234, 240, 0.15)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(48, 48, W - 96, H - 96);
-
-  const font = (size, weight = 400, italic = false) =>
-    `${italic ? 'italic ' : ''}${weight} ${size}px "Anek Kannada", system-ui, sans-serif`;
-  const hairline = (xCentre, yPos, halfLen, alpha = 0.22) => {
-    ctx.strokeStyle = `rgba(230, 234, 240, ${alpha})`;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(xCentre - halfLen, yPos);
-    ctx.lineTo(xCentre + halfLen, yPos);
-    ctx.stroke();
-  };
-
-  // ---- Caption: quiet italic year range + hairline (sits just below the photo zone)
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#7d828a';
-  ctx.font = font(40, 400, true);
-  ctx.fillText('2019 — present', W / 2, 1090);
-  hairline(W / 2, 1150, 220, 0.22);
-
-  // ---- Names: 4 columns, slightly tightened to fit the longer canvas
-  ctx.fillStyle = '#dee1e7';
-  ctx.font = font(40, 500);
-  const COLS  = 4;
-  const rows  = Math.ceil(NAMES.length / COLS);
-  const NAME_TOP   = 1230;
-  const NAME_ROW   = 60;
-  const NAME_INSET = 120;
-  const colW = (W - NAME_INSET * 2) / COLS;
-  for (let i = 0; i < NAMES.length; i++) {
-    const col = i % COLS;
-    const row = Math.floor(i / COLS);
-    const x = NAME_INSET + colW * col + colW / 2;
-    const y = NAME_TOP + row * NAME_ROW;
-    ctx.fillText(NAMES[i], x, y);
-  }
-
-  // ---- Community thanks ----
-  let y = NAME_TOP + (rows - 1) * NAME_ROW + 60;
-  hairline(W / 2, y, 280, 0.18);
-  y += 60;
-
-  ctx.fillStyle = '#b8becb';
-  ctx.font = font(42, 400, true);
-  const LINE = 52;
-
-  // Re-wrapped for balanced line lengths (33–50 chars each)
-  const lines = [
-    'And to everyone who makes it real —',
-    'the artworkers, the Crescent and BlueBox,',
-    'the door, bar and sound crew who hold it together.',
-    'To York, the regulars, the out-of-towners,',
-    'the strangers who turn into family',
-    'and show up. A community event.',
-  ];
-  lines.forEach((line, i) => ctx.fillText(line, W / 2, y + i * LINE));
-  y += lines.length * LINE + 60;
-  ctx.fillStyle = '#e8ebef';
-  ctx.font = font(66, 600);
-  ctx.fillText('Thank you.', W / 2, y);
-
-  const plaqueTex = new THREE.CanvasTexture(c);
-  plaqueTex.colorSpace = THREE.SRGBColorSpace;
-  plaqueTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  // The plaque face is a pre-baked WebP (see CHAMELEON/photos/plaque.webp,
+  // generated from /tmp/render-plaque.html via headless Chrome). Avoids the
+  // runtime canvas paint + GPU re-upload + web-font flash that the previous
+  // CanvasTexture approach required.
+  const PLAQUE_TEX_W = 1536, PLAQUE_TEX_H = 2600;   // source pixels, used for aspect + photo overlay UVs
+  const plaqueTex = texLoader.load('photos/plaque.webp', t => {
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  });
 
   // -- Build the plaque mesh --
   const w = 1.7;
-  const h = w * (H / W);   // preserve canvas aspect
+  const h = w * (PLAQUE_TEX_H / PLAQUE_TEX_W);   // preserve source-image aspect
   const plaqueGroup = new THREE.Group();
 
   // Dark metal backing (frame)
@@ -1366,11 +1280,11 @@ for (let i = 0; i < rest.length; i++) {
   // Source is 1:1 square (1024×1024). The photo plane is wider than tall, so
   // the texture's U is shown 0..1 (full width) and V is sampled from a
   // centred band — centre-crop top + bottom of the source.
-  const PHOTO_TOP_PX    = 60;        // canvas pixel row of photo's top edge
+  const PHOTO_TOP_PX    = 210;       // canvas pixel row of photo's top edge (below title band)
   const PHOTO_BOTTOM_PX = 1040;      // canvas pixel row of photo's bottom edge (above caption at y=1090)
   const PHOTO_W = w;                                              // full plaque width
-  const PHOTO_H = (PHOTO_BOTTOM_PX - PHOTO_TOP_PX) / H * h;       // mesh-space height
-  const photoY  = h * 0.5 - (PHOTO_TOP_PX + PHOTO_BOTTOM_PX) * 0.5 / H * h;
+  const PHOTO_H = (PHOTO_BOTTOM_PX - PHOTO_TOP_PX) / PLAQUE_TEX_H * h;       // mesh-space height
+  const photoY  = h * 0.5 - (PHOTO_TOP_PX + PHOTO_BOTTOM_PX) * 0.5 / PLAQUE_TEX_H * h;
 
   const photoTex = texLoader.load('photos/event.webp', t => {
     t.colorSpace = THREE.SRGBColorSpace;
