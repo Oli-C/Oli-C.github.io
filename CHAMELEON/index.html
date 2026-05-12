@@ -153,6 +153,19 @@
   .prompt.show { opacity: 0.85; }
   .prompt.hide { opacity: 0; transform: translate(-50%, 8px); pointer-events: none; }
   .prompt .sep { color: var(--fg-subtle); margin: 0 10px; }
+  .prompt kbd {
+    display: inline-block;
+    padding: 2px 7px;
+    margin-right: 6px;
+    font-family: inherit;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 4px;
+    color: #c4c8ce;
+    background: rgba(255, 255, 255, 0.03);
+  }
   @media (max-width: 560px) {
     .prompt {
       font-size: 11px;
@@ -170,21 +183,53 @@
     left: 50%;
     bottom: calc(96px + env(safe-area-inset-bottom));
     transform: translateX(-50%);
-    min-width: 240px; max-width: min(440px, calc(100vw - 48px));
-    padding: 10px 18px 12px;
+    min-width: 260px; max-width: min(440px, calc(100vw - 48px));
+    padding: 18px 26px 18px;
     background: #0b0b0d;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
     opacity: 0;
     transition: opacity 0.32s var(--ease);
     cursor: pointer;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
     text-align: center;
   }
   .card.show { opacity: 1; }
-  .card .title { font-size: 15px; font-weight: 500; color: #d6dadf; line-height: 1.25; }
-  .card .meta  { font-size: 12px; color: #969ba2; margin-top: 6px; letter-spacing: 0.02em; font-style: italic; }
+  .card-body { display: flex; flex-direction: column; align-items: center; }
+  .card .artist {
+    font-size: 19px;
+    font-weight: 600;
+    color: #e8ebef;
+    line-height: 1.18;
+    letter-spacing: 0.005em;
+  }
+  .card .conj {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #6e747c;
+    margin: 4px 0 2px;
+  }
+  .card .subtitle {
+    font-size: 12.5px;
+    font-style: italic;
+    color: #9aa0a8;
+    margin-top: 6px;
+  }
+  .card .divider {
+    display: block;
+    width: 28px;
+    height: 1px;
+    margin: 12px 0 10px;
+    background: rgba(255, 255, 255, 0.18);
+  }
+  .card .meta {
+    font-size: 10.5px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #8a8f97;
+  }
   .card .meta:empty { display: none; }
 </style>
 </head>
@@ -207,16 +252,9 @@
   <button class="nav-arrow nav-next" id="navNext" aria-label="Next painting">
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 5 16 12 9 19"/></svg>
   </button>
-  <div class="prompt" id="prompt">
-    drag to look
-    <span class="sep">·</span>
-    wasd / scroll to move
-    <span class="sep">·</span>
-    click a painting to focus
-  </div>
+  <div class="prompt" id="prompt"></div>
   <div class="card" id="card">
-    <div class="title" id="cardTitle">—</div>
-    <div class="meta"  id="cardMeta">—</div>
+    <div class="card-body" id="cardBody"></div>
   </div>
 </div>
 
@@ -246,7 +284,7 @@ const POSTERS = [
   { img: 'posters/Ben UFO - 10 Aug 2024.webp',               title: 'Ben UFO',                              meta: '10 Aug 2024' },
   { img: 'posters/Objekt - 29 Nov 2025.webp',         title: 'Objekt',                               meta: '29 Nov 2025' },
   { img: 'posters/Midland - 9 Jun 2023.webp',               title: 'Midland',                              meta: '9 Jun 2023' },
-  { img: 'posters/Midland & SR (Special Request) - 13 Feb 2026.webp',        title: 'Midland & SR (Special Request)',       meta: '13 Feb 2026' },
+  { img: 'posters/Midland & SR (Special Request) - 13 Feb 2026.webp',        title: 'Midland & Special Request',            meta: '13 Feb 2026' },
   { img: 'posters/Call Super - 16 Feb 2024.webp',             title: 'Call Super',                           meta: '16 Feb 2024' },
   { img: 'posters/Call Super - Chameleon 6th Birthday - 12 Dec 2025.webp',          title: 'Call Super · Chameleon 6th Birthday',  meta: '12 Dec 2025' },
   { img: 'posters/Pearson Sound - 29 Nov 2024.webp',               title: 'Pearson Sound',                        meta: '29 Nov 2024' },
@@ -383,6 +421,16 @@ const manager = new THREE.LoadingManager();
 const loadbar = document.getElementById('loadbar');
 const splash  = document.getElementById('loading');
 const promptEl = document.getElementById('prompt');
+// Distinct, chip-style hints per input device — keeps the HUD readable
+// without trying to cover every modality at once.
+promptEl.innerHTML = isMobile
+  ? '<kbd>swipe</kbd>look<span class="sep">·</span>'
+  + '<kbd>pinch</kbd>zoom<span class="sep">·</span>'
+  + '<kbd>tap</kbd>focus'
+  : '<kbd>drag</kbd>look<span class="sep">·</span>'
+  + '<kbd>wasd</kbd>move<span class="sep">·</span>'
+  + '<kbd>scroll</kbd>zoom<span class="sep">·</span>'
+  + '<kbd>click</kbd>focus';
 
 manager.onProgress = (_url, loaded, total) => {
   const pct = total ? Math.round((loaded / total) * 100) : 0;
@@ -1313,6 +1361,33 @@ for (let i = 0; i < rest.length; i++) {
   photo.position.set(0, photoY, 0.005);                           // 3 mm in front of the face plane
   plaqueGroup.add(photo);
 
+  // ---- "made by allfield" credit on the back of the plaque ----
+  // Transparent canvas so only the text pixels render over the dark backing.
+  {
+    const bc = document.createElement('canvas');
+    bc.width = 1024; bc.height = 256;
+    const bx = bc.getContext('2d');
+    bx.fillStyle = '#a8aeb6';
+    bx.font = 'italic 400 64px "Anek Kannada", system-ui, sans-serif';
+    bx.textAlign = 'center';
+    bx.textBaseline = 'middle';
+    bx.fillText('made by allfield', 512, 128);
+
+    const backTex = new THREE.CanvasTexture(bc);
+    backTex.colorSpace = THREE.SRGBColorSpace;
+    backTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+    const backW = w * 0.5;
+    const backH = backW * (256 / 1024);
+    const back = new THREE.Mesh(
+      new THREE.PlaneGeometry(backW, backH),
+      new THREE.MeshBasicMaterial({ map: backTex, transparent: true, fog: true })
+    );
+    back.position.set(0, 0, -0.041);   // 1 mm behind the backing's back face
+    back.rotation.y = Math.PI;          // face -Z so it reads from behind
+    plaqueGroup.add(back);
+  }
+
   // At the foot of the pillar — just outside its glow halo (~1.4 m radius)
   const plaqueZ = 1.9;
   plaqueGroup.position.set(0, EYE_Y + 0.05, plaqueZ);
@@ -1785,13 +1860,13 @@ function navigatePainting(delta) {
   }
   const group = paintings[currentPaintingIdx];
   const art = group.children.find(c => c.userData && c.userData.isPoster);
-  if (art) glideToPoster(art);
+  if (art) glideToPoster(art, false);   // arrow nav: no rock + no wind-up delay
 }
 
 document.getElementById('navPrev').addEventListener('click', () => navigatePainting(-1));
 document.getElementById('navNext').addEventListener('click', () => navigatePainting(+1));
 
-function glideToPoster(art) {
+function glideToPoster(art, withRock = true) {
   const group = art.userData.group;
   // Track which painting is "current" for the prev/next arrow nav (not for the plaque)
   if (!art.userData.isPlaque && group.userData.paintingIdx !== undefined) {
@@ -1819,7 +1894,7 @@ function glideToPoster(art) {
   // Posters: kick off a damped jiggle, then start the glide a beat later so
   // the user sees the click register before the camera takes over. Plaque
   // is already the central focus, so skip the wind-up for it.
-  if (art.userData.isPlaque) {
+  if (art.userData.isPlaque || !withRock) {
     startGlide(c.x, c.z, yaw, pitch, null);
   } else {
     group.userData.rockT0 = performance.now();
@@ -1834,9 +1909,8 @@ function glideToPoster(art) {
 // =============================================================================
 //  Info card
 // =============================================================================
-const cardEl    = document.getElementById('card');
-const cardTitle = document.getElementById('cardTitle');
-const cardMeta  = document.getElementById('cardMeta');
+const cardEl   = document.getElementById('card');
+const cardBody = document.getElementById('cardBody');
 let cardArt = null;
 
 // "29 Jun 2024" → "Saturday 29th June 2024"; "2021" stays "2021"; empty stays empty.
@@ -1870,6 +1944,23 @@ function _formatOne(p, withYear) {
   const dow = _DAYS[new Date(Date.UTC(p.year, _MONTH_IDX[p.monKey], p.day)).getUTCDay()];
   return `${dow} ${_ordinal(p.day)} ${_FULL_MONTH[p.monKey]}${withYear ? ` ${p.year}` : ''}`;
 }
+const _DAY_SHORT   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const _MONTH_SHORT = { jan:'Jan',feb:'Feb',mar:'Mar',apr:'Apr',may:'May',jun:'Jun',
+                       jul:'Jul',aug:'Aug',sep:'Sep',oct:'Oct',nov:'Nov',dec:'Dec' };
+function _formatOneCompact(p) {
+  const dow = _DAY_SHORT[new Date(Date.UTC(p.year, _MONTH_IDX[p.monKey], p.day)).getUTCDay()];
+  return `${dow} ${p.day} ${_MONTH_SHORT[p.monKey]} ${p.year}`;
+}
+function compactDate(s) {
+  if (!s) return '';
+  if (/^\d{4}$/.test(s)) return s;
+  if (s.includes(',')) {
+    const parts = s.split(',').map(_parseOne);
+    if (parts.every(Boolean)) return parts.map(_formatOneCompact).join(' · ');
+  }
+  const single = _parseOne(s);
+  return single ? _formatOneCompact(single) : s;
+}
 function formalDate(s) {
   if (!s) return '';
   if (/^\d{4}$/.test(s)) return s;
@@ -1895,8 +1986,51 @@ const navNextEl = document.getElementById('navNext');
 
 function showCard(art) {
   cardArt = art;
-  cardTitle.textContent = art.userData.title;
-  cardMeta.textContent  = formalDate(art.userData.meta);
+  const { title, meta } = art.userData;
+
+  // "Artist1 b2b Artist2 · Subtitle" → stacked artists + italic subtitle
+  const dotSplit = title.split(' · ');
+  const primary   = dotSplit[0];
+  const subtitle  = dotSplit.slice(1).join(' · ');
+  const artists   = primary.split(/\s+b2b\s+/i);
+
+  cardBody.replaceChildren();
+
+  const lineup = document.createElement('div');
+  lineup.className = 'lineup';
+  artists.forEach((name, i) => {
+    const a = document.createElement('div');
+    a.className = 'artist';
+    a.textContent = name;
+    lineup.appendChild(a);
+    if (i < artists.length - 1) {
+      const c = document.createElement('div');
+      c.className = 'conj';
+      c.textContent = 'b2b';
+      lineup.appendChild(c);
+    }
+  });
+  cardBody.appendChild(lineup);
+
+  if (subtitle) {
+    const sub = document.createElement('div');
+    sub.className = 'subtitle';
+    sub.textContent = subtitle;
+    cardBody.appendChild(sub);
+  }
+
+  const div = document.createElement('span');
+  div.className = 'divider';
+  cardBody.appendChild(div);
+
+  const dateText = compactDate(meta);
+  if (dateText) {
+    const m = document.createElement('div');
+    m.className = 'meta';
+    m.textContent = dateText;
+    cardBody.appendChild(m);
+  }
+
   cardEl.classList.add('show');
   navPrevEl.classList.add('show');
   navNextEl.classList.add('show');
@@ -2078,7 +2212,7 @@ function tick() {
           p.userData.rockT0 = undefined;
         } else {
           const norm = elapsed / dur;
-          const amp = (1 - norm) * 0.07;             // peak ~4°, decays linearly
+          const amp = (1 - norm) * 0.11;             // peak ~6°, decays linearly
           p.rotation.z = Math.sin(norm * Math.PI * 4) * amp;   // 2 oscillations
         }
       }
