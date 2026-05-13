@@ -467,14 +467,15 @@ renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.35;
+renderer.toneMappingExposure = 1.60;
 const canvasEl = renderer.domElement;
 document.getElementById('app').appendChild(canvasEl);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#000000');
-// Heavy atmospheric fog — distant paintings dissolve into black like kamimae's space
-scene.fog = new THREE.FogExp2('#000000', 0.030);
+// Atmospheric fog — kept light enough that posters on the far side of the
+// rotunda stay legible. The pillar's warm pool still anchors the centre.
+scene.fog = new THREE.FogExp2('#000000', 0.018);
 
 const camera = new THREE.PerspectiveCamera(78, window.innerWidth / window.innerHeight, 0.05, 600);
 
@@ -539,7 +540,7 @@ const texLoader = new THREE.TextureLoader(manager);
 //  Lighting — moody: almost no ambient, just the pillar and a hint of moon
 // =============================================================================
 // Very faint hemisphere — barely lifts the floor / paintings out of pure black
-scene.add(new THREE.HemisphereLight(0x4a525e, 0x06080c, 0.65));
+scene.add(new THREE.HemisphereLight(0x8a8e9a, 0x0a0c10, 2.10));
 
 // Moon — cool directional, dim
 const moon = new THREE.DirectionalLight(0xb4c0d0, 0.18);
@@ -583,7 +584,7 @@ const pillar = new THREE.Mesh(
     map: pillarTex,
     color: 0xfff4dc,
     transparent: true,
-    opacity: 0.9,
+    opacity: 0.42,
     blending: THREE.AdditiveBlending,
     side: THREE.DoubleSide,
     depthWrite: false,
@@ -610,32 +611,48 @@ const halo = new THREE.Mesh(
 halo.position.y = PILLAR_Y;
 scene.add(halo);
 
-// Warm pointlight at the foot — kept tight so it doesn't bleed onto the
-// dark concrete floor across the whole rotunda. Faster decay = sharper falloff.
-const pillarLight = new THREE.PointLight(0xffe6b8, 1.8, ROOM.radius * 0.6, 2.0);
-pillarLight.position.set(0, 1.2, 0);
-scene.add(pillarLight);
+pillar.userData.baseOpacity = pillar.material.opacity;
+halo.userData.baseOpacity   = halo.material.opacity;
 
-// Store base values so the pulse code in the tick loop can modulate around them
-pillar.userData.baseOpacity      = pillar.material.opacity;
-halo.userData.baseOpacity        = halo.material.opacity;
-pillarLight.userData.baseIntensity = pillarLight.intensity;
-
-// Floor disc at the pillar's foot, glowing warmly — kept small and faint so
-// it doesn't cream-out the dark concrete floor beyond the hole.
+// Floor light "pool" — baked radial gradient texture on a flat disc, sized
+// to cover what the old PointLight used to illuminate. No per-fragment
+// lighting work: just one alpha-blended quad. The pulse animation
+// modulates this disc's opacity instead of a real light's intensity.
+const pillarPoolTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const cx = c.getContext('2d');
+  const g = cx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  // Hot centre with a long soft falloff — like a tall column of light
+  // scattering through fog onto the floor. Inner stops bright + saturated,
+  // outer stops trail off gently so the wash reaches well past the pillar's
+  // own footprint.
+  g.addColorStop(0.00, 'rgba(255, 232, 188, 1.00)');
+  g.addColorStop(0.10, 'rgba(255, 226, 175, 0.92)');
+  g.addColorStop(0.30, 'rgba(255, 216, 158, 0.55)');
+  g.addColorStop(0.55, 'rgba(255, 208, 148, 0.28)');
+  g.addColorStop(0.80, 'rgba(255, 200, 140, 0.10)');
+  g.addColorStop(1.00, 'rgba(255, 200, 140, 0.00)');
+  cx.fillStyle = g;
+  cx.fillRect(0, 0, 256, 256);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
 const pillarPool = new THREE.Mesh(
-  new THREE.CircleGeometry(1.7, 48),
+  new THREE.CircleGeometry(10.0, 64),
   new THREE.MeshBasicMaterial({
-    color: 0xffe6b8,
+    map:        pillarPoolTex,
     transparent: true,
-    opacity: 0.18,
-    blending: THREE.AdditiveBlending,
+    opacity:    0.40,
+    blending:   THREE.AdditiveBlending,
     depthWrite: false,
-    fog: false,
+    fog:        false,
   })
 );
 pillarPool.rotation.x = -Math.PI / 2;
 pillarPool.position.y = 0.01;
+pillarPool.userData.baseOpacity = pillarPool.material.opacity;
 scene.add(pillarPool);
 
 // ---- Floor: prebaked Concrete040 PBR pack (ambientCG style) at 1K — three
@@ -670,26 +687,31 @@ const floorRepeat = [ROOM.radius / 2, ROOM.radius / 2];
 // (those are some of the most expensive uniforms / branches in the PBR
 // fragment shader). Visual difference is the pillar's floor reflection is
 // a bit more diffuse and isn't anisotropically stretched.
+// Warm tint multiplied with the grey concrete albedo — free way to get
+// chroma into the floor without paying for a second directional light.
+const FLOOR_TINT = 0xf2e6c8;   // pale ochre — lifts the outer floor out of shadow
 const floorMat = isMobile
   ? new THREE.MeshStandardMaterial({
+      color:           FLOOR_TINT,
       map:             floorColorTex,
       normalMap:       floorNormalTex,
       roughnessMap:    floorRoughnessTex,
       normalScale:     new THREE.Vector2(0.45, 0.45),
       metalness:       0.0,
-      envMapIntensity: 0.45,                 // dampen HDRI reflections on the floor
+      envMapIntensity: 0.35,
     })
   : new THREE.MeshPhysicalMaterial({
+      color:              FLOOR_TINT,
       map:                floorColorTex,
       normalMap:          floorNormalTex,
       roughnessMap:       floorRoughnessTex,
       normalScale:        new THREE.Vector2(0.55, 0.55),
       metalness:          0.0,
-      clearcoat:          0.25,              // was 0.5 — softer mirror layer
-      clearcoatRoughness: 0.55,              // was 0.42 — more diffuse, less crisp HDRI mirror
-      anisotropy:         0.7,
+      clearcoat:          0.08,
+      clearcoatRoughness: 0.90,
+      anisotropy:         0.4,
       anisotropyRotation: 0,
-      envMapIntensity:    0.45,              // dampen HDRI reflections on the floor
+      envMapIntensity:    0.35,
     });
 
 // Floor — ring with an open hole at the centre so the light shaft can
@@ -1013,6 +1035,10 @@ const paintings = [];
 // Card resources shared across all paintings — single material instance saves
 // per-draw uniform updates; geometries shared per size so 47 non-featured cards
 // reference the same BoxGeometry on the GPU.
+// Warm cream tint for poster albedo — sells the impression of being lit by
+// the central pillar's wash without paying for any real light on these
+// unlit MeshBasicMaterials.
+const POSTER_BASE_COLOR = new THREE.Color(0xf6e8cc);
 const CARD_PAD   = 0.07;
 const CARD_DEPTH = 0.025;
 const cardMat = new THREE.MeshStandardMaterial({ color: 0x1f2125, roughness: 0.9, metalness: 0 });
@@ -1044,7 +1070,10 @@ function makePoster({ img, title, meta, url, indexLabel, venue, lineup, w, h }, 
   // The painting itself — unlit basic material so colours stay true
   // regardless of how dim the room is. Color multiplier dims pure-white pixels
   // so they don't punch through the moody ambient and trigger bloom.
-  const artMat = new THREE.MeshBasicMaterial({ map: tex, color: 0xdcdcdc, fog: true });
+  // Base tint — slight warm cream so all posters read as kissed by the warm
+  // pillar wash rather than sitting on a cold neutral. Click-flash multiplies
+  // around this base, so it's the colour each painting "rests" at.
+  const artMat = new THREE.MeshBasicMaterial({ map: tex, color: POSTER_BASE_COLOR, fog: true });
   const art = new THREE.Mesh(new THREE.PlaneGeometry(w, h), artMat);
   art.position.z = 0.002;
   art.renderOrder = 1;
@@ -1058,6 +1087,7 @@ function makePoster({ img, title, meta, url, indexLabel, venue, lineup, w, h }, 
   group.userData.bobFreq  = 0.3 + Math.random() * 0.3;
   group.userData.bobPhase = Math.random() * Math.PI * 2;
   group.userData.paintingIdx = paintings.length;
+  group.userData.artMat = artMat;             // back-ref for click-flash + others
   paintings.push(group);
 
   parent.add(group);
@@ -1091,6 +1121,37 @@ const blobShadowMat = new THREE.MeshBasicMaterial({
   depthWrite: false,
   fog: true,
 });
+
+// ---- Single reusable "overhead light flash" sprite — when the user clicks
+// a poster from afar, this sprite is briefly positioned just above that
+// poster and faded in/out to draw the eye to the target. Skipped when the
+// camera is already close to the poster (would just be glare in the face).
+const overheadFlashTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const cx = c.getContext('2d');
+  const g = cx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0.00, 'rgba(255, 244, 210, 1.00)');
+  g.addColorStop(0.30, 'rgba(255, 226, 170, 0.55)');
+  g.addColorStop(0.70, 'rgba(255, 210, 145, 0.14)');
+  g.addColorStop(1.00, 'rgba(255, 200, 140, 0.00)');
+  cx.fillStyle = g;
+  cx.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+const overheadFlash = new THREE.Sprite(new THREE.SpriteMaterial({
+  map:        overheadFlashTex,
+  transparent: true,
+  blending:   THREE.AdditiveBlending,
+  depthWrite: false,
+  fog:        true,
+  opacity:    0,
+}));
+overheadFlash.scale.set(0.55, 0.55, 1);
+overheadFlash.visible = false;
+scene.add(overheadFlash);
 
 function placePosterAt(p, angle, isFeatured) {
   const w = 1.15;
@@ -1715,7 +1776,17 @@ function glideToPoster(art, withRock = true) {
   if (art.userData.isPlaque || !withRock) {
     startGlide(c.x, c.z, yaw, pitch, null);
   } else {
-    group.userData.rockT0 = performance.now();
+    group.userData.rockT0  = performance.now();
+    group.userData.flashT0 = performance.now();
+    // Overhead light flash — only if camera is more than ~3 m out from this
+    // poster, so close-up clicks don't get a glare in the face.
+    const cdx = camera.position.x - group.position.x;
+    const cdz = camera.position.z - group.position.z;
+    if (Math.hypot(cdx, cdz) > 3.0) {
+      overheadFlash.position.set(group.position.x, group.userData.baseY + 1.25, group.position.z);
+      overheadFlash.visible = true;
+      overheadFlash.userData.t0 = performance.now();
+    }
     glide.pending = true;
     setTimeout(() => {
       glide.pending = false;
@@ -2082,16 +2153,41 @@ function tick() {
           p.rotation.z = Math.sin(norm * Math.PI * 4) * amp;   // 2 oscillations
         }
       }
+      // (overhead light flash is global, handled outside the per-poster loop)
+      // Click-flash: brief overbright on the painting albedo (~200 ms half-sine
+      // lobe peaking at 1.85× the resting POSTER_BASE_COLOR).
+      if (p.userData.flashT0 !== undefined && p.userData.artMat) {
+        const elapsed = (now - p.userData.flashT0) / 1000;
+        const dur = 0.20;
+        if (elapsed >= dur) {
+          p.userData.artMat.color.copy(POSTER_BASE_COLOR);
+          p.userData.flashT0 = undefined;
+        } else {
+          const k = 1 + Math.sin((elapsed / dur) * Math.PI) * 0.85;
+          p.userData.artMat.color.copy(POSTER_BASE_COLOR).multiplyScalar(k);
+        }
+      }
     }
   }
 
-  // ----- Pillar of light: slow pulse (~7s period, ±12 % amplitude) -----
-  {
-    const tt = now * 0.001;
-    const pulse = 0.88 + Math.sin(tt * (Math.PI * 2 / 7)) * 0.12;
-    pillar.material.opacity      = pillar.userData.baseOpacity * pulse;
-    halo.material.opacity        = halo.userData.baseOpacity   * pulse;
-    pillarLight.intensity        = pillarLight.userData.baseIntensity * pulse;
+  // (Pillar pulse removed — pillar/halo/pool opacities stay at their base
+  // values, so the light reads as steady rather than breathing.)
+
+  // ----- Overhead poster-click flash: fade in fast, decay slower (~360 ms)
+  if (overheadFlash.visible) {
+    const elapsed = (now - overheadFlash.userData.t0) / 1000;
+    const dur = 0.36;
+    if (elapsed >= dur) {
+      overheadFlash.visible = false;
+      overheadFlash.material.opacity = 0;
+    } else {
+      // 0 → 1 → 0 with quick rise and a slightly slower fall
+      const t = elapsed / dur;
+      const env = t < 0.30
+        ? (t / 0.30)                           // sharp 0→1 rise in first 30%
+        : 1 - ((t - 0.30) / 0.70);             // gentle 1→0 fall after
+      overheadFlash.material.opacity = env * 0.9;
+    }
   }
 
   // ----- Gallery smoke: drift + slow fade-in to target opacity -----
