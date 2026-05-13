@@ -156,10 +156,9 @@ const renderer = new THREE.WebGLRenderer({
   powerPreference: 'high-performance',
   logarithmicDepthBuffer: true,   // prevents z-fighting on distant near-coplanar surfaces
 });
-// Render at the screen's native DPR — sharpness > everything else.
-// Mobile GPUs handle this fine now that we've cut the heavy post-process
-// chain, dropped the floor clearcoat, halved particle counts, etc.
-renderer.setPixelRatio(window.devicePixelRatio);
+// Render 1.5× the screen's native DPR — modest supersample for sharp edges
+// without melting the GPU. Capped at 3 so a 3×-DPR display doesn't spike.
+renderer.setPixelRatio(Math.min(window.devicePixelRatio * 1.5, 3));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -169,9 +168,10 @@ document.getElementById('app').appendChild(canvasEl);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#000000');
-// Atmospheric fog — kept light enough that posters on the far side of the
-// rotunda stay legible. The pillar's warm pool still anchors the centre.
-scene.fog = new THREE.FogExp2('#000000', 0.018);
+// Atmospheric fog — a touch heavier now so opposite-side posters soften into
+// haze (gives the rotunda real depth) without fully dissolving. Pure black
+// keeps the void feel.
+scene.fog = new THREE.FogExp2('#000000', 0.030);
 
 const camera = new THREE.PerspectiveCamera(78, window.innerWidth / window.innerHeight, 0.05, 600);
 
@@ -638,7 +638,7 @@ scene.add(innerLip);
 //  Floating dust particles — slow drift in the air, lit by the central pillar
 // =============================================================================
 {
-  const DUST_COUNT = 220;
+  const DUST_COUNT = 80;
   const pos = new Float32Array(DUST_COUNT * 3);
   for (let i = 0; i < DUST_COUNT; i++) {
     const a  = Math.random() * Math.PI * 2;
@@ -650,15 +650,17 @@ scene.add(innerLip);
   const dustGeo = new THREE.BufferGeometry();
   dustGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
 
+  // Solid-filled circle (no alpha gradient) — iOS Safari's WebGL has known
+  // bugs with PointsMaterial + radial-gradient sprites where corner alpha=0
+  // pixels misread as a colour-swapped channel and render as green specks.
+  // A solid disc renders consistently on every device.
   const dc = document.createElement('canvas');
   dc.width = dc.height = 32;
   const dctx = dc.getContext('2d');
-  const dg = dctx.createRadialGradient(16, 16, 0, 16, 16, 16);
-  dg.addColorStop(0,   'rgba(255,240,220,0.9)');
-  dg.addColorStop(0.5, 'rgba(255,240,220,0.25)');
-  dg.addColorStop(1,   'rgba(255,240,220,0)');
-  dctx.fillStyle = dg;
-  dctx.fillRect(0, 0, 32, 32);
+  dctx.fillStyle = '#fff0dc';
+  dctx.beginPath();
+  dctx.arc(16, 16, 14, 0, Math.PI * 2);
+  dctx.fill();
   const dustSprite = new THREE.CanvasTexture(dc);
 
   const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({
@@ -666,7 +668,7 @@ scene.add(innerLip);
     size: 0.08,
     sizeAttenuation: true,
     transparent: true,
-    opacity: 0.6,
+    opacity: 0.4,                  // lower opacity since edges aren't soft now
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     fog: true,
@@ -679,7 +681,7 @@ scene.add(innerLip);
   // --- Pillar dust sparkle — extra bright motes confined inside the halo
   // radius (r < 1.4) so they catch the warm pillar light. Reads as
   // "motes drifting through the beam".
-  const SPARK_COUNT = 80;
+  const SPARK_COUNT = 30;
   const sparkPos = new Float32Array(SPARK_COUNT * 3);
   for (let i = 0; i < SPARK_COUNT; i++) {
     const r = Math.sqrt(Math.random()) * 1.2;
@@ -1792,7 +1794,7 @@ const grainPass = new ShaderPass({
   uniforms: {
     tDiffuse: { value: null },
     time:     { value: 0 },
-    amount:   { value: 0.020 },     // barely-visible grain — just enough to break banding
+    amount:   { value: 0.010 },     // barely-visible grain — just enough to break banding
   },
   vertexShader: `
     varying vec2 vUv;
