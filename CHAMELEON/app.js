@@ -156,8 +156,13 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.60;
+// ACES on desktop is gorgeous but its tail compresses to white via a curve
+// that shifts hue — on mobile, where additive sources push channels past 1
+// at lower fragment precision, the hue shift quantises into visible
+// green/magenta speckles around bright additive light. Reinhard is a much
+// gentler curve, hue-preserving, and mathematically cheap.
+renderer.toneMapping = isMobile ? THREE.ReinhardToneMapping : THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = isMobile ? 2.0 : 1.60;
 const canvasEl = renderer.domElement;
 document.getElementById('app').appendChild(canvasEl);
 
@@ -334,7 +339,10 @@ const pillarPool = new THREE.Mesh(
   new THREE.MeshBasicMaterial({
     map:        pillarPoolTex,
     transparent: true,
-    opacity:    0.40,
+    // Lower opacity on mobile so the additive contribution stays well under 1
+    // and the tonemap never has to compress overbright values — eliminates
+    // the green/magenta channel-overflow speckles near the bright centre.
+    opacity:    isMobile ? 0.26 : 0.40,
     blending:   THREE.AdditiveBlending,
     depthWrite: false,
     fog:        false,
