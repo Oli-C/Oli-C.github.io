@@ -9,10 +9,20 @@
 // editing app.js, the vendor/three tree, or anything they import.
 
 import { build } from 'esbuild';
+import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const root = dirname(fileURLToPath(import.meta.url));
+
+// Auto-incrementing version stamped onto the plaque back. Tied to git
+// commit count so it bumps with each commit — no manual maintenance.
+const commitCount = (() => {
+  try { return execSync('git rev-list --count HEAD', { cwd: root }).toString().trim(); }
+  catch { return '0'; }
+})();
+const SITE_VERSION = `v0.${commitCount}`;
+console.log(`stamping ${SITE_VERSION}`);
 
 await build({
   entryPoints: [join(root, 'app.js')],
@@ -22,6 +32,9 @@ await build({
   format:      'esm',
   target:      'es2020',
   legalComments: 'none',
+  define: {
+    __SITE_VERSION__: JSON.stringify(SITE_VERSION),
+  },
   plugins: [{
     name: 'three-resolver',
     setup(b) {

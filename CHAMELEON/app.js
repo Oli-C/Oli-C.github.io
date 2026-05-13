@@ -145,6 +145,12 @@ const VIEW_DISTANCE = 2.0;   // how far from a poster the camera glides
 const isMobile = window.matchMedia('(pointer: coarse)').matches
               || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
+// Build-time-injected version string (build.mjs replaces __SITE_VERSION__
+// with `v0.<git-commit-count>`). Falls back to a dev marker when run
+// unbundled (i.e. the substitution didn't happen).
+// eslint-disable-next-line no-undef
+const SITE_VERSION = typeof __SITE_VERSION__ !== 'undefined' ? __SITE_VERSION__ : 'v0.dev';
+
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
   powerPreference: 'high-performance',
@@ -908,11 +914,21 @@ for (let i = 0; i < rest.length; i++) {
     const bc = document.createElement('canvas');
     bc.width = 1024; bc.height = 256;
     const bx = bc.getContext('2d');
-    bx.fillStyle = '#a8aeb6';
-    bx.font = 'italic 400 64px "Anek Kannada", system-ui, sans-serif';
     bx.textAlign = 'center';
     bx.textBaseline = 'middle';
-    bx.fillText('made by allfield', 512, 128);
+
+    // Credit line
+    bx.fillStyle = '#a8aeb6';
+    bx.font = 'italic 400 64px "Anek Kannada", system-ui, sans-serif';
+    bx.fillText('made by allfield', 512, 110);
+
+    // Auto-incrementing build version (tracks git commit count, set at
+    // bundle time in build.mjs).
+    bx.fillStyle = '#6e747c';
+    bx.font = '500 22px "Anek Kannada", system-ui, sans-serif';
+    if ('letterSpacing' in bx) bx.letterSpacing = '3px';
+    bx.fillText(SITE_VERSION, 512, 180);
+    if ('letterSpacing' in bx) bx.letterSpacing = '0px';
 
     const backTex = new THREE.CanvasTexture(bc);
     backTex.colorSpace = THREE.SRGBColorSpace;

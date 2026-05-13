@@ -1,0 +1,16 @@
+{
+  "name": "chameleon",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.bundle.min.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "esbuild": "^0.20.2"
+  }
+}
