@@ -1671,8 +1671,13 @@ cardEl.addEventListener('click', () => {
 //  pre-filters it for env-map use, so this lower-res source looks identical
 //  to a 1K HDRI after filtering. Drives the floor's PBR reflections + adds
 //  proper HDR ambient IBL. Background stays the procedural starfield.
+//
+//  Skipped on mobile: HDR float values sampled at lower fragment precision
+//  produce chromatic banding (green/magenta dots) near additive bright
+//  sources like the pillar pool. HemisphereLight + tone-mapping exposure
+//  carry the ambient there instead. Also saves a 350 KB download.
 // =============================================================================
-{
+if (!isMobile) {
   const pmrem = new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
   new RGBELoader(manager).load('textures/env/night-sky.hdr', tex => {
@@ -1689,13 +1694,17 @@ cardEl.addEventListener('click', () => {
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 
-// Bloom at half-res on desktop, third-res on mobile (4× → 9× cheaper)
-const bloomScale = isMobile ? 0.34 : 0.5;
-const bloom = new UnrealBloomPass(
-  new THREE.Vector2(window.innerWidth * bloomScale, window.innerHeight * bloomScale),
-  0.22, 0.3, 1.0
-);
-composer.addPass(bloom);
+// Bloom is desktop-only — UnrealBloomPass does several Gaussian-blur passes
+// per frame and is the heaviest single fragment-shader cost on mobile.
+// Tone-mapping + HemisphereLight carry the "bright stuff feels glow-y" feel
+// on mobile without the bandwidth hit.
+if (!isMobile) {
+  const bloom = new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth * 0.5, window.innerHeight * 0.5),
+    0.22, 0.3, 1.0
+  );
+  composer.addPass(bloom);
+}
 
 // Subtle post passes (grade / vignette / grain / smaa) — all skipped on mobile
 // because each is a full-screen pass and together they add ~2-3 ms / frame
