@@ -156,9 +156,11 @@ const renderer = new THREE.WebGLRenderer({
   powerPreference: 'high-performance',
   logarithmicDepthBuffer: true,   // prevents z-fighting on distant near-coplanar surfaces
 });
-// Render 1.5× the screen's native DPR — modest supersample for sharp edges
-// without melting the GPU. Capped at 3 so a 3×-DPR display doesn't spike.
-renderer.setPixelRatio(Math.min(window.devicePixelRatio * 1.5, 3));
+// Render at native DPR, capped at 2. Caps the high-DPR phones (3× DPR Pro
+// models) at 2× rendering — 44% less pixel-shader work than rendering at
+// physical 3× while still sharp enough to be indistinguishable on a 6-inch
+// screen. Desktop retina stays at 2×, non-retina at 1×.
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -398,7 +400,7 @@ const floorMat = new THREE.MeshPhysicalMaterial({
   clearcoatRoughness: 0.90,
   anisotropy:         0.4,
   anisotropyRotation: 0,
-  envMapIntensity:    0.35,
+  envMapIntensity:    0,        // HDRI off on the floor — star glints in the HDRI were the source of the green-blob artefact on iOS
 });
 
 // Floor — ring with an open hole at the centre so the light shaft can
@@ -653,17 +655,16 @@ scene.add(innerLip);
   const dustGeo = new THREE.BufferGeometry();
   dustGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
 
-  // Solid-filled circle (no alpha gradient) — iOS Safari's WebGL has known
-  // bugs with PointsMaterial + radial-gradient sprites where corner alpha=0
-  // pixels misread as a colour-swapped channel and render as green specks.
-  // A solid disc renders consistently on every device.
+  // Soft warm radial-gradient sprite — the original look.
   const dc = document.createElement('canvas');
   dc.width = dc.height = 32;
   const dctx = dc.getContext('2d');
-  dctx.fillStyle = '#fff0dc';
-  dctx.beginPath();
-  dctx.arc(16, 16, 14, 0, Math.PI * 2);
-  dctx.fill();
+  const dg = dctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+  dg.addColorStop(0,   'rgba(255,240,220,0.9)');
+  dg.addColorStop(0.5, 'rgba(255,240,220,0.25)');
+  dg.addColorStop(1,   'rgba(255,240,220,0)');
+  dctx.fillStyle = dg;
+  dctx.fillRect(0, 0, 32, 32);
   const dustSprite = new THREE.CanvasTexture(dc);
 
   const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({
@@ -671,14 +672,12 @@ scene.add(innerLip);
     size: 0.08,
     sizeAttenuation: true,
     transparent: true,
-    opacity: 0.4,                  // lower opacity since edges aren't soft now
+    opacity: 0.6,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     fog: true,
   }));
   scene.add(dust);
-
-  // Hook for slow drift each frame
   scene.userData.dust = dust;
 
   // --- Pillar dust sparkle — extra bright motes confined inside the halo
@@ -1714,14 +1713,18 @@ cardEl.addEventListener('click', () => {
 //  green/magenta speckles on mobile (whose default framebuffer is strict
 //  8-bit RGBA). The half-float RT is the standard Three.js HDR pipeline.
 // =============================================================================
-// Hardware MSAA (samples: 4) on a standard 8-bit RT. Edge anti-aliasing at
-// GPU rasterisation stage, much cheaper than half-float MSAA which has 8×
-// the memory bandwidth. The grain pass dithers any banding in dim mids.
+// Hardware MSAA at 2 samples — half the bandwidth of 4× MSAA, still smooths
+// geometric edges enough that the eye doesn't see the jaggies. Combined
+// with the now-2× pixel ratio cap, total fragment work is much lighter.
 const composerRT = new THREE.WebGLRenderTarget(
   window.innerWidth, window.innerHeight,
-  { samples: 4 }
+  { samples: 2 }
 );
 const composer = new EffectComposer(renderer, composerRT);
+// Re-size after construction so the composer's render target actually scales
+// to physical pixels (width × pixelRatio). Without this it stays at CSS-pixel
+// size and gets bilinear-stretched to the canvas — visible blur on mobile.
+composer.setSize(window.innerWidth, window.innerHeight);
 composer.addPass(new RenderPass(scene, camera));
 
 const bloom = new UnrealBloomPass(
