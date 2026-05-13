@@ -1259,6 +1259,31 @@ function makePoster({ img, title, meta, url, indexLabel, venue, lineup, w, h }, 
 const ALL = POSTERS;       // featured first in the list, then the rest
 const N   = ALL.length;    // 8 total
 
+// ---- Shared baked "blob" shadow — soft radial alpha gradient applied as a
+// thin horizontal plane just above the floor under each poster. Looks great,
+// costs nothing: one texture, one geometry, shared material for all 50.
+const blobShadowTex = (() => {
+  const bc = document.createElement('canvas');
+  bc.width = bc.height = 128;
+  const bx = bc.getContext('2d');
+  const g = bx.createRadialGradient(64, 64, 0, 64, 64, 62);
+  g.addColorStop(0,    'rgba(0, 0, 0, 0.70)');
+  g.addColorStop(0.55, 'rgba(0, 0, 0, 0.28)');
+  g.addColorStop(1,    'rgba(0, 0, 0, 0)');
+  bx.fillStyle = g;
+  bx.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(bc);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+const blobShadowGeom = new THREE.PlaneGeometry(1.6, 0.9);
+const blobShadowMat = new THREE.MeshBasicMaterial({
+  map: blobShadowTex,
+  transparent: true,
+  depthWrite: false,
+  fog: true,
+});
+
 function placePosterAt(p, angle, isFeatured) {
   const w = 1.15;
   const h = 1.5;
@@ -1275,6 +1300,15 @@ function placePosterAt(p, angle, isFeatured) {
   const normal = new THREE.Vector3(-Math.cos(angle), 0, -Math.sin(angle));
   g.userData.normal = normal;
   g.rotation.y = Math.atan2(normal.x, normal.z);
+
+  // Baked blob shadow on the floor, fixed (doesn't track the bob — that's
+  // intentional, real shadows wouldn't bob with the object either)
+  const blob = new THREE.Mesh(blobShadowGeom, blobShadowMat);
+  blob.rotation.x = -Math.PI / 2;
+  blob.rotation.z = g.rotation.y;            // align long axis with poster face
+  blob.position.set(g.position.x, 0.012, g.position.z);
+  blob.renderOrder = -2;                      // draw before posters / pillar pool
+  scene.add(blob);
 
   // Featured poster keeps its larger size but no longer gets a spotlight or
   // halo — it should read like the rest of the gallery, just bigger.
@@ -1361,6 +1395,18 @@ for (let i = 0; i < rest.length; i++) {
   const plaqueZ = 1.9;
   plaqueGroup.position.set(0, EYE_Y + 0.05, plaqueZ);
   scene.add(plaqueGroup);
+
+  // Blob shadow under the plaque — slightly larger ellipse to match its mass
+  {
+    const blob = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.4, 1.4),
+      blobShadowMat
+    );
+    blob.rotation.x = -Math.PI / 2;
+    blob.position.set(0, 0.013, plaqueZ);
+    blob.renderOrder = -2;
+    scene.add(blob);
+  }
 
   // ---- Make the plaque clickable: it glides the camera to a viewing position
   // facing it, same affordance as the painting cards. The face is now the
