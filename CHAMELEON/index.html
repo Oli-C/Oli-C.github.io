@@ -315,6 +315,7 @@ import { UnrealBloomPass }    from 'three/addons/postprocessing/UnrealBloomPass.
 import { ShaderPass }         from 'three/addons/postprocessing/ShaderPass.js';
 import { SMAAPass }           from 'three/addons/postprocessing/SMAAPass.js';
 import { OutputPass }         from 'three/addons/postprocessing/OutputPass.js';
+import { EXRLoader }          from 'three/addons/loaders/EXRLoader.js';
 
 // =============================================================================
 //  Posters — Chameleon event poster archive (WebP-encoded from the print archive)
@@ -466,14 +467,14 @@ renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.95;
+renderer.toneMappingExposure = 1.35;
 const canvasEl = renderer.domElement;
 document.getElementById('app').appendChild(canvasEl);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#000000');
 // Heavy atmospheric fog — distant paintings dissolve into black like kamimae's space
-scene.fog = new THREE.FogExp2('#000000', 0.022);
+scene.fog = new THREE.FogExp2('#000000', 0.030);
 
 const camera = new THREE.PerspectiveCamera(78, window.innerWidth / window.innerHeight, 0.05, 600);
 
@@ -538,7 +539,7 @@ const texLoader = new THREE.TextureLoader(manager);
 //  Lighting — moody: almost no ambient, just the pillar and a hint of moon
 // =============================================================================
 // Very faint hemisphere — barely lifts the floor / paintings out of pure black
-scene.add(new THREE.HemisphereLight(0x4a525e, 0x06080c, 0.15));
+scene.add(new THREE.HemisphereLight(0x4a525e, 0x06080c, 0.65));
 
 // Moon — cool directional, dim
 const moon = new THREE.DirectionalLight(0xb4c0d0, 0.18);
@@ -637,217 +638,23 @@ pillarPool.rotation.x = -Math.PI / 2;
 pillarPool.position.y = 0.01;
 scene.add(pillarPool);
 
-// =============================================================================
-//  Procedural PBR texture pipeline — height field, normal map, roughness map
-//  Multi-octave value noise drives albedo, surface normal (from Sobel of the
-//  height field) and roughness. Gives real micro-relief instead of flat noise.
-// =============================================================================
-function makeNoiseField(size, octaves = 5, persistence = 0.5) {
-  const field = new Float32Array(size * size);
-  for (let o = 0; o < octaves; o++) {
-    const freq = Math.pow(2, o + 1);
-    const amp  = Math.pow(persistence, o);
-    // Use `freq × freq` grid cells with index wrap so the noise field tiles seamlessly.
-    const grid = new Float32Array(freq * freq);
-    for (let i = 0; i < grid.length; i++) grid[i] = Math.random();
-    for (let y = 0; y < size; y++) {
-      const fyAbs = (y / size) * freq;
-      const y0   = Math.floor(fyAbs);
-      const y0i  = ((y0 % freq) + freq) % freq;
-      const y1i  = (y0i + 1) % freq;
-      const ty   = fyAbs - y0;
-      const sy   = ty * ty * (3 - 2 * ty);
-      for (let x = 0; x < size; x++) {
-        const fxAbs = (x / size) * freq;
-        const x0  = Math.floor(fxAbs);
-        const x0i = ((x0 % freq) + freq) % freq;
-        const x1i = (x0i + 1) % freq;
-        const tx  = fxAbs - x0;
-        const sx  = tx * tx * (3 - 2 * tx);
-        const a = grid[y0i * freq + x0i];
-        const b = grid[y0i * freq + x1i];
-        const c = grid[y1i * freq + x0i];
-        const d = grid[y1i * freq + x1i];
-        const ab = a + (b - a) * sx;
-        const cd = c + (d - c) * sx;
-        field[y * size + x] += (ab + (cd - ab) * sy) * amp;
-      }
-    }
-  }
-  let mn = Infinity, mx = -Infinity;
-  for (const v of field) { if (v < mn) mn = v; if (v > mx) mx = v; }
-  const inv = 1 / (mx - mn || 1);
-  for (let i = 0; i < field.length; i++) field[i] = (field[i] - mn) * inv;
-  return field;
-}
-
-// Fault-lines / cracks layered onto a height field
-function addCracks(field, size, count, depth = 0.5) {
-  for (let n = 0; n < count; n++) {
-    let x = Math.random() * size;
-    let y = Math.random() * size;
-    let a = Math.random() * Math.PI * 2;
-    const len = 60 + Math.random() * 220;
-    for (let i = 0; i < len; i++) {
-      a += (Math.random() - 0.5) * 0.18;
-      x += Math.cos(a);
-      y += Math.sin(a);
-      const ix = ((Math.round(x) % size) + size) % size;
-      const iy = ((Math.round(y) % size) + size) % size;
-      field[iy * size + ix] = Math.max(0, field[iy * size + ix] - depth * (1 - i / len));
-    }
-  }
-}
-
-// Irregular dark / light patches — pour stains, oil spots, water rings
-function addStains(field, size, count, rMin = 30, rMax = 200, depth = 0.5) {
-  for (let n = 0; n < count; n++) {
-    const cx = Math.random() * size;
-    const cy = Math.random() * size;
-    const r = rMin + Math.random() * (rMax - rMin);
-    const dark = Math.random() < 0.75;
-    const d = dark ? -depth : depth * 0.35;
-    // Slight ellipse + noise edge gives a more organic shape
-    const ax = 0.7 + Math.random() * 0.6;
-    const ay = 0.7 + Math.random() * 0.6;
-    const rot = Math.random() * Math.PI;
-    const cosR = Math.cos(rot), sinR = Math.sin(rot);
-    const rSq = r * r;
-    const yMin = Math.floor(-r), yMax = Math.ceil(r);
-    const xMin = Math.floor(-r), xMax = Math.ceil(r);
-    for (let y = yMin; y <= yMax; y++) {
-      for (let x = xMin; x <= xMax; x++) {
-        // Rotate / scale into ellipse coords
-        const xr =  cosR * x + sinR * y;
-        const yr = -sinR * x + cosR * y;
-        const distSq = (xr * xr) / (ax * ax) + (yr * yr) / (ay * ay);
-        if (distSq >= rSq) continue;
-        const fall = 1 - Math.sqrt(distSq) / r;
-        const ix = ((Math.round(cx + x) % size) + size) % size;
-        const iy = ((Math.round(cy + y) % size) + size) % size;
-        const idx = iy * size + ix;
-        const jitter = 0.55 + Math.random() * 0.45;
-        field[idx] = Math.max(0, Math.min(1, field[idx] + d * fall * fall * jitter));
-      }
-    }
-  }
-}
-
-// Fine aggregate speckle — single-pixel dark / light dots, like the
-// stone bits embedded in poured concrete
-function addSpeckle(field, size, count, intensity = 0.18) {
-  for (let n = 0; n < count; n++) {
-    const x = Math.floor(Math.random() * size);
-    const y = Math.floor(Math.random() * size);
-    const dark = Math.random() < 0.5;
-    const delta = (dark ? -1 : 1) * intensity * (0.4 + Math.random() * 0.6);
-    field[y * size + x] = Math.max(0, Math.min(1, field[y * size + x] + delta));
-  }
-}
-
-function fieldToColorTex(field, size, palette) {
-  // palette: array of [t, [r,g,b]] stops in 0..1
-  const c = document.createElement('canvas');
-  c.width = c.height = size;
-  const ctx = c.getContext('2d');
-  const img = ctx.createImageData(size, size);
-  const sample = (t) => {
-    for (let i = 1; i < palette.length; i++) {
-      if (t <= palette[i][0]) {
-        const [t0, c0] = palette[i - 1];
-        const [t1, c1] = palette[i];
-        const k = (t - t0) / (t1 - t0 || 1);
-        return [
-          c0[0] + (c1[0] - c0[0]) * k,
-          c0[1] + (c1[1] - c0[1]) * k,
-          c0[2] + (c1[2] - c0[2]) * k,
-        ];
-      }
-    }
-    return palette[palette.length - 1][1];
-  };
-  for (let i = 0; i < field.length; i++) {
-    const [r, g, b] = sample(field[i]);
-    img.data[i * 4]     = r;
-    img.data[i * 4 + 1] = g;
-    img.data[i * 4 + 2] = b;
-    img.data[i * 4 + 3] = 255;
-  }
-  ctx.putImageData(img, 0, 0);
-  const tex = new THREE.CanvasTexture(c);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function fieldToNormalMap(field, size, strength = 2.0) {
-  const c = document.createElement('canvas');
-  c.width = c.height = size;
-  const ctx = c.getContext('2d');
-  const img = ctx.createImageData(size, size);
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const xl = field[y * size + ((x - 1 + size) % size)];
-      const xr = field[y * size + ((x + 1) % size)];
-      const yt = field[((y - 1 + size) % size) * size + x];
-      const yb = field[((y + 1) % size) * size + x];
-      let dx = (xl - xr) * strength;
-      let dy = (yt - yb) * strength;
-      const dz = 1.0;
-      const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      dx /= len; dy /= len;
-      const idx = (y * size + x) * 4;
-      img.data[idx]     = (dx * 0.5 + 0.5) * 255;
-      img.data[idx + 1] = (dy * 0.5 + 0.5) * 255;
-      img.data[idx + 2] = (dz / len * 0.5 + 0.5) * 255;
-      img.data[idx + 3] = 255;
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  const tex = new THREE.CanvasTexture(c);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-  return tex;
-}
-
-function fieldToRoughnessMap(field, size, lo = 0.18, hi = 0.55) {
-  const c = document.createElement('canvas');
-  c.width = c.height = size;
-  const ctx = c.getContext('2d');
-  const img = ctx.createImageData(size, size);
-  for (let i = 0; i < field.length; i++) {
-    const g = Math.round((lo + field[i] * (hi - lo)) * 255);
-    img.data[i * 4]     = g;
-    img.data[i * 4 + 1] = g;
-    img.data[i * 4 + 2] = g;
-    img.data[i * 4 + 3] = 255;
-  }
-  ctx.putImageData(img, 0, 0);
-  const tex = new THREE.CanvasTexture(c);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-  return tex;
-}
-
-// ---- Floor: industrial grey concrete — heavy weathering at 2048 px ----
-const FLOOR_TEX_SIZE = 2048;
-const floorField = makeNoiseField(FLOOR_TEX_SIZE, 7, 0.58);
-addCracks (floorField, FLOOR_TEX_SIZE, 22, 0.50);   // many hairline fractures
-addStains (floorField, FLOOR_TEX_SIZE,  8, 120, 420, 0.55);   // big dark pour stains
-addStains (floorField, FLOOR_TEX_SIZE, 22,  40, 180, 0.40);   // medium stains
-addStains (floorField, FLOOR_TEX_SIZE, 40,  10,  60, 0.32);   // small spots
-addSpeckle(floorField, FLOOR_TEX_SIZE, 12000, 0.22);          // aggregate dots
-const floorColorTex     = fieldToColorTex(floorField, FLOOR_TEX_SIZE, [
-  [0.00, [  8,   8,  10]],
-  [0.25, [ 22,  23,  26]],
-  [0.45, [ 42,  44,  48]],
-  [0.65, [ 64,  67,  71]],
-  [0.85, [ 92,  95, 100]],
-  [1.00, [125, 128, 132]],
-]);
-const floorNormalTex    = fieldToNormalMap(floorField, FLOOR_TEX_SIZE, 1.1);
-const floorRoughnessTex = fieldToRoughnessMap(floorField, FLOOR_TEX_SIZE, 0.45, 0.95);
+// ---- Floor: prebaked Concrete040 PBR pack (ambientCG style) at 1K — three
+// WebP maps totalling ~775 KB. Switched away from runtime canvas noise so
+// load-time CPU cost drops to zero and the floor has actual photographic
+// detail rather than procedural grain.
+const floorColorTex     = texLoader.load('textures/concrete/concrete_color.webp', t => {
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+});
+const floorNormalTex    = texLoader.load('textures/concrete/concrete_normal.webp', t => {
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+});
+const floorRoughnessTex = texLoader.load('textures/concrete/concrete_roughness.webp', t => {
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+});
 
 // =============================================================================
 //  Rotunda shell — circular floor disc only. No walls, no ceiling.
@@ -855,8 +662,9 @@ const floorRoughnessTex = fieldToRoughnessMap(floorField, FLOOR_TEX_SIZE, 0.45, 
 // =============================================================================
 
 // Floor material: MeshPhysicalMaterial with clearcoat for polished-concrete reflectivity
-// Floor tile scale — each tile is ~6 m so detail reads at walking distance
-const floorRepeat = [ROOM.radius / 6, ROOM.radius / 6];
+// Floor tile scale — each tile is ~2 m, denser repeat than before so the
+// concrete texture's micro-detail is readable at walking distance.
+const floorRepeat = [ROOM.radius / 2, ROOM.radius / 2];
 [floorColorTex, floorNormalTex, floorRoughnessTex].forEach(t => t.repeat.set(...floorRepeat));
 // Mobile uses the lighter MeshStandardMaterial — no clearcoat / anisotropy
 // (those are some of the most expensive uniforms / branches in the PBR
@@ -864,11 +672,12 @@ const floorRepeat = [ROOM.radius / 6, ROOM.radius / 6];
 // a bit more diffuse and isn't anisotropically stretched.
 const floorMat = isMobile
   ? new THREE.MeshStandardMaterial({
-      map:          floorColorTex,
-      normalMap:    floorNormalTex,
-      roughnessMap: floorRoughnessTex,
-      normalScale:  new THREE.Vector2(0.45, 0.45),
-      metalness:    0.0,
+      map:             floorColorTex,
+      normalMap:       floorNormalTex,
+      roughnessMap:    floorRoughnessTex,
+      normalScale:     new THREE.Vector2(0.45, 0.45),
+      metalness:       0.0,
+      envMapIntensity: 0.45,                 // dampen HDRI reflections on the floor
     })
   : new THREE.MeshPhysicalMaterial({
       map:                floorColorTex,
@@ -876,10 +685,11 @@ const floorMat = isMobile
       roughnessMap:       floorRoughnessTex,
       normalScale:        new THREE.Vector2(0.55, 0.55),
       metalness:          0.0,
-      clearcoat:          0.5,
-      clearcoatRoughness: 0.42,
+      clearcoat:          0.25,              // was 0.5 — softer mirror layer
+      clearcoatRoughness: 0.55,              // was 0.42 — more diffuse, less crisp HDRI mirror
       anisotropy:         0.7,
       anisotropyRotation: 0,
+      envMapIntensity:    0.45,              // dampen HDRI reflections on the floor
     });
 
 // Floor — ring with an open hole at the centre so the light shaft can
@@ -1259,9 +1069,8 @@ function makePoster({ img, title, meta, url, indexLabel, venue, lineup, w, h }, 
 const ALL = POSTERS;       // featured first in the list, then the rest
 const N   = ALL.length;    // 8 total
 
-// ---- Shared baked "blob" shadow — soft radial alpha gradient applied as a
-// thin horizontal plane just above the floor under each poster. Looks great,
-// costs nothing: one texture, one geometry, shared material for all 50.
+// ---- Baked "blob" shadow texture — used under the plaque only now.
+// Soft radial alpha gradient laid flat just above the floor.
 const blobShadowTex = (() => {
   const bc = document.createElement('canvas');
   bc.width = bc.height = 128;
@@ -1276,7 +1085,6 @@ const blobShadowTex = (() => {
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 })();
-const blobShadowGeom = new THREE.PlaneGeometry(1.6, 0.9);
 const blobShadowMat = new THREE.MeshBasicMaterial({
   map: blobShadowTex,
   transparent: true,
@@ -1300,15 +1108,6 @@ function placePosterAt(p, angle, isFeatured) {
   const normal = new THREE.Vector3(-Math.cos(angle), 0, -Math.sin(angle));
   g.userData.normal = normal;
   g.rotation.y = Math.atan2(normal.x, normal.z);
-
-  // Baked blob shadow on the floor, fixed (doesn't track the bob — that's
-  // intentional, real shadows wouldn't bob with the object either)
-  const blob = new THREE.Mesh(blobShadowGeom, blobShadowMat);
-  blob.rotation.x = -Math.PI / 2;
-  blob.rotation.z = g.rotation.y;            // align long axis with poster face
-  blob.position.set(g.position.x, 0.012, g.position.z);
-  blob.renderOrder = -2;                      // draw before posters / pillar pool
-  scene.add(blob);
 
   // Featured poster keeps its larger size but no longer gets a spotlight or
   // halo — it should read like the rest of the gallery, just bigger.
@@ -2106,13 +1905,20 @@ cardEl.addEventListener('click', () => {
 });
 
 // =============================================================================
-//  Environment map — baked from the scene (PMREM) so the floor's clearcoat
-//  reflects the pillar and the ambient atmosphere coherently
+//  Environment map — real night-sky HDRI loaded as an equirectangular EXR,
+//  pre-filtered via PMREMGenerator for use as scene.environment. Drives the
+//  floor's PBR reflections + adds proper HDR ambient IBL to all materials.
+//  Background stays the procedural starfield (we don't set scene.background).
 // =============================================================================
 {
   const pmrem = new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
-  scene.environment = pmrem.fromScene(scene, 0.4).texture;
+  new EXRLoader(manager).load('textures/env/night-sky.exr', tex => {
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    scene.environment = pmrem.fromEquirectangular(tex).texture;
+    tex.dispose();
+    pmrem.dispose();
+  });
 }
 
 // =============================================================================
