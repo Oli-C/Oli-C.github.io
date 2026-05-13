@@ -315,14 +315,16 @@ halo.userData.baseOpacity   = halo.material.opacity;
 // lighting work: just one alpha-blended quad. The pulse animation
 // modulates this disc's opacity instead of a real light's intensity.
 const pillarPoolTex = (() => {
+  // 1024×1024 source so bilinear sampling across the 10m floor disc has
+  // ~4× finer texel data than the previous 256² canvas. Eliminates the
+  // banded patches iOS Safari was producing in the gradient mid-tones.
+  const SZ = 1024;
   const c = document.createElement('canvas');
-  c.width = c.height = 256;
+  c.width = c.height = SZ;
   const cx = c.getContext('2d');
-  const g = cx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  const g = cx.createRadialGradient(SZ/2, SZ/2, 0, SZ/2, SZ/2, SZ/2);
   // Hot centre with a long soft falloff — like a tall column of light
-  // scattering through fog onto the floor. Inner stops bright + saturated,
-  // outer stops trail off gently so the wash reaches well past the pillar's
-  // own footprint.
+  // scattering through fog onto the floor.
   g.addColorStop(0.00, 'rgba(255, 232, 188, 1.00)');
   g.addColorStop(0.10, 'rgba(255, 226, 175, 0.92)');
   g.addColorStop(0.30, 'rgba(255, 216, 158, 0.55)');
@@ -330,9 +332,10 @@ const pillarPoolTex = (() => {
   g.addColorStop(0.80, 'rgba(255, 200, 140, 0.10)');
   g.addColorStop(1.00, 'rgba(255, 200, 140, 0.00)');
   cx.fillStyle = g;
-  cx.fillRect(0, 0, 256, 256);
+  cx.fillRect(0, 0, SZ, SZ);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
   return t;
 })();
 const pillarPool = new THREE.Mesh(
@@ -1711,9 +1714,12 @@ cardEl.addEventListener('click', () => {
 //  green/magenta speckles on mobile (whose default framebuffer is strict
 //  8-bit RGBA). The half-float RT is the standard Three.js HDR pipeline.
 // =============================================================================
+// Hardware MSAA (samples: 4) on a standard 8-bit RT. Edge anti-aliasing at
+// GPU rasterisation stage, much cheaper than half-float MSAA which has 8×
+// the memory bandwidth. The grain pass dithers any banding in dim mids.
 const composerRT = new THREE.WebGLRenderTarget(
   window.innerWidth, window.innerHeight,
-  { type: THREE.HalfFloatType }
+  { samples: 4 }
 );
 const composer = new EffectComposer(renderer, composerRT);
 composer.addPass(new RenderPass(scene, camera));
@@ -1823,7 +1829,8 @@ if (SUBTLE_POST) composer.addPass(grainPass);
 
 // SMAA — sub-pixel anti-aliasing on the final composite. ~3 full-screen
 // internal passes — skipped on mobile (renderer's MSAA is good enough there).
-if (SUBTLE_POST) composer.addPass(new SMAAPass(window.innerWidth, window.innerHeight));
+// SMAA pass removed — hardware MSAA on the composerRT (samples: 4) is
+// cheaper and visually similar quality for geometric edges.
 
 composer.addPass(new OutputPass());
 
