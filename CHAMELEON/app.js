@@ -1767,35 +1767,9 @@ const gradePass = new ShaderPass({
 if (SUBTLE_POST) composer.addPass(gradePass);
 
 // Vignette — radial edge darkening. Subtle, cinematic, drops attention onto the centre.
-const vignettePass = new ShaderPass({
-  uniforms: {
-    tDiffuse: { value: null },
-    strength: { value: 0.05 },     // a hint of edge dim, no more
-    softness: { value: 0.80 },     // only the outer ~20 % of screen sees any darkening
-  },
-  vertexShader: `
-    varying vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  fragmentShader: `
-    uniform sampler2D tDiffuse;
-    uniform float strength;
-    uniform float softness;
-    varying vec2 vUv;
-    void main() {
-      vec4 c = texture2D(tDiffuse, vUv);
-      vec2 p = vUv - 0.5;
-      float d = dot(p, p) * 4.0;   // 0 at centre, ~1 at corners
-      float v = smoothstep(softness, 1.0, d);
-      c.rgb *= 1.0 - v * strength;
-      gl_FragColor = c;
-    }
-  `,
-});
-if (SUBTLE_POST) composer.addPass(vignettePass);
+// Vignette moved to a CSS overlay (see #vignette in index.html). Browser
+// composites it over the canvas at higher-than-8-bit precision, so no
+// banding, and zero per-frame GPU work.
 
 // Subtle film grain — kills colour banding in the dark sky and adds a hint
 // of texture. Animated via a time uniform so the grain shimmers.
