@@ -156,13 +156,8 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-// ACES on desktop is gorgeous but its tail compresses to white via a curve
-// that shifts hue — on mobile, where additive sources push channels past 1
-// at lower fragment precision, the hue shift quantises into visible
-// green/magenta speckles around bright additive light. Reinhard is a much
-// gentler curve, hue-preserving, and mathematically cheap.
-renderer.toneMapping = isMobile ? THREE.ReinhardToneMapping : THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = isMobile ? 2.0 : 1.60;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.60;
 const canvasEl = renderer.domElement;
 document.getElementById('app').appendChild(canvasEl);
 
@@ -339,10 +334,7 @@ const pillarPool = new THREE.Mesh(
   new THREE.MeshBasicMaterial({
     map:        pillarPoolTex,
     transparent: true,
-    // Lower opacity on mobile so the additive contribution stays well under 1
-    // and the tonemap never has to compress overbright values — eliminates
-    // the green/magenta channel-overflow speckles near the bright centre.
-    opacity:    isMobile ? 0.26 : 0.40,
+    opacity:    0.40,
     blending:   THREE.AdditiveBlending,
     depthWrite: false,
     fog:        false,
@@ -383,34 +375,22 @@ const floorRepeat = [ROOM.radius / 2, ROOM.radius / 2];
 [floorColorTex, floorNormalTex, floorRoughnessTex].forEach(t => t.repeat.set(...floorRepeat));
 // Mobile uses the lighter MeshStandardMaterial — no clearcoat / anisotropy
 // (those are some of the most expensive uniforms / branches in the PBR
-// fragment shader). Visual difference is the pillar's floor reflection is
-// a bit more diffuse and isn't anisotropically stretched.
 // Warm tint multiplied with the grey concrete albedo — free way to get
 // chroma into the floor without paying for a second directional light.
 const FLOOR_TINT = 0xf2e6c8;   // pale ochre — lifts the outer floor out of shadow
-const floorMat = isMobile
-  ? new THREE.MeshStandardMaterial({
-      color:           FLOOR_TINT,
-      map:             floorColorTex,
-      normalMap:       floorNormalTex,
-      roughnessMap:    floorRoughnessTex,
-      normalScale:     new THREE.Vector2(0.45, 0.45),
-      metalness:       0.0,
-      envMapIntensity: 0.35,
-    })
-  : new THREE.MeshPhysicalMaterial({
-      color:              FLOOR_TINT,
-      map:                floorColorTex,
-      normalMap:          floorNormalTex,
-      roughnessMap:       floorRoughnessTex,
-      normalScale:        new THREE.Vector2(0.55, 0.55),
-      metalness:          0.0,
-      clearcoat:          0.08,
-      clearcoatRoughness: 0.90,
-      anisotropy:         0.4,
-      anisotropyRotation: 0,
-      envMapIntensity:    0.35,
-    });
+const floorMat = new THREE.MeshPhysicalMaterial({
+  color:              FLOOR_TINT,
+  map:                floorColorTex,
+  normalMap:          floorNormalTex,
+  roughnessMap:       floorRoughnessTex,
+  normalScale:        new THREE.Vector2(0.55, 0.55),
+  metalness:          0.0,
+  clearcoat:          0.08,
+  clearcoatRoughness: 0.90,
+  anisotropy:         0.4,
+  anisotropyRotation: 0,
+  envMapIntensity:    0.35,
+});
 
 // Floor — ring with an open hole at the centre so the light shaft can
 // pass through. Inner radius matches the halo (1.4 m) so the beam fits
@@ -506,7 +486,7 @@ scene.add(innerLip);
 //  rotunda entrance. The camera flies THROUGH these on the way in.
 // =============================================================================
 {
-  const SMOKE_COUNT = isMobile ? 40 : 75;
+  const SMOKE_COUNT = 75;
   const smokeTex = (() => {
     // Wispier smoke: build from several offset radial gradients rather than
     // a single centred one, so the silhouette isn't a perfect circle. Then
@@ -615,7 +595,7 @@ scene.add(innerLip);
   }
 
   const innerSmoke = [];
-  const INNER = isMobile ? 10 : 20;
+  const INNER = 20;
   for (let i = 0; i < INNER; i++) {
     const mat = new THREE.SpriteMaterial({
       map: smokeTex,
@@ -652,7 +632,7 @@ scene.add(innerLip);
 //  Floating dust particles — slow drift in the air, lit by the central pillar
 // =============================================================================
 {
-  const DUST_COUNT = isMobile ? 110 : 220;
+  const DUST_COUNT = 220;
   const pos = new Float32Array(DUST_COUNT * 3);
   for (let i = 0; i < DUST_COUNT; i++) {
     const a  = Math.random() * Math.PI * 2;
@@ -693,7 +673,7 @@ scene.add(innerLip);
   // --- Pillar dust sparkle — extra bright motes confined inside the halo
   // radius (r < 1.4) so they catch the warm pillar light. Reads as
   // "motes drifting through the beam".
-  const SPARK_COUNT = isMobile ? 40 : 80;
+  const SPARK_COUNT = 80;
   const sparkPos = new Float32Array(SPARK_COUNT * 3);
   for (let i = 0; i < SPARK_COUNT; i++) {
     const r = Math.sqrt(Math.random()) * 1.2;
@@ -1685,7 +1665,7 @@ cardEl.addEventListener('click', () => {
 //  sources like the pillar pool. HemisphereLight + tone-mapping exposure
 //  carry the ambient there instead. Also saves a 350 KB download.
 // =============================================================================
-if (!isMobile) {
+{
   const pmrem = new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
   new RGBELoader(manager).load('textures/env/night-sky.hdr', tex => {
@@ -1702,23 +1682,17 @@ if (!isMobile) {
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 
-// Bloom is desktop-only — UnrealBloomPass does several Gaussian-blur passes
-// per frame and is the heaviest single fragment-shader cost on mobile.
-// Tone-mapping + HemisphereLight carry the "bright stuff feels glow-y" feel
-// on mobile without the bandwidth hit.
-if (!isMobile) {
-  const bloom = new UnrealBloomPass(
-    new THREE.Vector2(window.innerWidth * 0.5, window.innerHeight * 0.5),
-    0.22, 0.3, 1.0
-  );
-  composer.addPass(bloom);
-}
+const bloom = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth * 0.5, window.innerHeight * 0.5),
+  0.22, 0.3, 1.0
+);
+composer.addPass(bloom);
 
 // Subtle post passes (grade / vignette / grain / smaa) — all skipped on mobile
 // because each is a full-screen pass and together they add ~2-3 ms / frame
 // that mobile GPUs can't always afford. Bloom is preserved as the one
 // signature post-pass.
-const SUBTLE_POST = !isMobile;
+const SUBTLE_POST = true;
 
 // Color grade — subtle cool shadows / warm highlights. Anchors the palette
 // without leaning Instagram-y.
