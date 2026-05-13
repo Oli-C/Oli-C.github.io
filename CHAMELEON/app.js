@@ -1068,6 +1068,11 @@ canvasEl.addEventListener('pointerdown', e => {
     pinchPrevDist = pinchDistance();
     canvasEl.classList.remove('dragging');
     promptEl.classList.add('hide');
+    // Mark every pointer currently involved as "was in a pinch" so neither
+    // finger's eventual release triggers a tap-to-glide. Without this, the
+    // second-released finger can fire handleClick(...) on pointerup because
+    // pinchActive flips to false before its release event lands.
+    for (const p of pointers.values()) p.wasInPinch = true;
   }
 });
 
@@ -1125,8 +1130,10 @@ canvasEl.addEventListener('pointerup', e => {
 
   // Was this a quick tap (no drag, no pinch)? Trigger click-to-glide.
   // Middle-button presses are drag-only — never count as a click.
+  // Pointers flagged `wasInPinch` participated in a two-finger gesture and
+  // are excluded too, even after pinchActive has already flipped off.
   const dur = performance.now() - p.startT;
-  if (!p.dragging && !pinchActive && dur < CLICK_MAX_DUR_MS && p.button !== 1) {
+  if (!p.dragging && !pinchActive && !p.wasInPinch && dur < CLICK_MAX_DUR_MS && p.button !== 1) {
     handleClick(p.x, p.y);
   }
 
@@ -1678,8 +1685,19 @@ cardEl.addEventListener('click', () => {
 
 // =============================================================================
 //  Post-processing — bloom + vignette + subtle grain
+//
+//  Composer renders into a 16-bit half-float render target so channel values
+//  above 1.0 (from additive lights, bloom, HDRI reflections) survive the
+//  entire post chain without 8-bit quantisation banding. Without this the
+//  pillar pool's additive contribution + ACES tonemap shoulder produces
+//  green/magenta speckles on mobile (whose default framebuffer is strict
+//  8-bit RGBA). The half-float RT is the standard Three.js HDR pipeline.
 // =============================================================================
-const composer = new EffectComposer(renderer);
+const composerRT = new THREE.WebGLRenderTarget(
+  window.innerWidth, window.innerHeight,
+  { type: THREE.HalfFloatType }
+);
+const composer = new EffectComposer(renderer, composerRT);
 composer.addPass(new RenderPass(scene, camera));
 
 const bloom = new UnrealBloomPass(
