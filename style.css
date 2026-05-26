@@ -552,6 +552,12 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
                 inset 0 1px 0 0 color-mix(in srgb, var(--fg) 10%, transparent);
   }
   .mix:hover .mix-arrow { transform: translateX(2px); color: var(--accent); }
+  .mix:hover .mix-tag {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    box-shadow: 0 0 12px -2px color-mix(in srgb, var(--accent) 40%, transparent),
+                inset 0 0 8px -4px color-mix(in srgb, var(--accent) 50%, transparent);
+  }
 }
 
 .mix-rail { display: none; }
@@ -645,6 +651,9 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   border-radius: 3px;
   color: var(--fg-muted);
   border: 1px solid var(--border-2);
+  transition: color 200ms var(--ease),
+              border-color 200ms var(--ease),
+              box-shadow 200ms var(--ease);
 }
 
 .mix-right {
