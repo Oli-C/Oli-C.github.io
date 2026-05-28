@@ -129,6 +129,7 @@
       'uniform vec2 uRes;',
       'uniform float uTime;',
       'uniform vec2 uSeed;',
+      'uniform float uScroll;',
       'uniform vec3 uC1, uC2, uC3, uBg;',
       'float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }',
       'float noise(vec2 p){',
@@ -182,13 +183,16 @@
       '  vec2 toPixel = (uv - 0.5) * vec2(aspect, 1.0) - srcPos;',
       '  float beamAngle = atan(toPixel.x, -toPixel.y);',
       '  float swingFade = 1.0 - smoothstep(0.1, 2.6, uTime);',
-      '  float swing = sin(uTime * 3.5) * 1.1 * swingFade;',
+      '  // uScroll is the decaying scroll-velocity excite from JS (0..1).',
+      '  // Reignites the beams briefly when the user flicks the page.',
+      '  float excite = swingFade + uScroll * 0.6;',
+      '  float swing = sin(uTime * 3.5) * (1.1 * swingFade + uScroll * 0.4);',
       '  float beamPhase = beamAngle * 7.0 + uTime * 0.09 + uSeed.x * 0.5 + swing;',
       '  float beam = pow(0.5 + 0.5 * cos(beamPhase), 24.0);',
       '  float beamFade = smoothstep(2.0, 0.4, length(toPixel));',
       '  float scatter = smoothstep(0.25, 0.85, f);',
       '  float beamIntro = smoothstep(0.0, 0.5, uTime);',
-      '  col += uC1 * beam * beamFade * scatter * (0.6 + swingFade * 0.9) * beamIntro;',
+      '  col += uC1 * beam * beamFade * scatter * (0.6 + excite * 0.9) * beamIntro;',
       '  col *= 1.0 + (1.0 - intro) * 0.6;',
       '  gl_FragColor = vec4(col, 1.0);',
       '}',
@@ -223,13 +227,14 @@
     gl.enableVertexAttribArray(aLoc);
     gl.vertexAttribPointer(aLoc, 2, gl.FLOAT, false, 0, 0);
 
-    const uRes  = gl.getUniformLocation(prog, 'uRes');
-    const uTime = gl.getUniformLocation(prog, 'uTime');
-    const uSeed = gl.getUniformLocation(prog, 'uSeed');
-    const uC1   = gl.getUniformLocation(prog, 'uC1');
-    const uC2   = gl.getUniformLocation(prog, 'uC2');
-    const uC3   = gl.getUniformLocation(prog, 'uC3');
-    const uBg   = gl.getUniformLocation(prog, 'uBg');
+    const uRes    = gl.getUniformLocation(prog, 'uRes');
+    const uTime   = gl.getUniformLocation(prog, 'uTime');
+    const uSeed   = gl.getUniformLocation(prog, 'uSeed');
+    const uScroll = gl.getUniformLocation(prog, 'uScroll');
+    const uC1     = gl.getUniformLocation(prog, 'uC1');
+    const uC2     = gl.getUniformLocation(prog, 'uC2');
+    const uC3     = gl.getUniformLocation(prog, 'uC3');
+    const uBg     = gl.getUniformLocation(prog, 'uBg');
 
     // Random per-page-load offset so the smoke pattern starts in a different
     // place every time. Doesn't affect the intro ramp since it leaves uTime alone.
@@ -260,13 +265,35 @@
     let paused = false;
     let pausedAt = 0;
 
+    // Scroll-velocity excite — bumped by the listener below, decays exponentially
+    // each frame. While > 0.02 we bypass the 30fps gate so the decay tail
+    // doesn't visibly stair-step. uScroll is written into the shader uniform
+    // every drawn frame.
+    let scrollExcite = 0;
+    let lastScrollY = window.scrollY;
+    if (!reduceMotion) {
+      window.addEventListener('scroll', () => {
+        const y = window.scrollY;
+        const velocity = Math.min(1, Math.abs(y - lastScrollY) / 80);
+        lastScrollY = y;
+        scrollExcite = Math.min(1, scrollExcite + velocity * 0.5);
+      }, { passive: true });
+    }
+
     function frame(now) {
       if (paused) return;
       const elapsed = now - start;
       const inIntro = elapsed < INTRO_MS;
-      if (inIntro || now - lastDraw >= FRAME_INTERVAL_MS) {
+      const excited = scrollExcite > 0.02;
+      if (inIntro || excited || now - lastDraw >= FRAME_INTERVAL_MS) {
+        if (lastDraw > 0 && scrollExcite > 0) {
+          // Exponential decay — half-life ~70ms; reaches ~0 by 700ms.
+          scrollExcite *= Math.pow(0.001, (now - lastDraw) / 700);
+          if (scrollExcite < 0.02) scrollExcite = 0;
+        }
         const t = reduceMotion ? 7.3 : elapsed * 0.001;
         gl.uniform1f(uTime, t);
+        gl.uniform1f(uScroll, scrollExcite);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         lastDraw = now;
       }
@@ -411,6 +438,131 @@
     mixesEl.innerHTML = html;
   }
   render();
+
+  // ============================================================================
+  //  Bloom-on-scroll — mix cards and year dividers stay hidden (CSS default)
+  //  until they enter the viewport, then run the smoke-emerge animation. The
+  //  initial-cohort (above the fold on load) gets .bloom-load which restores
+  //  the hero-cascade timing via --i / --yi so the entrance feels continuous.
+  // ============================================================================
+  (function initBloomOnScroll() {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const items = [...mixesEl.querySelectorAll('.mix, .yr')];
+    if (!items.length) return;
+
+    if (reduce || !('IntersectionObserver' in window)) {
+      items.forEach(el => el.classList.add('bloom', 'bloom-instant'));
+      return;
+    }
+
+    const vh = window.innerHeight;
+    const remaining = [];
+    items.forEach(el => {
+      const rect = el.getBoundingClientRect();
+      if (rect.top < vh + 50) {
+        el.classList.add('bloom', 'bloom-load');
+      } else {
+        remaining.push(el);
+      }
+    });
+    if (!remaining.length) return;
+
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('bloom');
+          obs.unobserve(e.target);
+        }
+      });
+    }, { rootMargin: '0px 0px 15% 0px', threshold: 0 });
+    remaining.forEach(el => obs.observe(el));
+
+    // Safety net: if a fast flick scroll outpaces the observer, sweep on
+    // scroll-idle and force-bloom anything that's now above the fold.
+    let pending = false;
+    function sweep() {
+      pending = false;
+      const fold = window.scrollY + window.innerHeight + 200;
+      for (let i = remaining.length - 1; i >= 0; i--) {
+        const el = remaining[i];
+        if (el.classList.contains('bloom')) {
+          remaining.splice(i, 1);
+          continue;
+        }
+        const docTop = el.getBoundingClientRect().top + window.scrollY;
+        if (docTop < fold) {
+          el.classList.add('bloom', 'bloom-instant');
+          obs.unobserve(el);
+          remaining.splice(i, 1);
+        }
+      }
+    }
+    window.addEventListener('scroll', () => {
+      if (!pending) { pending = true; requestAnimationFrame(sweep); }
+    }, { passive: true });
+  })();
+
+  // ============================================================================
+  //  Mix-art parallax — within each visible card, the thumbnail image
+  //  translates ±8px on Y based on the card's vertical position in the
+  //  viewport. Only the visible set runs (IntersectionObserver-maintained),
+  //  and we short-circuit when the offset hasn't changed enough to matter.
+  // ============================================================================
+  (function initArtParallax() {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce || !('IntersectionObserver' in window)) return;
+    const mixes = [...mixesEl.querySelectorAll('.mix')];
+    if (!mixes.length) return;
+
+    const visible = new Set();
+    const lastOffsets = new WeakMap();
+    let pending = false;
+    function schedule() {
+      if (!pending) { pending = true; requestAnimationFrame(update); }
+    }
+    const obs = new IntersectionObserver((entries) => {
+      let changed = false;
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          if (!visible.has(e.target)) { visible.add(e.target); changed = true; }
+        } else {
+          e.target.classList.remove('visible');
+          if (visible.delete(e.target)) changed = true;
+          const img = e.target.querySelector('.mix-art img');
+          if (img && img.style.transform) {
+            img.style.transform = '';
+            lastOffsets.delete(img);
+          }
+        }
+      });
+      // The IO populates `visible` after this IIFE runs; without this we'd
+      // never compute offsets for cards already on screen at load.
+      if (changed) schedule();
+    }, { threshold: [0, 0.25, 0.5, 0.75, 1] });
+    mixes.forEach(m => obs.observe(m));
+
+    function update() {
+      pending = false;
+      const vh = window.innerHeight;
+      visible.forEach(m => {
+        if (!m.classList.contains('bloom')) return;
+        const img = m.querySelector('.mix-art img');
+        if (!img) return;
+        const rect = m.getBoundingClientRect();
+        const center = rect.top + rect.height / 2;
+        const progress = center / vh;
+        let offset = (progress - 0.5) * 16;
+        if (offset > 8) offset = 8;
+        else if (offset < -8) offset = -8;
+        const last = lastOffsets.get(img) || 0;
+        if (Math.abs(offset - last) < 0.25) return;
+        img.style.transform = `translate3d(0, ${offset.toFixed(2)}px, 0)`;
+        lastOffsets.set(img, offset);
+      });
+    }
+    window.addEventListener('scroll', schedule, { passive: true });
+  })();
 
   // ============================================================================
   //  Page state — applies theme / accent / grain / view from TWEAK_DEFAULTS.
