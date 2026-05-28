@@ -167,7 +167,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   max-width: 720px;
   margin: 0 auto;
   padding: 28px 20px 64px;
-  animation: page-emerge 1.4s var(--ease) 0.45s both;
+  animation: page-emerge 600ms var(--ease) 0s both;
 }
 @media (min-width: 640px) { .page { padding: 48px 28px 80px; } }
 @keyframes page-emerge {
@@ -182,19 +182,52 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   from { opacity: 0; filter: blur(14px); transform: translateY(10px) scale(0.985); }
   to   { opacity: 1; filter: blur(0); transform: translateY(0) scale(1); }
 }
-.id-name   { animation: fly-in 600ms var(--ease) 0.45s backwards; }
-.id-handle { animation: fly-in 550ms var(--ease) 0.55s backwards; }
-.next      { animation: fly-in 600ms var(--ease) 0.6s backwards; }
-.pill      { animation: fly-in 500ms var(--ease) calc(0.75s + var(--pi, 0) * 60ms) backwards; }
+/* Hero name letters scatter to random off-positions and fly into place,
+   fading sharp from a smoky blur. Per-letter --dx/--dy/--dr/--ds/--db offsets
+   are randomized by initIntro in app.js. */
+.id-name {
+  animation: none;
+  /* Letters dodge the cursor (initMagneticTitle in app.js), so the I-beam
+     cursor + text selection would conflict with that interaction. */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+.id-name .ch {
+  display: inline-block;
+  will-change: transform, filter, opacity;
+  animation: ch-fly 1100ms cubic-bezier(0.2, 0.7, 0.2, 1) calc(0.4s + var(--ci, 0) * 60ms) backwards;
+  /* Smooth glide for the magnetic-repel offsets set inline by initMagneticTitle. */
+  transition: transform 340ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.id-handle { animation: fly-in 550ms var(--ease) 1.0s backwards; }
+.next      { animation: fly-in 600ms var(--ease) 1.05s backwards; }
+.pill      { animation: fly-in 500ms var(--ease) calc(1.2s + var(--pi, 0) * 60ms) backwards; }
 .pills .pill:nth-child(1) { --pi: 0; }
 .pills .pill:nth-child(2) { --pi: 1; }
 .pills .pill:nth-child(3) { --pi: 2; }
 .pills .pill:nth-child(4) { --pi: 3; }
 .pills .pill:nth-child(5) { --pi: 4; }
-.mix       { animation: smoke-emerge 820ms var(--ease) calc(0.9s + var(--i, 0) * 55ms) backwards; }
-.yr        { animation: smoke-emerge 700ms var(--ease) calc(0.85s + var(--yi, 0) * 55ms) backwards; }
+.pills .pill:nth-child(6) { --pi: 5; }
+.mix       { animation: smoke-emerge 820ms var(--ease) calc(1.35s + var(--i, 0) * 55ms) backwards; }
+.yr        { animation: smoke-emerge 700ms var(--ease) calc(1.3s + var(--yi, 0) * 55ms) backwards; }
+
+@keyframes ch-fly {
+  0% {
+    opacity: 0;
+    transform: translate(var(--dx, 0), var(--dy, 0)) rotate(var(--dr, 0deg)) scale(var(--ds, 0.7));
+    filter: blur(var(--db, 16px));
+  }
+  60%  { opacity: 1; }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0) scale(1);
+    filter: blur(0);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .page, .id-name, .id-handle, .next, .pill, .mix { animation: none; }
+  .page, .id-name .ch, .id-handle, .next, .pill, .mix, .yr { animation: none; }
 }
 
 /* =============================================================================
@@ -356,6 +389,10 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
           mask: url('assets/logo-ra.png') center / contain no-repeat;
 }
 .pill .cham-mask {
+  /* Larger than the other 20×20 icons so the Chameleon silhouette reads at
+     the same visual weight as the filled brand glyphs. */
+  width: 28px;
+  height: 28px;
   -webkit-mask: url('assets/logo-chameleon.png') center / contain no-repeat;
           mask: url('assets/logo-chameleon.png') center / contain no-repeat;
 }
@@ -521,6 +558,9 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 
 /* Card */
 .mix {
+  /* Per-card highlight colour, keyed to the source platform; accent is the
+     fallback when a mix has no recognised platform. */
+  --plat-color: var(--accent);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -542,21 +582,24 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
               background 200ms var(--ease),
               box-shadow 200ms var(--ease);
 }
+.mix[data-platform="soundcloud"] { --plat-color: #ff7700; }
+.mix[data-platform="mixcloud"]   { --plat-color: #52aadc; }
+.mix[data-platform="youtube"]    { --plat-color: #ff3b30; }
 @media (hover: hover) {
   .mix:hover {
     border-color: var(--border-3);
     background: color-mix(in srgb, var(--bg-3) 50%, transparent);
     transform: translateY(-2px);
     box-shadow: 0 12px 32px -10px rgba(0, 0, 0, 0.4),
-                0 4px 14px -4px color-mix(in srgb, var(--accent) 28%, transparent),
+                0 4px 14px -4px color-mix(in srgb, var(--plat-color) 32%, transparent),
                 inset 0 1px 0 0 color-mix(in srgb, var(--fg) 10%, transparent);
   }
-  .mix:hover .mix-arrow { transform: translateX(2px); color: var(--accent); }
+  .mix:hover .mix-arrow { transform: translateX(2px); color: var(--plat-color); }
   .mix:hover .mix-tag {
-    color: var(--accent);
-    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-    box-shadow: 0 0 12px -2px color-mix(in srgb, var(--accent) 40%, transparent),
-                inset 0 0 8px -4px color-mix(in srgb, var(--accent) 50%, transparent);
+    color: var(--plat-color);
+    border-color: color-mix(in srgb, var(--plat-color) 60%, transparent);
+    box-shadow: 0 0 12px -2px color-mix(in srgb, var(--plat-color) 45%, transparent),
+                inset 0 0 8px -4px color-mix(in srgb, var(--plat-color) 55%, transparent);
   }
 }
 

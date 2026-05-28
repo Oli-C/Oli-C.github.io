@@ -7,6 +7,104 @@
   window.scrollTo(0, 0);
 
   // ============================================================================
+  //  Intro title sequence — split the hero name into letters for the cascade
+  //  reveal: each letter starts at a random scattered offset and flies into
+  //  place, fading clear from a smoky blur (CSS handles the animation; JS just
+  //  randomizes the per-letter offsets). No veil; page is visible immediately.
+  //  Degrades gracefully (name stays legible) if JS doesn't run.
+  // ============================================================================
+  (function initIntro() {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Split "allfield" into per-letter spans (.ch) for the staggered reveal.
+    const nameEl = document.querySelector('.id-name');
+    if (nameEl && !nameEl.dataset.split) {
+      const text = nameEl.textContent.trim();
+      nameEl.setAttribute('aria-label', text);
+      nameEl.textContent = '';
+      [...text].forEach((c, i) => {
+        const s = document.createElement('span');
+        s.className = 'ch';
+        s.style.setProperty('--ci', i);
+        s.setAttribute('aria-hidden', 'true');
+        s.textContent = c === ' ' ? ' ' : c;
+        nameEl.appendChild(s);
+      });
+      nameEl.dataset.split = '1';
+    }
+
+    if (reduce || !nameEl) return; // letters already show their final characters
+
+    // Scatter each letter to a random off-position; the CSS ch-fly animation
+    // interpolates back to (0,0) + sharp, so each letter flies in across the
+    // page and fades clear from the smoky background.
+    const letters = nameEl.querySelectorAll('.ch');
+    const rand = (min, max) => min + Math.random() * (max - min);
+    const sign = () => (Math.random() < 0.5 ? -1 : 1);
+    letters.forEach(el => {
+      el.style.setProperty('--dx', sign() * rand(140, 320) + 'px');
+      el.style.setProperty('--dy', rand(-170, 110) + 'px');
+      el.style.setProperty('--dr', sign() * rand(8, 22) + 'deg');
+      el.style.setProperty('--ds', rand(0.5, 0.88));
+      el.style.setProperty('--db', rand(12, 22) + 'px');
+    });
+  })();
+
+  // ============================================================================
+  //  Magnetic title — letters of "allfield" smoothly repel from the cursor.
+  //  rAF-throttled mousemove drives inline transforms; CSS transition on .ch
+  //  (in style.css) does the easing so the letters glide rather than snap.
+  // ============================================================================
+  (function initMagneticTitle() {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const nameEl = document.querySelector('.id-name');
+    if (reduce || !nameEl) return;
+    const letters = [...nameEl.querySelectorAll('.ch')];
+    if (!letters.length) return;
+
+    const RADIUS = 90;     // px — cursor must be within this to influence a letter
+    const MAX_OFFSET = 22; // px — maximum letter displacement at zero distance
+    let lastX = -9999, lastY = -9999;
+    let pending = false;
+
+    function apply() {
+      pending = false;
+      const box = nameEl.getBoundingClientRect();
+      // Fast path: cursor nowhere near the title — release any held offsets.
+      if (lastX < box.left - RADIUS || lastX > box.right + RADIUS ||
+          lastY < box.top - RADIUS  || lastY > box.bottom + RADIUS) {
+        letters.forEach(el => { if (el.style.transform) el.style.transform = ''; });
+        return;
+      }
+      letters.forEach(el => {
+        const r = el.getBoundingClientRect();
+        const dx = (r.left + r.width / 2) - lastX;
+        const dy = (r.top + r.height / 2) - lastY;
+        const dist = Math.hypot(dx, dy);
+        if (dist < RADIUS) {
+          const k = 1 - dist / RADIUS;
+          const strength = (k * k) * MAX_OFFSET;       // ease-in falloff
+          const inv = strength / (dist || 1);
+          el.style.transform = `translate(${(dx * inv).toFixed(2)}px, ${(dy * inv).toFixed(2)}px)`;
+        } else if (el.style.transform) {
+          el.style.transform = '';
+        }
+      });
+    }
+
+    window.addEventListener('mousemove', e => {
+      lastX = e.clientX;
+      lastY = e.clientY;
+      if (!pending) { pending = true; requestAnimationFrame(apply); }
+    }, { passive: true });
+
+    // Release offsets when the cursor leaves the window entirely.
+    window.addEventListener('mouseleave', () => {
+      letters.forEach(el => { el.style.transform = ''; });
+    });
+  })();
+
+  // ============================================================================
   //  Shader background — FBM + domain-warp noise on a fullscreen canvas.
   //  Replaces the previous CSS blob layer. Palette is driven by the current
   //  theme + accent (via setPaintPalette, called from apply() below).
@@ -71,25 +169,20 @@
       '  float vig = smoothstep(1.4, 0.3, length(uv - 0.5));',
       '  col *= 0.55 + 0.45 * vig;',
       '  col += uC1 * hot * 0.35;',
-      '  // Lasers — thin beams from above, fanning down, visible where smoke catches them.',
+      '  // Lasers — thin beams from above, fanning down. Sweep dramatically on',
+      '  // entry, then settle into a slow ambient drift.',
       '  vec2 srcPos = vec2(0.0, 0.7);',
       '  vec2 toPixel = (uv - 0.5) * vec2(aspect, 1.0) - srcPos;',
       '  float beamAngle = atan(toPixel.x, -toPixel.y);',
-      '  float beamPhase = beamAngle * 7.0 + uTime * 0.06 + uSeed.x * 0.5;',
+      '  float swingFade = 1.0 - smoothstep(0.1, 2.6, uTime);',
+      '  float swing = sin(uTime * 3.5) * 1.1 * swingFade;',
+      '  float beamPhase = beamAngle * 7.0 + uTime * 0.09 + uSeed.x * 0.5 + swing;',
       '  float beam = pow(0.5 + 0.5 * cos(beamPhase), 24.0);',
       '  float beamFade = smoothstep(2.0, 0.4, length(toPixel));',
       '  float scatter = smoothstep(0.25, 0.85, f);',
-      '  col += uC1 * beam * beamFade * scatter * 0.6 * intro;',
+      '  float beamIntro = smoothstep(0.0, 0.5, uTime);',
+      '  col += uC1 * beam * beamFade * scatter * (0.6 + swingFade * 0.9) * beamIntro;',
       '  col *= 1.0 + (1.0 - intro) * 0.6;',
-      '  // Glitch burst — first ~200ms only. Channel split + scanlines + static for an analog flash.',
-      '  float glitch = pow(max(0.0, 1.0 - uTime * 5.0), 1.4);',
-      '  float ca = (uv.x - 0.5) * glitch * 0.5;',
-      '  col.r *= 1.0 + ca;',
-      '  col.b *= 1.0 - ca;',
-      '  float scan = sin(uv.y * 400.0) * 0.5 + 0.5;',
-      '  col *= 1.0 - scan * 0.35 * glitch;',
-      '  float st = hash(gl_FragCoord.xy + vec2(uTime * 100.0, 0.0));',
-      '  col += (st - 0.5) * glitch * 0.15;',
       '  gl_FragColor = vec4(col, 1.0);',
       '}',
     ].join('\n');
@@ -269,9 +362,9 @@
 
   // Minimal platform glyphs — sized to sit inline with the tag.
   const PLATFORM_ICONS = {
-    soundcloud: '<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M1 18v-4l1 .5v3.5zm2 0v-6l1 .5v5.5zm2 0v-8l1 .5v7.5zm2 0v-9l1 .5v8.5zm2 0v-10l1 .5v9.5zm3-10.5c0-.3.2-.5.5-.5s.5.2.5.5V18h-1V7.5zm2 0c0-.3.2-.5.5-.5s.5.2.5.5V18h-1V7.5zM14 6.5c0-.3.2-.5.5-.5s.5.2.5.5V18h-1V6.5zM16 8c0-.3.2-.5.5-.5s.5.2.5.5v10h-1V8zm2.5-.5c2 0 3.5 1.6 3.5 3.5 0 .4-.1.8-.2 1.2.7.5 1.2 1.3 1.2 2.3 0 1.4-1.1 2.5-2.5 2.5H18V8c.2-.3.4-.5.5-.5z"/></svg>',
+    soundcloud: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><rect x="2" y="14" width="1.5" height="4"/><rect x="4" y="12" width="1.5" height="6"/><rect x="6" y="10" width="1.5" height="8"/><rect x="8" y="8" width="1.5" height="10"/><rect x="10" y="6" width="1.5" height="12"/><rect x="12" y="6" width="1.5" height="12"/><path d="M14 9c0-1.5 1.2-2.7 2.7-2.7s2.7 1.2 2.7 2.7c1.5 0 2.6 1.2 2.6 2.7V18H14z"/></svg>',
     mixcloud:   '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><circle cx="6" cy="13" r="2.2"/><circle cx="10" cy="13" r="2.2"/><circle cx="14" cy="13" r="2.2"/><circle cx="18" cy="13" r="2.2"/><path d="M4 17c2 1.5 4 2 8 2s6-.5 8-2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M4 9c2-1.5 4-2 8-2s6 .5 8 2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
-    youtube:    '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="3" fill="currentColor"/><path d="M10 9.5v5l5-2.5z" fill="var(--bg-1)"/></svg>',
+    youtube:    '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="3" fill="currentColor"/><path d="M9.5 9v6l5-3z" fill="var(--bg)"/></svg>',
   };
   const PLATFORM_LABEL = { soundcloud: 'SoundCloud', mixcloud: 'Mixcloud', youtube: 'YouTube' };
   function platformBadge(p) {
@@ -289,7 +382,7 @@
         html += `<div class="yr" style="--yi:${i}"><span class="yr-num">${m.y}</span><span class="yr-line"></span></div>`;
       }
       html += `
-        <a href="${m.url || '#'}" class="mix" data-series="${m.series}" style="--i:${i++}"${m.url ? ' target="_blank" rel="noopener noreferrer"' : ''}>
+        <a href="${m.url || '#'}" class="mix" data-series="${m.series}" data-platform="${m.platform}" style="--i:${i++}"${m.url ? ' target="_blank" rel="noopener noreferrer"' : ''}>
           <div class="mix-rail"></div>
           <div class="mix-art">
             <img src="${m.img}" alt="" loading="lazy">
