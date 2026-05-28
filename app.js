@@ -294,8 +294,8 @@
 
     // Smoke palette is now sourced from CSS — `--smoke-bg/c2/c3` per theme
     // in style.css. JS reads the active values via getComputedStyle so any
-    // palette tweak only needs to happen in CSS. Accent (uC1) still flows in
-    // via the chip-driven --accent variable.
+    // palette tweak only needs to happen in CSS. Accent (uC1) flows in via
+    // the --accent variable (set on <html> by apply() from TWEAK_DEFAULTS).
     return function setPalette(_theme, accentHex) {
       const cs = getComputedStyle(document.documentElement);
       const c1 = hexToRgb(accentHex);
@@ -362,9 +362,9 @@
 
   // Minimal platform glyphs — sized to sit inline with the tag.
   const PLATFORM_ICONS = {
-    soundcloud: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><rect x="2" y="14" width="1.5" height="4"/><rect x="4" y="12" width="1.5" height="6"/><rect x="6" y="10" width="1.5" height="8"/><rect x="8" y="8" width="1.5" height="10"/><rect x="10" y="6" width="1.5" height="12"/><rect x="12" y="6" width="1.5" height="12"/><path d="M14 9c0-1.5 1.2-2.7 2.7-2.7s2.7 1.2 2.7 2.7c1.5 0 2.6 1.2 2.6 2.7V18H14z"/></svg>',
+    soundcloud: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><rect x="1" y="14" width="1.5" height="4"/><rect x="3" y="12" width="1.5" height="6"/><rect x="5" y="10" width="1.5" height="8"/><rect x="7" y="8" width="1.5" height="10"/><rect x="9" y="6" width="1.5" height="12"/><rect x="11" y="6" width="1.5" height="12"/><path d="M13 9c0-1.5 1.2-2.7 2.7-2.7s2.7 1.2 2.7 2.7c1.5 0 2.6 1.2 2.6 2.7V18H13z"/></svg>',
     mixcloud:   '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><circle cx="6" cy="13" r="2.2"/><circle cx="10" cy="13" r="2.2"/><circle cx="14" cy="13" r="2.2"/><circle cx="18" cy="13" r="2.2"/><path d="M4 17c2 1.5 4 2 8 2s6-.5 8-2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M4 9c2-1.5 4-2 8-2s6 .5 8 2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
-    youtube:    '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="3" fill="currentColor"/><path d="M9.5 9v6l5-3z" fill="var(--bg)"/></svg>',
+    youtube:    '<svg viewBox="0 0 28.57 20" width="18" height="13" aria-hidden="true"><path fill="currentColor" d="M27.9727 3.12324C27.6259 1.84956 26.6296 0.846416 25.3644 0.496002 23.0405 -0.130233 14.2858 0 14.2858 0S5.53113 -0.130233 3.20718 0.495876C1.94189 0.846416 0.945749 1.84956 0.598918 3.12324-0.0238482 5.46426-0.0238482 9.99826-0.0238482 9.99826S-0.0238482 14.5323 0.598918 16.8733C0.945749 18.147 1.94196 19.1066 3.20725 19.4571 5.53113 20.0833 14.2858 20.0833 14.2858 20.0833S23.0405 20.0833 25.3644 19.4571C26.6296 19.1066 27.6259 18.147 27.9727 16.8733 28.5965 14.5323 28.5965 9.99826 28.5965 9.99826S28.5965 5.46426 27.9727 3.12324z"/><path fill="var(--bg)" d="M11.4287 14.2854L18.6991 9.99835L11.4287 5.71132V14.2854z"/></svg>',
   };
   const PLATFORM_LABEL = { soundcloud: 'SoundCloud', mixcloud: 'Mixcloud', youtube: 'YouTube' };
   function platformBadge(p) {
@@ -406,23 +406,15 @@
   render();
 
   // ============================================================================
-  //  Tweaks — live preview + persistence
+  //  Page state — applies theme / accent / grain / view from TWEAK_DEFAULTS.
+  //  Theme follows the OS dark/light preference; oxblood is never auto-set.
   // ============================================================================
   const root = document.documentElement;
-  const tweaksEl = document.getElementById('tweaks');
-  const grainSlider = document.getElementById('grainSlider');
-  const grainVal = document.getElementById('grainVal');
-  const timelineToggle = document.getElementById('timelineToggle');
+  const state = Object.assign({}, TWEAK_DEFAULTS);
 
-  let state = Object.assign({}, TWEAK_DEFAULTS);
-
-  // Follow the OS dark/light preference until the user manually picks a theme
-  // chip. oxblood is opt-in only; auto resolves to charcoal or light.
   const sysDark = window.matchMedia('(prefers-color-scheme: dark)');
-  let userChoseTheme = false;
   state.theme = sysDark.matches ? 'charcoal' : 'light';
   sysDark.addEventListener('change', e => {
-    if (userChoseTheme) return;
     state.theme = e.matches ? 'charcoal' : 'light';
     apply();
   });
@@ -431,52 +423,11 @@
     root.setAttribute('data-theme', state.theme);
     root.setAttribute('data-accent', state.accent);
     root.style.setProperty('--grain', String(state.grain / 100));
-    grainVal.textContent = state.grain;
-    grainSlider.value = state.grain;
-    timelineToggle.checked = !!state.showTimeline;
-
     setPaintPalette(state.theme, getComputedStyle(root).getPropertyValue('--accent'));
-
-    // View toggle
     mixesEl.classList.toggle('cards', state.view === 'cards');
     mixesEl.classList.toggle('log', state.view === 'log');
     mixesEl.classList.toggle('show-rail', !!state.showTimeline);
-
-    // Chip active states
-    document.querySelectorAll('[data-chips] .chip').forEach(c => {
-      const key = c.parentElement.dataset.chips;
-      c.classList.toggle('active', c.dataset.value === state[key]);
-    });
   }
-
-  function persist() {
-    try { window.parent.postMessage({ type: '__edit_mode_set_keys', edits: state }, '*'); } catch (e) {}
-  }
-
-  document.querySelectorAll('[data-chips]').forEach(group => {
-    const key = group.dataset.chips;
-    group.querySelectorAll('.chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        state[key] = chip.dataset.value;
-        if (key === 'theme') userChoseTheme = true;
-        apply();
-        persist();
-      });
-    });
-  });
-
-  grainSlider.addEventListener('input', () => { state.grain = parseInt(grainSlider.value, 10); apply(); });
-  grainSlider.addEventListener('change', persist);
-
-  timelineToggle.addEventListener('change', () => { state.showTimeline = timelineToggle.checked; apply(); persist(); });
-
-  // Edit-mode messaging — register listener before announcing
-  window.addEventListener('message', (ev) => {
-    const d = ev.data || {};
-    if (d.type === '__activate_edit_mode') tweaksEl.classList.add('open');
-    if (d.type === '__deactivate_edit_mode') tweaksEl.classList.remove('open');
-  });
-  try { window.parent.postMessage({ type: '__edit_mode_available' }, '*'); } catch (e) {}
 
   apply();
 })();
