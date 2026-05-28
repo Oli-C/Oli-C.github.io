@@ -160,10 +160,21 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   z-index: 3;
   max-width: 720px;
   margin: 0 auto;
-  padding: 28px 20px 64px;
+  /* Notch / home-indicator safe areas with sensible floors at every breakpoint. */
+  padding-top: 28px;
+  padding-right: max(20px, env(safe-area-inset-right));
+  padding-bottom: max(64px, env(safe-area-inset-bottom));
+  padding-left: max(20px, env(safe-area-inset-left));
   animation: page-emerge 600ms var(--ease) 0s both;
 }
-@media (min-width: 640px) { .page { padding: 48px 28px 80px; } }
+@media (min-width: 640px) {
+  .page {
+    padding-top: 48px;
+    padding-right: max(28px, env(safe-area-inset-right));
+    padding-bottom: max(80px, env(safe-area-inset-bottom));
+    padding-left: max(28px, env(safe-area-inset-left));
+  }
+}
 @keyframes page-emerge {
   from { opacity: 0; filter: blur(6px); }
   to   { opacity: 1; filter: blur(0); }
@@ -303,7 +314,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 .id-name {
   font-family: 'Anek Kannada', sans-serif;
   font-weight: 600;
-  font-size: clamp(36px, 9vw, 56px);
+  font-size: clamp(48px, 12vw, 64px);
   line-height: 0.9;
   letter-spacing: -0.05em;
   text-transform: lowercase;
@@ -338,6 +349,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--fg);
+  touch-action: manipulation;
   background: color-mix(in srgb, var(--bg-2) 38%, transparent);
   backdrop-filter: blur(14px) saturate(1.3);
   -webkit-backdrop-filter: blur(14px) saturate(1.3);
@@ -408,6 +420,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   padding: 14px;
   min-height: 88px;
   margin-bottom: 20px;
+  touch-action: manipulation;
   background: color-mix(in srgb, var(--bg-2) 38%, transparent);
   backdrop-filter: blur(18px) saturate(1.4);
   -webkit-backdrop-filter: blur(18px) saturate(1.4);
@@ -560,6 +573,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   gap: 12px;
   padding: 14px;
   min-height: 88px;
+  touch-action: manipulation;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--bg-2) 42%, transparent);
@@ -675,16 +689,18 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 }
 
 .mix-tag {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-block;
+  vertical-align: middle;
   font-family: 'Anek Kannada', sans-serif;
   font-size: 8px;
   letter-spacing: 0.14em;
-  text-indent: 0.14em;
+  /* No text-indent — trimming padding-right instead absorbs the trailing
+     letter-spacing on every browser (the text-indent trick is unreliable
+     inside inline-flex on iOS Safari). */
   text-transform: uppercase;
   line-height: 1;
   padding: 5px 7px 3px;
+  padding-right: calc(7px - 0.14em);
   border-radius: 3px;
   color: var(--fg-muted);
   border: 1px solid var(--border-2);
@@ -879,7 +895,12 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 }
 
 @media (max-width: 560px) {
-  .page { padding: 20px 14px 48px; }
+  .page {
+    padding-top: 20px;
+    padding-right: max(14px, env(safe-area-inset-right));
+    padding-bottom: max(48px, env(safe-area-inset-bottom));
+    padding-left: max(14px, env(safe-area-inset-left));
+  }
   .id-top { margin-bottom: 20px; }
   .id-body { grid-template-columns: 72px 1fr; gap: 14px; }
   .id-name { margin-bottom: 6px; letter-spacing: -0.045em; }
@@ -893,7 +914,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   }
   .mix-title { font-size: 12px; }
   .mix-meta { font-size: 9px; gap: 6px; }
-  .mix-tag { font-size: 7.5px; padding: 3px 5px 2px; letter-spacing: 0.14em; }
+  .mix-tag { font-size: 8.5px; padding: 5px 6px 3px; padding-right: calc(6px - 0.14em); letter-spacing: 0.14em; }
   .mix-plat { width: 20px; height: 20px; }
   .mix-right { gap: 8px; }
   .mix-arrow { display: none; }
@@ -909,7 +930,32 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 }
 
 @media (max-width: 400px) {
-  .page { padding: 16px 12px 40px; }
+  .page {
+    padding-top: 16px;
+    padding-right: max(12px, env(safe-area-inset-right));
+    padding-bottom: max(40px, env(safe-area-inset-bottom));
+    padding-left: max(12px, env(safe-area-inset-left));
+  }
   .id-top .id-freq { display: none; }
   .mix { padding: 10px 10px; min-height: 70px; }
+  /* Spread the 6-pill row evenly across the narrowest viewport. */
+  .pills { justify-content: space-between; }
+}
+
+/* Drop expensive backdrop-filter on cards at phone widths — keeps scrolling
+   smooth on older A-series iPhones and mid-range Android while preserving
+   the muted glass look via a solid-ish bg fallback. */
+@media (max-width: 640px) {
+  .pill, .next, .mix {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: color-mix(in srgb, var(--bg-2) 72%, transparent);
+  }
+}
+
+/* On phones < 360 px the kaomoji line still wants to overflow even with
+   nowrap + 9.5px font — drop the second pair so the hint stays on one line. */
+@media (max-width: 359px) {
+  .id-handle .jig-2,
+  .id-handle .jig-3 { display: none; }
 }

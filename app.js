@@ -51,9 +51,10 @@
   })();
 
   // ============================================================================
-  //  Magnetic title — letters of "allfield" smoothly repel from the cursor.
-  //  rAF-throttled mousemove drives inline transforms; CSS transition on .ch
-  //  (in style.css) does the easing so the letters glide rather than snap.
+  //  Magnetic title — letters of "allfield" smoothly repel from the cursor or
+  //  finger. rAF-throttled input drives inline transforms; CSS transition on
+  //  .ch (in style.css) does the easing so the letters glide rather than snap.
+  //  Static at rest — no idle drift (random offsets per letter looked broken).
   // ============================================================================
   (function initMagneticTitle() {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -62,7 +63,7 @@
     const letters = [...nameEl.querySelectorAll('.ch')];
     if (!letters.length) return;
 
-    const RADIUS = 90;     // px — cursor must be within this to influence a letter
+    const RADIUS = 90;     // px — input must be within this to influence a letter
     const MAX_OFFSET = 22; // px — maximum letter displacement at zero distance
     let lastX = -9999, lastY = -9999;
     let pending = false;
@@ -70,7 +71,7 @@
     function apply() {
       pending = false;
       const box = nameEl.getBoundingClientRect();
-      // Fast path: cursor nowhere near the title — release any held offsets.
+      // Fast path: input nowhere near the title — release any held offsets.
       if (lastX < box.left - RADIUS || lastX > box.right + RADIUS ||
           lastY < box.top - RADIUS  || lastY > box.bottom + RADIUS) {
         letters.forEach(el => { if (el.style.transform) el.style.transform = ''; });
@@ -92,15 +93,21 @@
       });
     }
 
-    window.addEventListener('mousemove', e => {
-      lastX = e.clientX;
-      lastY = e.clientY;
+    function noteInput(x, y) {
+      lastX = x; lastY = y;
       if (!pending) { pending = true; requestAnimationFrame(apply); }
-    }, { passive: true });
+    }
 
-    // Release offsets when the cursor leaves the window entirely.
+    window.addEventListener('mousemove', e => noteInput(e.clientX, e.clientY), { passive: true });
+    window.addEventListener('touchmove', e => {
+      if (e.touches.length) noteInput(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
     window.addEventListener('mouseleave', () => {
       letters.forEach(el => { el.style.transform = ''; });
+    });
+    window.addEventListener('touchend', () => {
+      lastX = -9999; lastY = -9999;
+      if (!pending) { pending = true; requestAnimationFrame(apply); }
     });
   })();
 
