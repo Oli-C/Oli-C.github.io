@@ -215,6 +215,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 .pills .pill:nth-child(4) { --pi: 3; }
 .pills .pill:nth-child(5) { --pi: 4; }
 .pills .pill:nth-child(6) { --pi: 5; }
+.pills .pill:nth-child(7) { --pi: 6; }
 /* Mixes and year-dividers are hidden by default; initBloomOnScroll in app.js
    adds .bloom (run the smoke-emerge animation) or .bloom-instant (already in
    final state — no animation). The initial-cohort cards get .bloom-load too,
@@ -424,6 +425,10 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   height: 22px;
   -webkit-mask: url('assets/logo-chameleon.png') center / contain no-repeat;
           mask: url('assets/logo-chameleon.png') center / contain no-repeat;
+}
+.pill .luso-mask {
+  -webkit-mask: url('assets/logo-lusophonica.png') center / contain no-repeat;
+          mask: url('assets/logo-lusophonica.png') center / contain no-repeat;
 }
 /* Override the inline width=26 / height=11.3 on the SoundCloud logo so it
    reads at the same visual weight as the other brand glyphs across the row. */
