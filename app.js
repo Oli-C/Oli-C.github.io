@@ -348,6 +348,7 @@
   //  Mix data — pulled from the real Linktree export
   // ============================================================================
   const MIXES = [
+    { code: 'LUS-054', title: 'June Radio', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '03.06.2026', y: 2026, sub: 'Residency solo', img: 'assets/mix-lus-054.jpeg', url: 'https://youtu.be/twljVtkxQZE' },
     { code: 'RBV-001', title: 'allfield in Glasgow', series: 'rbv', platform: 'soundcloud', tag: 'RADIO BUENA VIDA', date: '22.05.2026', y: 2026, sub: 'Radio Buena Vida', img: 'assets/mix-rbv-001.jpeg', url: 'https://soundcloud.com/radiobuenavida/allfield-radio-buena-vida-22-1' },
     { code: 'CHA-039', title: 'Chameleon 039 - allfield meets yuba', series: 'cham', platform: 'soundcloud', tag: 'CHAMELEON', date: '04.04.2026', y: 2026, sub: 'Chameleon series w/ Yuba',      img: 'assets/mix-cha-039.jpeg', url: 'https://soundcloud.com/chamele-on-sound/chameleon-039-allfield-meets' },
     { code: 'ESR-026', title: 'allfield & yuba',     series: 'radio', platform: 'youtube', tag: 'EAST SIDE RADIO',  date: '30.03.2026', y: 2026, sub: 'EastSide Radio',       img: 'assets/mix-esr-026.jpeg', url: 'https://youtu.be/077Gc6lWKag' },
