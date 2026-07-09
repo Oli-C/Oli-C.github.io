@@ -51,45 +51,87 @@
   })();
 
   // ============================================================================
-  //  Magnetic title — letters of "allfield" smoothly repel from the cursor or
-  //  finger. rAF-throttled input drives inline transforms; CSS transition on
-  //  .ch (in style.css) does the easing so the letters glide rather than snap.
-  //  Static at rest — no idle drift (random offsets per letter looked broken).
+  //  Magnetic text — letters of the title AND body text (mix titles, dates,
+  //  tags, year numbers) smoothly repel from the cursor or finger.
+  //  rAF-throttled input drives inline transforms; CSS transition on .ch/.mch
+  //  does the easing so the letters glide rather than snap. Containers are
+  //  rect-culled first so per-letter work only runs near the cursor.
+  //  Called after render() so the injected mix list is splittable.
   // ============================================================================
-  (function initMagneticTitle() {
+  function initMagneticText() {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const nameEl = document.querySelector('.id-name');
-    if (reduce || !nameEl) return;
-    const letters = [...nameEl.querySelectorAll('.ch')];
-    if (!letters.length) return;
+    if (reduce) return;
 
-    const RADIUS = 90;     // px — input must be within this to influence a letter
-    const MAX_OFFSET = 22; // px — maximum letter displacement at zero distance
+    // Split body text into .mch letter spans, wrapping each word in a nowrap
+    // .mch-w span so word-wrapping (e.g. line-clamped titles) stays natural.
+    function splitLetters(el) {
+      if (el.dataset.split) return;
+      const text = el.textContent;
+      el.setAttribute('aria-label', text.trim());
+      el.textContent = '';
+      text.split(/(\s+)/).forEach(part => {
+        if (!part) return;
+        if (/^\s+$/.test(part)) { el.appendChild(document.createTextNode(part)); return; }
+        const w = document.createElement('span');
+        w.className = 'mch-w';
+        w.setAttribute('aria-hidden', 'true');
+        [...part].forEach(c => {
+          const s = document.createElement('span');
+          s.className = 'mch';
+          s.textContent = c;
+          w.appendChild(s);
+        });
+        el.appendChild(w);
+      });
+      el.dataset.split = '1';
+    }
+    document.querySelectorAll('.mix-title, .mix-date, .mix-tag, .yr-num')
+      .forEach(splitLetters);
+
+    // Title letters get the original big radius/offset; small body text gets a
+    // tighter, subtler push so cards don't turn to soup.
+    const groups = [];
+    const nameEl = document.querySelector('.id-name');
+    if (nameEl) groups.push({ el: nameEl, letters: [...nameEl.querySelectorAll('.ch')], radius: 90, maxOffset: 22, active: false });
+    document.querySelectorAll('.mix-title, .mix-date, .mix-tag, .yr-num').forEach(el => {
+      const letters = [...el.querySelectorAll('.mch')];
+      if (letters.length) groups.push({ el, letters, radius: 60, maxOffset: 9, active: false });
+    });
+    if (!groups.length) return;
+
     let lastX = -9999, lastY = -9999;
     let pending = false;
 
+    function release(g) {
+      g.letters.forEach(el => { if (el.style.transform) el.style.transform = ''; });
+      g.active = false;
+    }
+
     function apply() {
       pending = false;
-      const box = nameEl.getBoundingClientRect();
-      // Fast path: input nowhere near the title — release any held offsets.
-      if (lastX < box.left - RADIUS || lastX > box.right + RADIUS ||
-          lastY < box.top - RADIUS  || lastY > box.bottom + RADIUS) {
-        letters.forEach(el => { if (el.style.transform) el.style.transform = ''; });
-        return;
-      }
-      letters.forEach(el => {
-        const r = el.getBoundingClientRect();
-        const dx = (r.left + r.width / 2) - lastX;
-        const dy = (r.top + r.height / 2) - lastY;
-        const dist = Math.hypot(dx, dy);
-        if (dist < RADIUS) {
-          const k = 1 - dist / RADIUS;
-          const strength = (k * k) * MAX_OFFSET;       // ease-in falloff
-          const inv = strength / (dist || 1);
-          el.style.transform = `translate(${(dx * inv).toFixed(2)}px, ${(dy * inv).toFixed(2)}px)`;
-        } else if (el.style.transform) {
-          el.style.transform = '';
+      groups.forEach(g => {
+        const box = g.el.getBoundingClientRect();
+        // Fast path: input nowhere near this container — release held offsets.
+        if (lastX < box.left - g.radius || lastX > box.right + g.radius ||
+            lastY < box.top - g.radius  || lastY > box.bottom + g.radius) {
+          if (g.active) release(g);
+          return;
         }
+        g.active = true;
+        g.letters.forEach(el => {
+          const r = el.getBoundingClientRect();
+          const dx = (r.left + r.width / 2) - lastX;
+          const dy = (r.top + r.height / 2) - lastY;
+          const dist = Math.hypot(dx, dy);
+          if (dist < g.radius) {
+            const k = 1 - dist / g.radius;
+            const strength = (k * k) * g.maxOffset;    // ease-in falloff
+            const inv = strength / (dist || 1);
+            el.style.transform = `translate(${(dx * inv).toFixed(2)}px, ${(dy * inv).toFixed(2)}px)`;
+          } else if (el.style.transform) {
+            el.style.transform = '';
+          }
+        });
       });
     }
 
@@ -102,14 +144,12 @@
     window.addEventListener('touchmove', e => {
       if (e.touches.length) noteInput(e.touches[0].clientX, e.touches[0].clientY);
     }, { passive: true });
-    window.addEventListener('mouseleave', () => {
-      letters.forEach(el => { el.style.transform = ''; });
-    });
+    window.addEventListener('mouseleave', () => groups.forEach(release));
     window.addEventListener('touchend', () => {
       lastX = -9999; lastY = -9999;
       if (!pending) { pending = true; requestAnimationFrame(apply); }
     });
-  })();
+  }
 
   // ============================================================================
   //  Shader background — FBM + domain-warp noise on a fullscreen canvas.
@@ -123,6 +163,12 @@
             || canvas.getContext('experimental-webgl');
     if (!gl) { canvas.style.display = 'none'; return () => {}; }
 
+    // Cursor-trail / ripple counts — interpolated into the shader below so
+    // the JS buffers and GLSL arrays can never disagree.
+    const TRAIL_N = 16;
+    const RIPPLE_N = 4;
+    const RIPPLE_S = 1.6; // ripple lifetime, seconds
+
     const VERT = 'attribute vec2 a; void main(){ gl_Position = vec4(a,0.0,1.0); }';
     const FRAG = [
       'precision highp float;',
@@ -131,6 +177,13 @@
       'uniform vec2 uSeed;',
       'uniform float uScroll;',
       'uniform vec3 uC1, uC2, uC3, uBg;',
+      '// Cursor trail — xy pos in centered aspect-corrected space, z decaying',
+      '// strength, w spread (grows with age: the wake blooms as it dissolves).',
+      'uniform vec4 uTrail[' + TRAIL_N + '];',
+      '// Per-point cursor velocity — momentum and stroke orientation.',
+      'uniform vec2 uTrailV[' + TRAIL_N + '];',
+      '// Click ripples — xy origin in pc space, z age in seconds (large = dead).',
+      'uniform vec3 uRipple[' + RIPPLE_N + '];',
       'float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }',
       'float noise(vec2 p){',
       '  vec2 i=floor(p), f=fract(p);',
@@ -149,13 +202,57 @@
       '  float intro = smoothstep(0.0, 1.6, uTime);',
       '  float zoom  = mix(0.45, 1.0, intro);',
       '  float scale = (2.6 + 0.8 * clamp(1.0 - aspect, 0.0, 0.6)) * zoom;',
-      '  vec2  p     = (uv - 0.5) * vec2(aspect, 1.0) * scale + uSeed;',
+      '  vec2  pc    = (uv - 0.5) * vec2(aspect, 1.0);',
+      '  vec2  p     = pc * scale + uSeed;',
+      '  // Pen wake — each trail point is a divergence-free dipole (gaussian',
+      '  // streamfunction sb*G): forward flow at the pen tip, return flow',
+      '  // curling back along the flanks — the mushroom curl of a real stir.',
+      '  // Incompressible by construction, so the fog is pushed around, never',
+      '  // created or destroyed. The spread (tp.w) grows with age while the',
+      '  // strength decays, so the wake blooms outward as it dissolves.',
+      '  vec2 warp = vec2(0.0);',
+      '  for (int i = 0; i < ' + TRAIL_N + '; i++) {',
+      '    vec4 tp = uTrail[i];',
+      '    vec2 d = pc - tp.xy;',
+      '    float vl = length(uTrailV[i]);',
+      '    vec2 dir = vl > 0.001 ? uTrailV[i] / vl : vec2(1.0, 0.0);',
+      '    vec2 prp = vec2(-dir.y, dir.x);',
+      '    float sa = dot(d, dir);',
+      '    float sb = dot(d, prp);',
+      '    float g2 = tp.w * tp.w;',
+      '    float ka = 90.0 / g2, kb = 180.0 / g2;',
+      '    float G = exp(-(sa*sa*ka + sb*sb*kb));',
+      '    // Reverse flank flow clamped and the cross term halved — the pure',
+      '    // dipole derivatives flip sign too sharply for a warped noise field',
+      '    // and read as tearing.',
+      '    warp += (dir * clamp(1.0 - 2.0*kb*sb*sb, -0.5, 1.0) + prp * (ka*sa*sb)) * G * tp.z * vl * 0.5;',
+      '  }',
+      '  // Click ripples — an expanding ring that nudges the fog outward at',
+      '  // its front and carries a faint glint (added to col further down).',
+      '  float ripLight = 0.0;',
+      '  for (int i = 0; i < ' + RIPPLE_N + '; i++) {',
+      '    vec3 rp = uRipple[i];',
+      '    float dist = length(pc - rp.xy);',
+      '    // (dist - radius) squared by hand — pow() is undefined for x<0 in ES.',
+      '    float dr = (dist - rp.z * 0.5) * 14.0;',
+      '    float band = exp(-dr * dr);',
+      '    float amp = max(0.0, 1.0 - rp.z / ' + RIPPLE_S.toFixed(1) + ');',
+      '    amp *= amp;',
+      '    warp += (pc - rp.xy) / max(dist, 0.001) * band * amp * 0.2;',
+      '    ripLight += band * amp;',
+      '  }',
+      '  // Soft-saturate so overlapping stirs can never tear the field.',
+      '  warp /= 1.0 + 2.5 * length(warp);',
+      '  p += warp * scale * 0.35;',
+      '  // Ambient current — the ink drifts slowly across the frame. The back',
+      '  // layer inherits it at 0.55x via pBack, giving free parallax.',
+      '  p += uTime * vec2(0.022, -0.008);',
       '  vec2 m = 0.6 * vec2(fbm(p*0.35 + 0.03*uTime), fbm(p*0.35 + vec2(4.0,2.0) - 0.03*uTime));',
       '  p += m;',
-      '  float t = uTime * 0.05;',
+      '  float t = uTime * 0.065;',
       '  // Back layer — slower, larger scale, softer movement. Sits behind everything else.',
       '  vec2 pBack = p * 0.55 + vec2(7.3, 11.7);',
-      '  float tBack = uTime * 0.025;',
+      '  float tBack = uTime * 0.032;',
       '  vec2 qBack = vec2(fbm(pBack + tBack), fbm(pBack + vec2(3.1, 5.7) - tBack));',
       '  float fBack = fbm(pBack + 1.6 * qBack);',
       '  // Front layer — existing domain-warped smoke.',
@@ -177,22 +274,28 @@
       '  float vig = smoothstep(1.4, 0.3, length(uv - 0.5));',
       '  col *= 0.55 + 0.45 * vig;',
       '  col += uC1 * hot * 0.35;',
-      '  // Lasers — thin beams from above, fanning down. Sweep dramatically on',
-      '  // entry, then settle into a slow ambient drift.',
-      '  vec2 srcPos = vec2(0.0, 0.7);',
-      '  vec2 toPixel = (uv - 0.5) * vec2(aspect, 1.0) - srcPos;',
-      '  float beamAngle = atan(toPixel.x, -toPixel.y);',
-      '  float swingFade = 1.0 - smoothstep(0.1, 2.6, uTime);',
-      '  // uScroll is the decaying scroll-velocity excite from JS (0..1).',
-      '  // Reignites the beams briefly when the user flicks the page.',
-      '  float excite = swingFade + uScroll * 0.6;',
-      '  float swing = sin(uTime * 3.5) * (1.1 * swingFade + uScroll * 0.4);',
-      '  float beamPhase = beamAngle * 7.0 + uTime * 0.09 + uSeed.x * 0.5 + swing;',
-      '  float beam = pow(0.5 + 0.5 * cos(beamPhase), 24.0);',
-      '  float beamFade = smoothstep(2.0, 0.4, length(toPixel));',
+      '  // God rays — slanted underwater light shafts from the surface. Two',
+      '  // layers at different scales/speeds drift past each other for parallax',
+      '  // depth; caustic shimmer replaces the old swinging beam fan.',
+      '  vec2 rd = normalize(vec2(0.28, -1.0));',
+      '  float across = dot(pc - vec2(0.0, 0.7), vec2(-rd.y, rd.x)) + uSeed.x * 0.1;',
+      '  float depth = clamp((0.7 - pc.y) / 1.4, 0.0, 1.0);',
+      '  float tR = uTime * 0.06;',
+      '  // Near layer: broad, slow, bright. Far layer: finer, faster, opposite drift.',
+      '  float rayN = pow(noise(vec2(across * 6.0 + tR, 2.7)), 3.0);',
+      '  float rayF = pow(noise(vec2(across * 14.0 - tR * 1.8, 9.1)), 3.0);',
+      '  float shimmer = 0.7 + 0.3 * fbm(vec2(across * 4.0, uTime * 0.12));',
+      '  float rays = (rayN * 0.9 + rayF * 0.5) * shimmer;',
+      '  float fadeTop = smoothstep(1.0, 0.1, depth);',
       '  float scatter = smoothstep(0.25, 0.85, f);',
-      '  float beamIntro = smoothstep(0.0, 0.5, uTime);',
-      '  col += uC1 * beam * beamFade * scatter * (0.6 + excite * 0.9) * beamIntro;',
+      '  float beamIntro = smoothstep(0.0, 1.2, uTime);',
+      '  // uScroll is the decaying scroll-velocity excite from JS (0..1) —',
+      '  // brightens the shafts briefly when the user flicks the page.',
+      '  col += uC1 * rays * fadeTop * scatter * (0.7 + uScroll * 0.9) * beamIntro;',
+      '  // Ripple glint — the ring front catches light where the fog is dense.',
+      '  col += uC1 * ripLight * scatter * 0.25;',
+      '  // Depth cue — the water column darkens slightly toward the bottom.',
+      '  col *= 1.0 - depth * 0.14;',
       '  col *= 1.0 + (1.0 - intro) * 0.6;',
       '  gl_FragColor = vec4(col, 1.0);',
       '}',
@@ -228,6 +331,9 @@
     gl.vertexAttribPointer(aLoc, 2, gl.FLOAT, false, 0, 0);
 
     const uRes    = gl.getUniformLocation(prog, 'uRes');
+    const uTrail  = gl.getUniformLocation(prog, 'uTrail');
+    const uTrailV = gl.getUniformLocation(prog, 'uTrailV');
+    const uRipple = gl.getUniformLocation(prog, 'uRipple');
     const uTime   = gl.getUniformLocation(prog, 'uTime');
     const uSeed   = gl.getUniformLocation(prog, 'uSeed');
     const uScroll = gl.getUniformLocation(prog, 'uScroll');
@@ -280,12 +386,127 @@
       }, { passive: true });
     }
 
+    // Cursor trail — the listeners only sample the raw pointer; a smoothed
+    // "brush" glides toward it every frame (in updateTrail) and deposits the
+    // trail points from its own continuous motion, so the wake flows even
+    // though input events arrive in discrete jumps. While any point is alive
+    // we draw at full 60fps.
+    const TRAIL_MS = 4000;   // a stroke dissolves over ~4s, like ink settling
+    const trailPts = [];
+    const trailData = new Float32Array(TRAIL_N * 4);
+    const trailVelData = new Float32Array(TRAIL_N * 2);
+    let curX = null, curY = null;     // raw pointer, pc space
+    let brushX = null, brushY = null; // smoothed brush
+    const toPc = (cx, cy) => [
+      (cx / window.innerWidth - 0.5) * (window.innerWidth / window.innerHeight),
+      0.5 - cy / window.innerHeight,
+    ];
+    if (!reduceMotion) {
+      const notePointer = (cx, cy) => { [curX, curY] = toPc(cx, cy); };
+      window.addEventListener('mousemove', e => notePointer(e.clientX, e.clientY), { passive: true });
+      window.addEventListener('touchmove', e => {
+        if (e.touches.length) notePointer(e.touches[0].clientX, e.touches[0].clientY);
+      }, { passive: true });
+    }
+
+    // Click / tap ripples — a light ring spreads through the fog, except when
+    // the press lands on something interactive (links, buttons).
+    const ripples = [];
+    const rippleData = new Float32Array(RIPPLE_N * 3); // refilled every frame by updateRipples
+    if (!reduceMotion) {
+      window.addEventListener('pointerdown', e => {
+        if (e.target.closest && e.target.closest('a, button')) return;
+        const [x, y] = toPc(e.clientX, e.clientY);
+        ripples.push({ x, y, t: performance.now() });
+        if (ripples.length > RIPPLE_N) ripples.shift();
+      }, { passive: true });
+    }
+
+    // Fills rippleData ages for `now`; returns true while any ring is alive.
+    function updateRipples(now) {
+      let active = false;
+      for (let i = 0; i < RIPPLE_N; i++) {
+        const r = ripples[i];
+        const age = r ? (now - r.t) / 1000 : 99;
+        rippleData[i * 3]     = r ? r.x : 0;
+        rippleData[i * 3 + 1] = r ? r.y : 0;
+        rippleData[i * 3 + 2] = age;
+        if (age < RIPPLE_S) active = true;
+      }
+      return active;
+    }
+
+    // Refreshes trailData for `now`; returns true if any point is alive.
+    // Each stir eases in (no pop), advects along its own damped momentum so
+    // the disturbance drifts with the medium, then relaxes out slowly.
+    let lastTrailNow = 0;
+    function updateTrail(now) {
+      const dt = lastTrailNow ? Math.min(100, Math.max(1, now - lastTrailNow)) : 16;
+      lastTrailNow = now;
+
+      // Glide the brush toward the raw pointer and deposit points from the
+      // brush's motion — smooth position, smooth velocity, smooth spawn.
+      if (curX !== null) {
+        if (brushX === null) { brushX = curX; brushY = curY; }
+        const px = brushX, py = brushY;
+        const k = 1 - Math.exp(-dt / 90);
+        brushX += (curX - brushX) * k;
+        brushY += (curY - brushY) * k;
+        // Velocity in pc-units/s, scaled so ~2 screen-heights/s hits the cap.
+        let vx = (brushX - px) / dt * 250;
+        let vy = (brushY - py) / dt * 250;
+        const mag = Math.hypot(vx, vy);
+        if (mag > 0.5) { vx *= 0.5 / mag; vy *= 0.5 / mag; }
+        // Spacing and lifetime both scale with speed: a fast sweep lays
+        // sparser points that die sooner, so a point always fades out before
+        // the ring evicts it — evicting a still-strong point pops visibly.
+        // (Vigorous stirring dissipating faster is also just how fluids work.)
+        const spacing = 0.02 + mag * 0.16;
+        const last = trailPts[trailPts.length - 1];
+        if (mag > 0.02 &&
+            (!last || Math.hypot(brushX - last.x, brushY - last.y) >= spacing)) {
+          const life = Math.min(TRAIL_MS,
+            (TRAIL_N - 2) * spacing / Math.max(mag, 0.02) * 900);
+          trailPts.push({ x: brushX, y: brushY, vx, vy, t: now, life });
+          if (trailPts.length > TRAIL_N) trailPts.shift();
+        }
+      }
+
+      const damp = Math.exp(-dt / 900);
+      let active = false;
+      for (let i = 0; i < TRAIL_N; i++) {
+        const pt = trailPts[i];
+        let s = 0, spread = 1;
+        if (pt) {
+          pt.x += pt.vx * dt * 0.0004;
+          pt.y += pt.vy * dt * 0.0004;
+          pt.vx *= damp; pt.vy *= damp;
+          const age = now - pt.t;
+          const fadeIn = Math.min(1, age / 150);
+          const k = Math.max(0, 1 - age / pt.life);
+          s = fadeIn * k * k;
+          // The wake blooms outward (up to ~2.2x) as it dissolves.
+          spread = 1 + 1.2 * Math.min(1, age / pt.life);
+        }
+        trailData[i * 4]     = pt ? pt.x : 0;
+        trailData[i * 4 + 1] = pt ? pt.y : 0;
+        trailData[i * 4 + 2] = s;
+        trailData[i * 4 + 3] = spread; // 1 even for empty slots — avoids /0 in shader
+        trailVelData[i * 2]     = pt ? pt.vx : 0;
+        trailVelData[i * 2 + 1] = pt ? pt.vy : 0;
+        if (s > 0) active = true;
+      }
+      return active;
+    }
+
     function frame(now) {
       if (paused) return;
       const elapsed = now - start;
       const inIntro = elapsed < INTRO_MS;
       const excited = scrollExcite > 0.02;
-      if (inIntro || excited || now - lastDraw >= FRAME_INTERVAL_MS) {
+      const trailActive = updateTrail(now);
+      const rippleActive = updateRipples(now);
+      if (inIntro || excited || trailActive || rippleActive || now - lastDraw >= FRAME_INTERVAL_MS) {
         if (lastDraw > 0 && scrollExcite > 0) {
           // Exponential decay — half-life ~70ms; reaches ~0 by 700ms.
           scrollExcite *= Math.pow(0.001, (now - lastDraw) / 700);
@@ -294,6 +515,9 @@
         const t = reduceMotion ? 7.3 : elapsed * 0.001;
         gl.uniform1f(uTime, t);
         gl.uniform1f(uScroll, scrollExcite);
+        gl.uniform4fv(uTrail, trailData);
+        gl.uniform2fv(uTrailV, trailVelData);
+        gl.uniform3fv(uRipple, rippleData);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         lastDraw = now;
       }
@@ -332,7 +556,9 @@
     // the --accent variable (set on <html> by apply() from TWEAK_DEFAULTS).
     return function setPalette(_theme, accentHex) {
       const cs = getComputedStyle(document.documentElement);
-      const c1 = hexToRgb(accentHex);
+      // --smoke-c1 (ocean cyan) overrides the accent for the shader highlight;
+      // themes without it fall back to the site accent.
+      const c1 = hexToRgb(cs.getPropertyValue('--smoke-c1').trim() || accentHex);
       const c2 = hexToRgb(cs.getPropertyValue('--smoke-c2'));
       const c3 = hexToRgb(cs.getPropertyValue('--smoke-c3'));
       const bg = hexToRgb(cs.getPropertyValue('--smoke-bg'));
@@ -430,15 +656,15 @@
             <div class="mix-title">${esc(m.title)}</div>
           </div>
           <div class="mix-right">
-            ${platformBadge(m.platform)}
             <span class="mix-tag">${esc(m.tag)}</span>
-            <svg class="mix-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 17L17 7M17 7H9M17 7v8"/></svg>
+            ${platformBadge(m.platform)}
           </div>
         </a>`;
     }
     mixesEl.innerHTML = html;
   }
   render();
+  initMagneticText();
 
   // ============================================================================
   //  Bloom-on-scroll — mix cards and year dividers stay hidden (CSS default)
