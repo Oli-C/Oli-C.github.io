@@ -755,6 +755,10 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   border-radius: 3px;
   color: var(--fg-muted);
   border: 1px solid var(--border-2);
+  /* Transparent shadow at final geometry: transitioning from `none` would
+     also animate blur/spread from 0, so the glow only turns visible late in
+     the 200ms and reads as delayed. This way only the colour fades in. */
+  box-shadow: 0 0 12px -2px transparent, inset 0 0 8px -4px transparent;
   transition: color 200ms var(--ease),
               border-color 200ms var(--ease),
               box-shadow 200ms var(--ease);
@@ -868,9 +872,16 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
      tag beside it. */
   border: 1px solid var(--border-2);
   background: color-mix(in srgb, var(--bg-2) 18%, transparent);
+  /* Transparent shadow at final geometry — see .mix-tag note. */
+  box-shadow: 0 0 12px -2px transparent, inset 0 0 8px -4px transparent;
   flex-shrink: 0;
-  transition: color .2s ease, border-color .2s ease, background .2s ease,
-              box-shadow .2s ease, transform .2s ease;
+  /* Same duration AND curve as .mix-tag — a slower default `ease` here read
+     as the badge highlight lagging the tag's. */
+  transition: color 200ms var(--ease),
+              border-color 200ms var(--ease),
+              background 200ms var(--ease),
+              box-shadow 200ms var(--ease),
+              transform 200ms var(--ease);
 }
 .mix-plat[data-plat="soundcloud"] { color: #ff7700; }
 .mix-plat[data-plat="mixcloud"]   { color: #52aadc; }
