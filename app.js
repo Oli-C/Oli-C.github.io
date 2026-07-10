@@ -346,6 +346,7 @@
     // place every time. Doesn't affect the intro ramp since it leaves uTime alone.
     gl.uniform2f(uSeed, Math.random() * 100, Math.random() * 100);
 
+    let everDrawn = false; // set on the first frame; guards the resize repaint
     function resize() {
       // The smoke is naturally soft so a lower render resolution is invisible —
       // DPR-3 phones especially benefit from a tighter cap.
@@ -356,8 +357,16 @@
       if (canvas.width !== w || canvas.height !== h) {
         canvas.width = w; canvas.height = h;
         gl.viewport(0, 0, w, h);
+        gl.uniform2f(uRes, w, h);
+        // Reallocating the buffer clears it to transparent, and the throttled
+        // frame loop may not repaint for up to ~33ms — that gap flashes,
+        // especially crossing the 640px dprCap flip. Repaint right now with
+        // the last frame's uniforms (skip before the first real frame, when
+        // the palette isn't set yet).
+        if (everDrawn) gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      } else {
+        gl.uniform2f(uRes, w, h);
       }
-      gl.uniform2f(uRes, w, h);
     }
     resize();
     window.addEventListener('resize', resize);
@@ -519,6 +528,7 @@
         gl.uniform2fv(uTrailV, trailVelData);
         gl.uniform3fv(uRipple, rippleData);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        everDrawn = true;
         lastDraw = now;
       }
       if (!reduceMotion) requestAnimationFrame(frame);
