@@ -4,23 +4,23 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* Accent palette — single source of truth */
-  --orange:     #d85a2b;
+  /* Accent palette — single source of truth.
+     Site palette: #001524 navy / #15616D teal / #FFECD1 cream /
+     #FF7D00 orange / #78290F rust. */
+  --orange:     #ff7d00;
   --amber:      #e3a23a;
   --moss:       #9eb05c;
-  --ice:        #8ec4d4;
+  --ice:        #15616d;
 
   /* Smoke palette — shader companion colours, shared across themes.
-     Ocean set: cyan highlight / deep blue / sea green. */
-  --smoke-cyan:    #3fa9c9;
-  --smoke-deep:    #0e3a5c;
-  --smoke-sea:     #14655e;
-  --smoke-oxblood: #6e1a14;
-  --smoke-teal:    #3a5e72;
+     Teal highlight / deep navy / sea teal, from the site palette. */
+  --smoke-cyan:    #1f8fa3;
+  --smoke-deep:    #0a2e40;
+  --smoke-sea:     #15616d;
 
   /* Defaults; per-theme blocks override accent + smoke-bg/c2/c3 below */
   --accent:     var(--orange);
-  --accent-fg:  #14120d;
+  --accent-fg:  #001524;
 
   --radius-sm: 4px;
   --radius:    10px;
@@ -38,48 +38,34 @@
 
 /* ---------- Themes ---------- */
 [data-theme="charcoal"] {
-  --bg:          #14120d;
-  --bg-2:        #1c1913;
-  --bg-3:        #24201a;
-  --fg:          #ede5d0;
-  --fg-muted:    #a49b87;
-  --fg-subtle:   #6b6556;
-  --border:      rgba(237, 229, 208, 0.10);
-  --border-2:    rgba(237, 229, 208, 0.20);
-  --border-3:    rgba(237, 229, 208, 0.35);
-  --smoke-bg:    #010a12;
+  --bg:          #001524;
+  --bg-2:        #06202e;
+  --bg-3:        #0c2a3a;
+  --fg:          #ffecd1;
+  --fg-muted:    #b3a793;
+  --fg-subtle:   #746f63;
+  --border:      rgba(255, 236, 209, 0.10);
+  --border-2:    rgba(255, 236, 209, 0.20);
+  --border-3:    rgba(255, 236, 209, 0.35);
+  --smoke-bg:    #000b14;
   --smoke-c1:    var(--smoke-cyan);
   --smoke-c2:    var(--smoke-deep);
   --smoke-c3:    var(--smoke-sea);
 }
 [data-theme="light"] {
-  --bg:          #f1ede0;
-  --bg-2:        #e7e1d2;
-  --bg-3:        #f7f2e6;
-  --fg:          #14120d;
-  --fg-muted:    #5b5347;
-  --fg-subtle:   #807769;
-  --border:      rgba(20, 18, 13, 0.12);
-  --border-2:    rgba(20, 18, 13, 0.22);
-  --border-3:    rgba(20, 18, 13, 0.40);
-  --smoke-bg:    #ffffff;
-  --smoke-c1:    #2e8aa8;
+  --bg:          #ffecd1;
+  --bg-2:        #f4dfc0;
+  --bg-3:        #fff4e2;
+  --fg:          #001524;
+  --fg-muted:    #47525c;
+  --fg-subtle:   #6f7680;
+  --border:      rgba(0, 21, 36, 0.12);
+  --border-2:    rgba(0, 21, 36, 0.22);
+  --border-3:    rgba(0, 21, 36, 0.40);
+  --smoke-bg:    #fff8ec;
+  --smoke-c1:    #15616d;
   --smoke-c2:    var(--smoke-deep);
   --smoke-c3:    var(--smoke-sea);
-}
-[data-theme="oxblood"] {
-  --bg:          #26100f;
-  --bg-2:        #2f1513;
-  --bg-3:        #3a1b19;
-  --fg:          #f4e8d0;
-  --fg-muted:    #c4a898;
-  --fg-subtle:   #8a7868;
-  --border:      rgba(244, 232, 208, 0.10);
-  --border-2:    rgba(244, 232, 208, 0.22);
-  --border-3:    rgba(244, 232, 208, 0.40);
-  --smoke-bg:    #120404;
-  --smoke-c2:    var(--smoke-oxblood);
-  --smoke-c3:    var(--smoke-teal);
 }
 
 html, body {
@@ -762,8 +748,10 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
      inside inline-flex on iOS Safari). */
   text-transform: uppercase;
   line-height: 1;
-  padding: 5px 7px 3px;
-  padding-right: calc(7px - 0.14em);
+  /* Horizontal padding matches the effective vertical padding (5+3)/2 = 4;
+     the 5/3 split optically centres the uppercase glyphs at line-height 1. */
+  padding: 5px 4px 3px;
+  padding-right: calc(4px - 0.14em);
   border-radius: 3px;
   color: var(--fg-muted);
   border: 1px solid var(--border-2);
@@ -863,7 +851,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   grid-column: 3 / 4;
   justify-content: flex-end;
 }
-.mixes.log .mix-tag { font-size: 8.5px; padding: 3px 6px 1px; }
+.mixes.log .mix-tag { font-size: 8.5px; padding: 3px 2px 1px; }
 
 /* Platform badge (SoundCloud / Mixcloud / YouTube) */
 .mix-plat {
@@ -876,11 +864,13 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   /* Pill-family look, but the badge sits ON the card's glass — stacking the
      full pill recipe (38% fill + blur + saturate) over it compounded far too
      bright. A thin fill over the card's existing glass composites to roughly
-     the same value as a pill on the bare page. */
-  border: 1px solid var(--border);
+     the same value as a pill on the bare page. border-2 matches the station
+     tag beside it. */
+  border: 1px solid var(--border-2);
   background: color-mix(in srgb, var(--bg-2) 18%, transparent);
   flex-shrink: 0;
-  transition: color .2s ease, border-color .2s ease, background .2s ease;
+  transition: color .2s ease, border-color .2s ease, background .2s ease,
+              box-shadow .2s ease, transform .2s ease;
 }
 .mix-plat[data-plat="soundcloud"] { color: #ff7700; }
 .mix-plat[data-plat="mixcloud"]   { color: #52aadc; }
@@ -890,8 +880,12 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 .mix-plat svg { width: 12px; height: 12px; }
 .mix-plat[data-plat="youtube"] svg { width: 10px; height: 7px; }
 @media (hover: hover) {
+  /* Same highlight recipe as .mix:hover .mix-tag — currentColor is the
+     platform colour here, matching the card's --plat-color. */
   .mix:hover .mix-plat {
-    border-color: currentColor;
+    border-color: color-mix(in srgb, currentColor 60%, transparent);
+    box-shadow: 0 0 12px -2px color-mix(in srgb, currentColor 45%, transparent),
+                inset 0 0 8px -4px color-mix(in srgb, currentColor 55%, transparent);
     transform: translateX(2px);
   }
 }
@@ -998,7 +992,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   .mix-body { padding-left: 74px; }
   .mix-title { font-size: 11.5px; -webkit-line-clamp: 3; }
   .mix-meta { font-size: 9px; gap: 6px; }
-  .mix-tag { font-size: 7.5px; padding: 4px 5px 2px; padding-right: calc(5px - 0.1em); letter-spacing: 0.1em; }
+  .mix-tag { font-size: 7.5px; padding: 4px 3px 2px; padding-right: calc(3px - 0.1em); letter-spacing: 0.1em; }
   .mix-plat { width: 20px; height: 20px; }
   .mix-right { gap: 6px; }
 

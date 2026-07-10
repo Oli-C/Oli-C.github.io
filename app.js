@@ -803,7 +803,7 @@
 
   // ============================================================================
   //  Page state — applies theme / accent / grain / view from TWEAK_DEFAULTS.
-  //  Theme follows the OS dark/light preference; oxblood is never auto-set.
+  //  Theme follows the OS dark/light preference.
   // ============================================================================
   const root = document.documentElement;
   const state = Object.assign({}, TWEAK_DEFAULTS);
