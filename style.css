@@ -641,12 +641,14 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
                 0 4px 14px -4px color-mix(in srgb, var(--plat-color) 32%, transparent),
                 inset 0 1px 0 0 color-mix(in srgb, var(--fg) 10%, transparent);
   }
-  .mix:hover .mix-tag {
-    color: var(--plat-color);
+  /* One shared rule drives both glows so they can never diverge. */
+  .mix:hover .mix-tag,
+  .mix:hover .mix-plat {
     border-color: color-mix(in srgb, var(--plat-color) 60%, transparent);
     box-shadow: 0 0 12px -2px color-mix(in srgb, var(--plat-color) 45%, transparent),
                 inset 0 0 8px -4px color-mix(in srgb, var(--plat-color) 55%, transparent);
   }
+  .mix:hover .mix-tag { color: var(--plat-color); }
 }
 
 .mix-rail { display: none; }
@@ -880,8 +882,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   transition: color 200ms var(--ease),
               border-color 200ms var(--ease),
               background 200ms var(--ease),
-              box-shadow 200ms var(--ease),
-              transform 200ms var(--ease);
+              box-shadow 200ms var(--ease);
 }
 .mix-plat[data-plat="soundcloud"] { color: #ff7700; }
 .mix-plat[data-plat="mixcloud"]   { color: #52aadc; }
@@ -890,16 +891,6 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
    sits a touch smaller inside the badge — more breathing room around it. */
 .mix-plat svg { width: 12px; height: 12px; }
 .mix-plat[data-plat="youtube"] svg { width: 10px; height: 7px; }
-@media (hover: hover) {
-  /* Same highlight recipe as .mix:hover .mix-tag — currentColor is the
-     platform colour here, matching the card's --plat-color. */
-  .mix:hover .mix-plat {
-    border-color: color-mix(in srgb, currentColor 60%, transparent);
-    box-shadow: 0 0 12px -2px color-mix(in srgb, currentColor 45%, transparent),
-                inset 0 0 8px -4px color-mix(in srgb, currentColor 55%, transparent);
-    transform: translateX(2px);
-  }
-}
 .mixes.log .mix-plat { width: 18px; height: 18px; }
 .mixes.log .mix-plat svg { width: 10px; height: 10px; }
 
