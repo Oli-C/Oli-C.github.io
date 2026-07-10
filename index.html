@@ -14,10 +14,11 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anek+Kannada:wdth,wght@125,400..700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=90">
+<!-- Anek Kannada is self-hosted (assets/fonts/ + @font-face in style.css) so
+     first paint no longer waits on the fonts.googleapis.com CSS round trip.
+     crossorigin is required on font preloads even same-origin. -->
+<link rel="preload" href="assets/fonts/anek-kannada-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css?v=91">
 <script>
   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
     "theme": "charcoal",
@@ -82,6 +83,6 @@
 
   </main>
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="app.js?v=73"></script>
+<script src="app.js?v=74"></script>
 </body>
 </html>

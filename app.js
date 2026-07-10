@@ -85,70 +85,84 @@
       });
       el.dataset.split = '1';
     }
-    document.querySelectorAll('.mix-title, .mix-date, .mix-tag, .yr-num')
-      .forEach(splitLetters);
-
-    // Title letters get the original big radius/offset; small body text gets a
-    // tighter, subtler push so cards don't turn to soup.
-    const groups = [];
-    const nameEl = document.querySelector('.id-name');
-    if (nameEl) groups.push({ el: nameEl, letters: [...nameEl.querySelectorAll('.ch')], radius: 90, maxOffset: 22, active: false });
-    document.querySelectorAll('.mix-title, .mix-date, .mix-tag, .yr-num').forEach(el => {
-      const letters = [...el.querySelectorAll('.mch')];
-      if (letters.length) groups.push({ el, letters, radius: 60, maxOffset: 9, active: false });
+    // Splitting ~27 cards of text mints ~1200 extra spans; done inline it sat
+    // on the critical path before first paint. The split is visually inert
+    // (same glyphs, same wrapping), so chew through it in idle-time chunks and
+    // wire the pointer listeners once the last chunk lands.
+    const toSplit = [...document.querySelectorAll('.mix-title, .mix-date, .mix-tag, .yr-num')];
+    const whenIdle = window.requestIdleCallback
+      ? (cb) => requestIdleCallback(cb, { timeout: 500 })
+      : (cb) => setTimeout(cb, 50);
+    const CHUNK = 12;
+    whenIdle(function step() {
+      for (let n = 0; n < CHUNK && toSplit.length; n++) splitLetters(toSplit.shift());
+      if (toSplit.length) whenIdle(step);
+      else wireGroups();
     });
-    if (!groups.length) return;
 
-    let lastX = -9999, lastY = -9999;
-    let pending = false;
+    function wireGroups() {
+      // Title letters get the original big radius/offset; small body text gets a
+      // tighter, subtler push so cards don't turn to soup.
+      const groups = [];
+      const nameEl = document.querySelector('.id-name');
+      if (nameEl) groups.push({ el: nameEl, letters: [...nameEl.querySelectorAll('.ch')], radius: 90, maxOffset: 22, active: false });
+      document.querySelectorAll('.mix-title, .mix-date, .mix-tag, .yr-num').forEach(el => {
+        const letters = [...el.querySelectorAll('.mch')];
+        if (letters.length) groups.push({ el, letters, radius: 60, maxOffset: 9, active: false });
+      });
+      if (!groups.length) return;
 
-    function release(g) {
-      g.letters.forEach(el => { if (el.style.transform) el.style.transform = ''; });
-      g.active = false;
-    }
+      let lastX = -9999, lastY = -9999;
+      let pending = false;
 
-    function apply() {
-      pending = false;
-      groups.forEach(g => {
-        const box = g.el.getBoundingClientRect();
-        // Fast path: input nowhere near this container — release held offsets.
-        if (lastX < box.left - g.radius || lastX > box.right + g.radius ||
-            lastY < box.top - g.radius  || lastY > box.bottom + g.radius) {
-          if (g.active) release(g);
-          return;
-        }
-        g.active = true;
-        g.letters.forEach(el => {
-          const r = el.getBoundingClientRect();
-          const dx = (r.left + r.width / 2) - lastX;
-          const dy = (r.top + r.height / 2) - lastY;
-          const dist = Math.hypot(dx, dy);
-          if (dist < g.radius) {
-            const k = 1 - dist / g.radius;
-            const strength = (k * k) * g.maxOffset;    // ease-in falloff
-            const inv = strength / (dist || 1);
-            el.style.transform = `translate(${(dx * inv).toFixed(2)}px, ${(dy * inv).toFixed(2)}px)`;
-          } else if (el.style.transform) {
-            el.style.transform = '';
+      function release(g) {
+        g.letters.forEach(el => { if (el.style.transform) el.style.transform = ''; });
+        g.active = false;
+      }
+
+      function apply() {
+        pending = false;
+        groups.forEach(g => {
+          const box = g.el.getBoundingClientRect();
+          // Fast path: input nowhere near this container — release held offsets.
+          if (lastX < box.left - g.radius || lastX > box.right + g.radius ||
+              lastY < box.top - g.radius  || lastY > box.bottom + g.radius) {
+            if (g.active) release(g);
+            return;
           }
+          g.active = true;
+          g.letters.forEach(el => {
+            const r = el.getBoundingClientRect();
+            const dx = (r.left + r.width / 2) - lastX;
+            const dy = (r.top + r.height / 2) - lastY;
+            const dist = Math.hypot(dx, dy);
+            if (dist < g.radius) {
+              const k = 1 - dist / g.radius;
+              const strength = (k * k) * g.maxOffset;    // ease-in falloff
+              const inv = strength / (dist || 1);
+              el.style.transform = `translate(${(dx * inv).toFixed(2)}px, ${(dy * inv).toFixed(2)}px)`;
+            } else if (el.style.transform) {
+              el.style.transform = '';
+            }
+          });
         });
+      }
+
+      function noteInput(x, y) {
+        lastX = x; lastY = y;
+        if (!pending) { pending = true; requestAnimationFrame(apply); }
+      }
+
+      window.addEventListener('mousemove', e => noteInput(e.clientX, e.clientY), { passive: true });
+      window.addEventListener('touchmove', e => {
+        if (e.touches.length) noteInput(e.touches[0].clientX, e.touches[0].clientY);
+      }, { passive: true });
+      window.addEventListener('mouseleave', () => groups.forEach(release));
+      window.addEventListener('touchend', () => {
+        lastX = -9999; lastY = -9999;
+        if (!pending) { pending = true; requestAnimationFrame(apply); }
       });
     }
-
-    function noteInput(x, y) {
-      lastX = x; lastY = y;
-      if (!pending) { pending = true; requestAnimationFrame(apply); }
-    }
-
-    window.addEventListener('mousemove', e => noteInput(e.clientX, e.clientY), { passive: true });
-    window.addEventListener('touchmove', e => {
-      if (e.touches.length) noteInput(e.touches[0].clientX, e.touches[0].clientY);
-    }, { passive: true });
-    window.addEventListener('mouseleave', () => groups.forEach(release));
-    window.addEventListener('touchend', () => {
-      lastX = -9999; lastY = -9999;
-      if (!pending) { pending = true; requestAnimationFrame(apply); }
-    });
   }
 
   // ============================================================================
@@ -184,6 +198,9 @@
       'uniform vec2 uTrailV[' + TRAIL_N + '];',
       '// Click ripples — xy origin in pc space, z age in seconds (large = dead).',
       'uniform vec3 uRipple[' + RIPPLE_N + '];',
+      '// Idle gates — 1 while any trail point / ripple is alive, else 0.',
+      'uniform float uTrailOn;',
+      'uniform float uRippleOn;',
       'float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }',
       'float noise(vec2 p){',
       '  vec2 i=floor(p), f=fract(p);',
@@ -211,6 +228,9 @@
       '  // created or destroyed. The spread (tp.w) grows with age while the',
       '  // strength decays, so the wake blooms outward as it dissolves.',
       '  vec2 warp = vec2(0.0);',
+      '  // The gates skip both loops when nothing is alive; every term would',
+      '  // be zero anyway, so the drawn output is bit-identical.',
+      '  if (uTrailOn > 0.5) {',
       '  for (int i = 0; i < ' + TRAIL_N + '; i++) {',
       '    vec4 tp = uTrail[i];',
       '    vec2 d = pc - tp.xy;',
@@ -227,9 +247,11 @@
       '    // and read as tearing.',
       '    warp += (dir * clamp(1.0 - 2.0*kb*sb*sb, -0.5, 1.0) + prp * (ka*sa*sb)) * G * tp.z * vl * 0.5;',
       '  }',
+      '  }',
       '  // Click ripples — an expanding ring that nudges the fog outward at',
       '  // its front and carries a faint glint (added to col further down).',
       '  float ripLight = 0.0;',
+      '  if (uRippleOn > 0.5) {',
       '  for (int i = 0; i < ' + RIPPLE_N + '; i++) {',
       '    vec3 rp = uRipple[i];',
       '    float dist = length(pc - rp.xy);',
@@ -240,6 +262,7 @@
       '    amp *= amp;',
       '    warp += (pc - rp.xy) / max(dist, 0.001) * band * amp * 0.2;',
       '    ripLight += band * amp;',
+      '  }',
       '  }',
       '  // Soft-saturate so overlapping stirs can never tear the field.',
       '  warp /= 1.0 + 2.5 * length(warp);',
@@ -301,282 +324,319 @@
       '}',
     ].join('\n');
 
-    function compile(src, type) {
-      const sh = gl.createShader(type);
-      gl.shaderSource(sh, src);
-      gl.compileShader(sh);
-      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-        console.error('shader compile', gl.getShaderInfoLog(sh));
-        return null;
-      }
-      return sh;
-    }
-    const vs = compile(VERT, gl.VERTEX_SHADER);
-    const fs = compile(FRAG, gl.FRAGMENT_SHADER);
-    if (!vs || !fs) { canvas.style.display = 'none'; return () => {}; }
+    // Compile + link are only *queued* here — no status queries. A status or
+    // uniform query forces the main thread to wait for the shader compiler,
+    // which is what used to stall the page before first paint. With the
+    // KHR_parallel_shader_compile extension the driver compiles on background
+    // threads and readiness is polled below; without it finishInit() runs
+    // immediately — the old synchronous behaviour.
+    const parallelExt = gl.getExtension('KHR_parallel_shader_compile');
+    const vs = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vs, VERT);
+    gl.compileShader(vs);
+    const fs = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fs, FRAG);
+    gl.compileShader(fs);
     const prog = gl.createProgram();
     gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-      console.error('program link', gl.getProgramInfoLog(prog));
-      canvas.style.display = 'none';
-      return () => {};
-    }
-    gl.useProgram(prog);
 
-    const buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
-    const aLoc = gl.getAttribLocation(prog, 'a');
-    gl.enableVertexAttribArray(aLoc);
-    gl.vertexAttribPointer(aLoc, 2, gl.FLOAT, false, 0, 0);
+    let realSetPalette = null; // set by finishInit once the program is live
+    let queuedPalette = null;  // palette requested before that (apply() runs early)
 
-    const uRes    = gl.getUniformLocation(prog, 'uRes');
-    const uTrail  = gl.getUniformLocation(prog, 'uTrail');
-    const uTrailV = gl.getUniformLocation(prog, 'uTrailV');
-    const uRipple = gl.getUniformLocation(prog, 'uRipple');
-    const uTime   = gl.getUniformLocation(prog, 'uTime');
-    const uSeed   = gl.getUniformLocation(prog, 'uSeed');
-    const uScroll = gl.getUniformLocation(prog, 'uScroll');
-    const uC1     = gl.getUniformLocation(prog, 'uC1');
-    const uC2     = gl.getUniformLocation(prog, 'uC2');
-    const uC3     = gl.getUniformLocation(prog, 'uC3');
-    const uBg     = gl.getUniformLocation(prog, 'uBg');
-
-    // Random per-page-load offset so the smoke pattern starts in a different
-    // place every time. Doesn't affect the intro ramp since it leaves uTime alone.
-    gl.uniform2f(uSeed, Math.random() * 100, Math.random() * 100);
-
-    let everDrawn = false; // set on the first frame; guards the resize repaint
-    function resize() {
-      // The smoke is naturally soft so a lower render resolution is invisible —
-      // DPR-3 phones especially benefit from a tighter cap.
-      const dprCap = window.innerWidth <= 640 ? 1.25 : 1.5;
-      const dpr = Math.min(window.devicePixelRatio || 1, dprCap);
-      const w = Math.max(1, Math.floor(window.innerWidth  * dpr));
-      const h = Math.max(1, Math.floor(window.innerHeight * dpr));
-      if (canvas.width !== w || canvas.height !== h) {
-        canvas.width = w; canvas.height = h;
-        gl.viewport(0, 0, w, h);
-        gl.uniform2f(uRes, w, h);
-        // Reallocating the buffer clears it to transparent, and the throttled
-        // frame loop may not repaint for up to ~33ms — that gap flashes,
-        // especially crossing the 640px dprCap flip. Repaint right now with
-        // the last frame's uniforms (skip before the first real frame, when
-        // the palette isn't set yet).
-        if (everDrawn) gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      } else {
-        gl.uniform2f(uRes, w, h);
+    function finishInit() {
+      if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS) ||
+          !gl.getShaderParameter(fs, gl.COMPILE_STATUS) ||
+          !gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        console.error('shader compile/link', gl.getShaderInfoLog(vs),
+          gl.getShaderInfoLog(fs), gl.getProgramInfoLog(prog));
+        canvas.style.display = 'none';
+        return;
       }
-    }
-    resize();
-    window.addEventListener('resize', resize);
+      gl.useProgram(prog);
 
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    // Run the intro at full 60fps; throttle steady-state to 30fps to halve GPU load.
-    const INTRO_MS = 1700;
-    const FRAME_INTERVAL_MS = 1000 / 30;
-    let start = performance.now();
-    let lastDraw = 0;
-    let paused = false;
-    let pausedAt = 0;
+      const buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+      const aLoc = gl.getAttribLocation(prog, 'a');
+      gl.enableVertexAttribArray(aLoc);
+      gl.vertexAttribPointer(aLoc, 2, gl.FLOAT, false, 0, 0);
 
-    // Scroll-velocity excite — bumped by the listener below, decays exponentially
-    // each frame. While > 0.02 we bypass the 30fps gate so the decay tail
-    // doesn't visibly stair-step. uScroll is written into the shader uniform
-    // every drawn frame.
-    let scrollExcite = 0;
-    let lastScrollY = window.scrollY;
-    if (!reduceMotion) {
-      window.addEventListener('scroll', () => {
-        const y = window.scrollY;
-        const velocity = Math.min(1, Math.abs(y - lastScrollY) / 80);
-        lastScrollY = y;
-        scrollExcite = Math.min(1, scrollExcite + velocity * 0.5);
-      }, { passive: true });
-    }
+      const uRes    = gl.getUniformLocation(prog, 'uRes');
+      const uTrail  = gl.getUniformLocation(prog, 'uTrail');
+      const uTrailV = gl.getUniformLocation(prog, 'uTrailV');
+      const uRipple = gl.getUniformLocation(prog, 'uRipple');
+      const uTime   = gl.getUniformLocation(prog, 'uTime');
+      const uSeed   = gl.getUniformLocation(prog, 'uSeed');
+      const uScroll = gl.getUniformLocation(prog, 'uScroll');
+      const uTrailOn  = gl.getUniformLocation(prog, 'uTrailOn');
+      const uRippleOn = gl.getUniformLocation(prog, 'uRippleOn');
+      const uC1     = gl.getUniformLocation(prog, 'uC1');
+      const uC2     = gl.getUniformLocation(prog, 'uC2');
+      const uC3     = gl.getUniformLocation(prog, 'uC3');
+      const uBg     = gl.getUniformLocation(prog, 'uBg');
 
-    // Cursor trail — the listeners only sample the raw pointer; a smoothed
-    // "brush" glides toward it every frame (in updateTrail) and deposits the
-    // trail points from its own continuous motion, so the wake flows even
-    // though input events arrive in discrete jumps. While any point is alive
-    // we draw at full 60fps.
-    const TRAIL_MS = 4000;   // a stroke dissolves over ~4s, like ink settling
-    const trailPts = [];
-    const trailData = new Float32Array(TRAIL_N * 4);
-    const trailVelData = new Float32Array(TRAIL_N * 2);
-    let curX = null, curY = null;     // raw pointer, pc space
-    let brushX = null, brushY = null; // smoothed brush
-    const toPc = (cx, cy) => [
-      (cx / window.innerWidth - 0.5) * (window.innerWidth / window.innerHeight),
-      0.5 - cy / window.innerHeight,
-    ];
-    if (!reduceMotion) {
-      const notePointer = (cx, cy) => { [curX, curY] = toPc(cx, cy); };
-      window.addEventListener('mousemove', e => notePointer(e.clientX, e.clientY), { passive: true });
-      window.addEventListener('touchmove', e => {
-        if (e.touches.length) notePointer(e.touches[0].clientX, e.touches[0].clientY);
-      }, { passive: true });
-    }
+      // Random per-page-load offset so the smoke pattern starts in a different
+      // place every time. Doesn't affect the intro ramp since it leaves uTime alone.
+      gl.uniform2f(uSeed, Math.random() * 100, Math.random() * 100);
 
-    // Click / tap ripples — a light ring spreads through the fog, except when
-    // the press lands on something interactive (links, buttons).
-    const ripples = [];
-    const rippleData = new Float32Array(RIPPLE_N * 3); // refilled every frame by updateRipples
-    if (!reduceMotion) {
-      window.addEventListener('pointerdown', e => {
-        if (e.target.closest && e.target.closest('a, button')) return;
-        const [x, y] = toPc(e.clientX, e.clientY);
-        ripples.push({ x, y, t: performance.now() });
-        if (ripples.length > RIPPLE_N) ripples.shift();
-      }, { passive: true });
-    }
-
-    // Fills rippleData ages for `now`; returns true while any ring is alive.
-    function updateRipples(now) {
-      let active = false;
-      for (let i = 0; i < RIPPLE_N; i++) {
-        const r = ripples[i];
-        const age = r ? (now - r.t) / 1000 : 99;
-        rippleData[i * 3]     = r ? r.x : 0;
-        rippleData[i * 3 + 1] = r ? r.y : 0;
-        rippleData[i * 3 + 2] = age;
-        if (age < RIPPLE_S) active = true;
-      }
-      return active;
-    }
-
-    // Refreshes trailData for `now`; returns true if any point is alive.
-    // Each stir eases in (no pop), advects along its own damped momentum so
-    // the disturbance drifts with the medium, then relaxes out slowly.
-    let lastTrailNow = 0;
-    function updateTrail(now) {
-      const dt = lastTrailNow ? Math.min(100, Math.max(1, now - lastTrailNow)) : 16;
-      lastTrailNow = now;
-
-      // Glide the brush toward the raw pointer and deposit points from the
-      // brush's motion — smooth position, smooth velocity, smooth spawn.
-      if (curX !== null) {
-        if (brushX === null) { brushX = curX; brushY = curY; }
-        const px = brushX, py = brushY;
-        const k = 1 - Math.exp(-dt / 90);
-        brushX += (curX - brushX) * k;
-        brushY += (curY - brushY) * k;
-        // Velocity in pc-units/s, scaled so ~2 screen-heights/s hits the cap.
-        let vx = (brushX - px) / dt * 250;
-        let vy = (brushY - py) / dt * 250;
-        const mag = Math.hypot(vx, vy);
-        if (mag > 0.5) { vx *= 0.5 / mag; vy *= 0.5 / mag; }
-        // Spacing and lifetime both scale with speed: a fast sweep lays
-        // sparser points that die sooner, so a point always fades out before
-        // the ring evicts it — evicting a still-strong point pops visibly.
-        // (Vigorous stirring dissipating faster is also just how fluids work.)
-        const spacing = 0.02 + mag * 0.16;
-        const last = trailPts[trailPts.length - 1];
-        if (mag > 0.02 &&
-            (!last || Math.hypot(brushX - last.x, brushY - last.y) >= spacing)) {
-          const life = Math.min(TRAIL_MS,
-            (TRAIL_N - 2) * spacing / Math.max(mag, 0.02) * 900);
-          trailPts.push({ x: brushX, y: brushY, vx, vy, t: now, life });
-          if (trailPts.length > TRAIL_N) trailPts.shift();
+      let everDrawn = false; // set on the first frame; guards the resize repaint
+      function resize() {
+        // The smoke is naturally soft so a lower render resolution is invisible —
+        // DPR-3 phones especially benefit from a tighter cap.
+        const dprCap = window.innerWidth <= 640 ? 1.25 : 1.5;
+        const dpr = Math.min(window.devicePixelRatio || 1, dprCap);
+        const w = Math.max(1, Math.floor(window.innerWidth  * dpr));
+        const h = Math.max(1, Math.floor(window.innerHeight * dpr));
+        if (canvas.width !== w || canvas.height !== h) {
+          canvas.width = w; canvas.height = h;
+          gl.viewport(0, 0, w, h);
+          gl.uniform2f(uRes, w, h);
+          // Reallocating the buffer clears it to transparent, and the throttled
+          // frame loop may not repaint for up to ~33ms — that gap flashes,
+          // especially crossing the 640px dprCap flip. Repaint right now with
+          // the last frame's uniforms (skip before the first real frame, when
+          // the palette isn't set yet).
+          if (everDrawn) gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        } else {
+          gl.uniform2f(uRes, w, h);
         }
       }
+      resize();
+      window.addEventListener('resize', resize);
 
-      const damp = Math.exp(-dt / 900);
-      let active = false;
-      for (let i = 0; i < TRAIL_N; i++) {
-        const pt = trailPts[i];
-        let s = 0, spread = 1;
-        if (pt) {
-          pt.x += pt.vx * dt * 0.0004;
-          pt.y += pt.vy * dt * 0.0004;
-          pt.vx *= damp; pt.vy *= damp;
-          const age = now - pt.t;
-          const fadeIn = Math.min(1, age / 150);
-          const k = Math.max(0, 1 - age / pt.life);
-          s = fadeIn * k * k;
-          // The wake blooms outward (up to ~2.2x) as it dissolves.
-          spread = 1 + 1.2 * Math.min(1, age / pt.life);
-        }
-        trailData[i * 4]     = pt ? pt.x : 0;
-        trailData[i * 4 + 1] = pt ? pt.y : 0;
-        trailData[i * 4 + 2] = s;
-        trailData[i * 4 + 3] = spread; // 1 even for empty slots — avoids /0 in shader
-        trailVelData[i * 2]     = pt ? pt.vx : 0;
-        trailVelData[i * 2 + 1] = pt ? pt.vy : 0;
-        if (s > 0) active = true;
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      // Run the intro at full 60fps; throttle steady-state to 30fps to halve GPU load.
+      const INTRO_MS = 1700;
+      // 30ms, not 1000/30: rAF ticks land on ~16.7ms steps, so a 33.33ms gate
+      // rejects the 33.3ms tick and the real cadence collapsed to ~20fps (a draw
+      // every 50ms). 30ms accepts every second tick on 60Hz displays (every
+      // fourth on 120Hz) — an even, true 30fps.
+      const FRAME_INTERVAL_MS = 30;
+      let start = performance.now();
+      let lastDraw = 0;
+      let paused = false;
+      let pausedAt = 0;
+
+      // Scroll-velocity excite — bumped by the listener below, decays exponentially
+      // each frame. While > 0.02 we bypass the 30fps gate so the decay tail
+      // doesn't visibly stair-step. uScroll is written into the shader uniform
+      // every drawn frame.
+      let scrollExcite = 0;
+      let lastScrollY = window.scrollY;
+      if (!reduceMotion) {
+        window.addEventListener('scroll', () => {
+          const y = window.scrollY;
+          const velocity = Math.min(1, Math.abs(y - lastScrollY) / 80);
+          lastScrollY = y;
+          scrollExcite = Math.min(1, scrollExcite + velocity * 0.5);
+        }, { passive: true });
       }
-      return active;
-    }
 
-    function frame(now) {
-      if (paused) return;
-      const elapsed = now - start;
-      const inIntro = elapsed < INTRO_MS;
-      const excited = scrollExcite > 0.02;
-      const trailActive = updateTrail(now);
-      const rippleActive = updateRipples(now);
-      if (inIntro || excited || trailActive || rippleActive || now - lastDraw >= FRAME_INTERVAL_MS) {
-        if (lastDraw > 0 && scrollExcite > 0) {
-          // Exponential decay — half-life ~70ms; reaches ~0 by 700ms.
-          scrollExcite *= Math.pow(0.001, (now - lastDraw) / 700);
-          if (scrollExcite < 0.02) scrollExcite = 0;
-        }
-        const t = reduceMotion ? 7.3 : elapsed * 0.001;
-        gl.uniform1f(uTime, t);
-        gl.uniform1f(uScroll, scrollExcite);
-        gl.uniform4fv(uTrail, trailData);
-        gl.uniform2fv(uTrailV, trailVelData);
-        gl.uniform3fv(uRipple, rippleData);
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-        everDrawn = true;
-        lastDraw = now;
+      // Cursor trail — the listeners only sample the raw pointer; a smoothed
+      // "brush" glides toward it every frame (in updateTrail) and deposits the
+      // trail points from its own continuous motion, so the wake flows even
+      // though input events arrive in discrete jumps. While any point is alive
+      // we draw at full 60fps.
+      const TRAIL_MS = 4000;   // a stroke dissolves over ~4s, like ink settling
+      const trailPts = [];
+      const trailData = new Float32Array(TRAIL_N * 4);
+      const trailVelData = new Float32Array(TRAIL_N * 2);
+      let curX = null, curY = null;     // raw pointer, pc space
+      let brushX = null, brushY = null; // smoothed brush
+      const toPc = (cx, cy) => [
+        (cx / window.innerWidth - 0.5) * (window.innerWidth / window.innerHeight),
+        0.5 - cy / window.innerHeight,
+      ];
+      if (!reduceMotion) {
+        const notePointer = (cx, cy) => { [curX, curY] = toPc(cx, cy); };
+        window.addEventListener('mousemove', e => notePointer(e.clientX, e.clientY), { passive: true });
+        window.addEventListener('touchmove', e => {
+          if (e.touches.length) notePointer(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: true });
       }
-      if (!reduceMotion) requestAnimationFrame(frame);
-    }
-    requestAnimationFrame(frame);
 
-    // Pause cleanly when the tab is hidden; on resume, shift `start` so the
-    // smoke continues from where it left off rather than jumping forward.
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        paused = true;
-        pausedAt = performance.now();
-      } else if (paused) {
-        paused = false;
-        start += performance.now() - pausedAt;
-        lastDraw = 0;
+      // Click / tap ripples — a light ring spreads through the fog, except when
+      // the press lands on something interactive (links, buttons).
+      const ripples = [];
+      const rippleData = new Float32Array(RIPPLE_N * 3); // refilled every frame by updateRipples
+      if (!reduceMotion) {
+        window.addEventListener('pointerdown', e => {
+          if (e.target.closest && e.target.closest('a, button')) return;
+          const [x, y] = toPc(e.clientX, e.clientY);
+          ripples.push({ x, y, t: performance.now() });
+          if (ripples.length > RIPPLE_N) ripples.shift();
+        }, { passive: true });
+      }
+
+      // Fills rippleData ages for `now`; returns true while any ring is alive.
+      function updateRipples(now) {
+        let active = false;
+        for (let i = 0; i < RIPPLE_N; i++) {
+          const r = ripples[i];
+          const age = r ? (now - r.t) / 1000 : 99;
+          rippleData[i * 3]     = r ? r.x : 0;
+          rippleData[i * 3 + 1] = r ? r.y : 0;
+          rippleData[i * 3 + 2] = age;
+          if (age < RIPPLE_S) active = true;
+        }
+        return active;
+      }
+
+      // Refreshes trailData for `now`; returns true if any point is alive.
+      // Each stir eases in (no pop), advects along its own damped momentum so
+      // the disturbance drifts with the medium, then relaxes out slowly.
+      let lastTrailNow = 0;
+      function updateTrail(now) {
+        const dt = lastTrailNow ? Math.min(100, Math.max(1, now - lastTrailNow)) : 16;
+        lastTrailNow = now;
+
+        // Glide the brush toward the raw pointer and deposit points from the
+        // brush's motion — smooth position, smooth velocity, smooth spawn.
+        if (curX !== null) {
+          if (brushX === null) { brushX = curX; brushY = curY; }
+          const px = brushX, py = brushY;
+          const k = 1 - Math.exp(-dt / 90);
+          brushX += (curX - brushX) * k;
+          brushY += (curY - brushY) * k;
+          // Velocity in pc-units/s, scaled so ~2 screen-heights/s hits the cap.
+          let vx = (brushX - px) / dt * 250;
+          let vy = (brushY - py) / dt * 250;
+          const mag = Math.hypot(vx, vy);
+          if (mag > 0.5) { vx *= 0.5 / mag; vy *= 0.5 / mag; }
+          // Spacing and lifetime both scale with speed: a fast sweep lays
+          // sparser points that die sooner, so a point always fades out before
+          // the ring evicts it — evicting a still-strong point pops visibly.
+          // (Vigorous stirring dissipating faster is also just how fluids work.)
+          const spacing = 0.02 + mag * 0.16;
+          const last = trailPts[trailPts.length - 1];
+          if (mag > 0.02 &&
+              (!last || Math.hypot(brushX - last.x, brushY - last.y) >= spacing)) {
+            const life = Math.min(TRAIL_MS,
+              (TRAIL_N - 2) * spacing / Math.max(mag, 0.02) * 900);
+            trailPts.push({ x: brushX, y: brushY, vx, vy, t: now, life });
+            if (trailPts.length > TRAIL_N) trailPts.shift();
+          }
+        }
+
+        const damp = Math.exp(-dt / 900);
+        let active = false;
+        for (let i = 0; i < TRAIL_N; i++) {
+          const pt = trailPts[i];
+          let s = 0, spread = 1;
+          if (pt) {
+            pt.x += pt.vx * dt * 0.0004;
+            pt.y += pt.vy * dt * 0.0004;
+            pt.vx *= damp; pt.vy *= damp;
+            const age = now - pt.t;
+            const fadeIn = Math.min(1, age / 150);
+            const k = Math.max(0, 1 - age / pt.life);
+            s = fadeIn * k * k;
+            // The wake blooms outward (up to ~2.2x) as it dissolves.
+            spread = 1 + 1.2 * Math.min(1, age / pt.life);
+          }
+          trailData[i * 4]     = pt ? pt.x : 0;
+          trailData[i * 4 + 1] = pt ? pt.y : 0;
+          trailData[i * 4 + 2] = s;
+          trailData[i * 4 + 3] = spread; // 1 even for empty slots — avoids /0 in shader
+          trailVelData[i * 2]     = pt ? pt.vx : 0;
+          trailVelData[i * 2 + 1] = pt ? pt.vy : 0;
+          if (s > 0) active = true;
+        }
+        return active;
+      }
+
+      function frame(now) {
+        if (paused) return;
+        const elapsed = now - start;
+        const inIntro = elapsed < INTRO_MS;
+        const excited = scrollExcite > 0.02;
+        const trailActive = updateTrail(now);
+        const rippleActive = updateRipples(now);
+        if (inIntro || excited || trailActive || rippleActive || now - lastDraw >= FRAME_INTERVAL_MS) {
+          if (lastDraw > 0 && scrollExcite > 0) {
+            // Exponential decay — half-life ~70ms; reaches ~0 by 700ms.
+            scrollExcite *= Math.pow(0.001, (now - lastDraw) / 700);
+            if (scrollExcite < 0.02) scrollExcite = 0;
+          }
+          const t = reduceMotion ? 7.3 : elapsed * 0.001;
+          gl.uniform1f(uTime, t);
+          gl.uniform1f(uScroll, scrollExcite);
+          gl.uniform1f(uTrailOn, trailActive ? 1 : 0);
+          gl.uniform1f(uRippleOn, rippleActive ? 1 : 0);
+          gl.uniform4fv(uTrail, trailData);
+          gl.uniform2fv(uTrailV, trailVelData);
+          gl.uniform3fv(uRipple, rippleData);
+          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+          everDrawn = true;
+          lastDraw = now;
+        }
         if (!reduceMotion) requestAnimationFrame(frame);
       }
-    });
+      requestAnimationFrame(frame);
 
-    function hexToRgb(hex) {
-      hex = (hex || '').trim().replace('#', '');
-      if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
-      if (hex.length !== 6) return [1, 1, 1];
-      return [
-        parseInt(hex.slice(0, 2), 16) / 255,
-        parseInt(hex.slice(2, 4), 16) / 255,
-        parseInt(hex.slice(4, 6), 16) / 255,
-      ];
+      // Pause cleanly when the tab is hidden; on resume, shift `start` so the
+      // smoke continues from where it left off rather than jumping forward.
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          paused = true;
+          pausedAt = performance.now();
+        } else if (paused) {
+          paused = false;
+          start += performance.now() - pausedAt;
+          lastDraw = 0;
+          if (!reduceMotion) requestAnimationFrame(frame);
+        }
+      });
+
+      function hexToRgb(hex) {
+        hex = (hex || '').trim().replace('#', '');
+        if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+        if (hex.length !== 6) return [1, 1, 1];
+        return [
+          parseInt(hex.slice(0, 2), 16) / 255,
+          parseInt(hex.slice(2, 4), 16) / 255,
+          parseInt(hex.slice(4, 6), 16) / 255,
+        ];
+      }
+
+      // Smoke palette is now sourced from CSS — `--smoke-bg/c2/c3` per theme
+      // in style.css. JS reads the active values via getComputedStyle so any
+      // palette tweak only needs to happen in CSS. Accent (uC1) flows in via
+      // the --accent variable (set on <html> by apply() from TWEAK_DEFAULTS).
+      realSetPalette = function (_theme, accentHex) {
+        const cs = getComputedStyle(document.documentElement);
+        // --smoke-c1 (ocean cyan) overrides the accent for the shader highlight;
+        // themes without it fall back to the site accent.
+        const c1 = hexToRgb(cs.getPropertyValue('--smoke-c1').trim() || accentHex);
+        const c2 = hexToRgb(cs.getPropertyValue('--smoke-c2'));
+        const c3 = hexToRgb(cs.getPropertyValue('--smoke-c3'));
+        const bg = hexToRgb(cs.getPropertyValue('--smoke-bg'));
+        gl.useProgram(prog);
+        gl.uniform3f(uC1, c1[0], c1[1], c1[2]);
+        gl.uniform3f(uC2, c2[0], c2[1], c2[2]);
+        gl.uniform3f(uC3, c3[0], c3[1], c3[2]);
+        gl.uniform3f(uBg, bg[0], bg[1], bg[2]);
+      };
+      if (queuedPalette) realSetPalette(queuedPalette[0], queuedPalette[1]);
     }
 
-    // Smoke palette is now sourced from CSS — `--smoke-bg/c2/c3` per theme
-    // in style.css. JS reads the active values via getComputedStyle so any
-    // palette tweak only needs to happen in CSS. Accent (uC1) flows in via
-    // the --accent variable (set on <html> by apply() from TWEAK_DEFAULTS).
-    return function setPalette(_theme, accentHex) {
-      const cs = getComputedStyle(document.documentElement);
-      // --smoke-c1 (ocean cyan) overrides the accent for the shader highlight;
-      // themes without it fall back to the site accent.
-      const c1 = hexToRgb(cs.getPropertyValue('--smoke-c1').trim() || accentHex);
-      const c2 = hexToRgb(cs.getPropertyValue('--smoke-c2'));
-      const c3 = hexToRgb(cs.getPropertyValue('--smoke-c3'));
-      const bg = hexToRgb(cs.getPropertyValue('--smoke-bg'));
-      gl.useProgram(prog);
-      gl.uniform3f(uC1, c1[0], c1[1], c1[2]);
-      gl.uniform3f(uC2, c2[0], c2[1], c2[2]);
-      gl.uniform3f(uC3, c3[0], c3[1], c3[2]);
-      gl.uniform3f(uBg, bg[0], bg[1], bg[2]);
+    if (parallelExt) {
+      // Poll readiness without blocking; the canvas just stays transparent for
+      // the few frames the background compile takes (the smoke fades in from
+      // near the page background anyway, so nothing visibly changes).
+      (function poll() {
+        if (gl.getProgramParameter(prog, parallelExt.COMPLETION_STATUS_KHR)) finishInit();
+        else requestAnimationFrame(poll);
+      })();
+    } else {
+      finishInit();
+    }
+
+    // Callable straight away — apply() runs before the program is ready, so
+    // early palette requests queue and finishInit applies the latest one.
+    return function setPalette(theme, accentHex) {
+      if (realSetPalette) realSetPalette(theme, accentHex);
+      else queuedPalette = [theme, accentHex];
     };
   })();
 
@@ -652,11 +712,14 @@
         currentY = m.y;
         html += `<div class="yr" style="--yi:${i}"><span class="yr-num">${m.y}</span><span class="yr-line"></span></div>`;
       }
+      const idx = i++;
+      // Above-the-fold art loads eagerly so it's decoded before the card
+      // blooms in; everything below the fold stays lazy.
       html += `
-        <a href="${m.url || '#'}" class="mix" data-series="${m.series}" data-platform="${m.platform}" style="--i:${i++}"${m.url ? ' target="_blank" rel="noopener noreferrer"' : ''}>
+        <a href="${m.url || '#'}" class="mix" data-series="${m.series}" data-platform="${m.platform}" style="--i:${idx}"${m.url ? ' target="_blank" rel="noopener noreferrer"' : ''}>
           <div class="mix-rail"></div>
           <div class="mix-art">
-            <img src="${m.img}" alt="" loading="lazy">
+            <img src="${m.img}" alt="" loading="${idx < 6 ? 'eager' : 'lazy'}" decoding="async">
             <div class="mix-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
           </div>
           <div class="mix-body">
@@ -733,10 +796,16 @@
           remaining.splice(i, 1);
         }
       }
+      // Everything has bloomed — nothing left to watch, stop waking on scroll.
+      if (!remaining.length) {
+        window.removeEventListener('scroll', onScroll);
+        obs.disconnect();
+      }
     }
-    window.addEventListener('scroll', () => {
+    function onScroll() {
       if (!pending) { pending = true; requestAnimationFrame(sweep); }
-    }, { passive: true });
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
   })();
 
   // ============================================================================
