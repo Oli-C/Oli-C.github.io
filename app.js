@@ -189,7 +189,6 @@
       'uniform vec2 uRes;',
       'uniform float uTime;',
       'uniform vec2 uSeed;',
-      'uniform float uScroll;',
       'uniform vec3 uC1, uC2, uC3, uBg;',
       '// Cursor trail — xy pos in centered aspect-corrected space, z decaying',
       '// strength, w spread (grows with age: the wake blooms as it dissolves).',
@@ -312,9 +311,7 @@
       '  float fadeTop = smoothstep(1.0, 0.1, depth);',
       '  float scatter = smoothstep(0.25, 0.85, f);',
       '  float beamIntro = smoothstep(0.0, 1.2, uTime);',
-      '  // uScroll is the decaying scroll-velocity excite from JS (0..1) —',
-      '  // brightens the shafts briefly when the user flicks the page.',
-      '  col += uC1 * rays * fadeTop * scatter * (0.7 + uScroll * 0.9) * beamIntro;',
+      '  col += uC1 * rays * fadeTop * scatter * 0.7 * beamIntro;',
       '  // Ripple glint — the ring front catches light where the fog is dense.',
       '  col += uC1 * ripLight * scatter * 0.25;',
       '  // Depth cue — the water column darkens slightly toward the bottom.',
@@ -367,7 +364,6 @@
       const uRipple = gl.getUniformLocation(prog, 'uRipple');
       const uTime   = gl.getUniformLocation(prog, 'uTime');
       const uSeed   = gl.getUniformLocation(prog, 'uSeed');
-      const uScroll = gl.getUniformLocation(prog, 'uScroll');
       const uTrailOn  = gl.getUniformLocation(prog, 'uTrailOn');
       const uRippleOn = gl.getUniformLocation(prog, 'uRippleOn');
       const uC1     = gl.getUniformLocation(prog, 'uC1');
@@ -385,8 +381,12 @@
         // DPR-3 phones especially benefit from a tighter cap.
         const dprCap = window.innerWidth <= 640 ? 1.25 : 1.5;
         const dpr = Math.min(window.devicePixelRatio || 1, dprCap);
-        const w = Math.max(1, Math.floor(window.innerWidth  * dpr));
-        const h = Math.max(1, Math.floor(window.innerHeight * dpr));
+        // Size from the canvas box, not the window. The box is pinned to the
+        // large viewport (100lvh in CSS), so mobile URL-bar show/hide never
+        // changes it — the smoke stays put instead of rescaling; only real
+        // resizes (rotation, desktop drag) reallocate the buffer.
+        const w = Math.max(1, Math.floor(canvas.clientWidth  * dpr));
+        const h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
         if (canvas.width !== w || canvas.height !== h) {
           canvas.width = w; canvas.height = h;
           gl.viewport(0, 0, w, h);
@@ -417,21 +417,6 @@
       let paused = false;
       let pausedAt = 0;
 
-      // Scroll-velocity excite — bumped by the listener below, decays exponentially
-      // each frame. While > 0.02 we bypass the 30fps gate so the decay tail
-      // doesn't visibly stair-step. uScroll is written into the shader uniform
-      // every drawn frame.
-      let scrollExcite = 0;
-      let lastScrollY = window.scrollY;
-      if (!reduceMotion) {
-        window.addEventListener('scroll', () => {
-          const y = window.scrollY;
-          const velocity = Math.min(1, Math.abs(y - lastScrollY) / 80);
-          lastScrollY = y;
-          scrollExcite = Math.min(1, scrollExcite + velocity * 0.5);
-        }, { passive: true });
-      }
-
       // Cursor trail — the listeners only sample the raw pointer; a smoothed
       // "brush" glides toward it every frame (in updateTrail) and deposits the
       // trail points from its own continuous motion, so the wake flows even
@@ -443,9 +428,12 @@
       const trailVelData = new Float32Array(TRAIL_N * 2);
       let curX = null, curY = null;     // raw pointer, pc space
       let brushX = null, brushY = null; // smoothed brush
+      // Map client coords into the canvas box (100lvh — may overhang the
+      // visible viewport while the mobile URL bar is shown) so pointer input
+      // lands in the same space the shader samples.
       const toPc = (cx, cy) => [
-        (cx / window.innerWidth - 0.5) * (window.innerWidth / window.innerHeight),
-        0.5 - cy / window.innerHeight,
+        (cx / canvas.clientWidth - 0.5) * (canvas.clientWidth / canvas.clientHeight),
+        0.5 - cy / canvas.clientHeight,
       ];
       if (!reduceMotion) {
         const notePointer = (cx, cy) => { [curX, curY] = toPc(cx, cy); };
@@ -549,18 +537,11 @@
         if (paused) return;
         const elapsed = now - start;
         const inIntro = elapsed < INTRO_MS;
-        const excited = scrollExcite > 0.02;
         const trailActive = updateTrail(now);
         const rippleActive = updateRipples(now);
-        if (inIntro || excited || trailActive || rippleActive || now - lastDraw >= FRAME_INTERVAL_MS) {
-          if (lastDraw > 0 && scrollExcite > 0) {
-            // Exponential decay — half-life ~70ms; reaches ~0 by 700ms.
-            scrollExcite *= Math.pow(0.001, (now - lastDraw) / 700);
-            if (scrollExcite < 0.02) scrollExcite = 0;
-          }
+        if (inIntro || trailActive || rippleActive || now - lastDraw >= FRAME_INTERVAL_MS) {
           const t = reduceMotion ? 7.3 : elapsed * 0.001;
           gl.uniform1f(uTime, t);
-          gl.uniform1f(uScroll, scrollExcite);
           gl.uniform1f(uTrailOn, trailActive ? 1 : 0);
           gl.uniform1f(uRippleOn, rippleActive ? 1 : 0);
           gl.uniform4fv(uTrail, trailData);

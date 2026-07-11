@@ -138,13 +138,18 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
    ============================================================================= */
 .bg-paper, .bg-grain, .bg-vignette, .bg-paint {
   position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  /* Pin to the large viewport so the mobile URL-bar collapse doesn't resize
+     these layers (the smoke canvas would rescale and visibly shift). While
+     the bar is shown the extra bottom strip is simply cropped. */
+  height: 100vh;
+  height: 100lvh;
 }
 
-/* Shader-rendered paint canvas — see bg-shader init in app.js */
+/* Shader-rendered paint canvas — see bg-shader init in app.js.
+   Height comes from the shared 100lvh rule above. */
 .bg-paint {
   z-index: 0;
   width: 100%;
-  height: 100%;
   display: block;
   opacity: 0.9;
   mix-blend-mode: screen;
