@@ -223,6 +223,12 @@
     const FRAG = [
       'precision highp float;',
       'uniform vec2 uRes;',
+      '// Pattern space — pinned per width at load, while uRes tracks the real',
+      '// buffer. In-app browsers (Instagram etc.) resize the whole webview when',
+      '// their chrome collapses, so height-only resizes are real here; anchoring',
+      '// the field to the canvas top in pinned units means those re-render every',
+      '// surviving pixel identically and just uncover more field below.',
+      'uniform vec2 uPat;',
       'uniform float uTime;',
       'uniform vec2 uSeed;',
       'uniform vec3 uC1, uC2, uC3, uBg;',
@@ -249,8 +255,10 @@
       '  return v;',
       '}',
       'void main(){',
-      '  vec2 uv = gl_FragCoord.xy / uRes;',
-      '  float aspect = uRes.x / uRes.y;',
+      '  // y measured down from the canvas top, so a height change cannot move it.',
+      '  vec2 frag = vec2(gl_FragCoord.x, uPat.y - (uRes.y - gl_FragCoord.y));',
+      '  vec2 uv = frag / uPat;',
+      '  float aspect = uPat.x / uPat.y;',
       '  float intro = smoothstep(0.0, 1.6, uTime);',
       '  float zoom  = mix(0.45, 1.0, intro);',
       '  float scale = (2.6 + 0.8 * clamp(1.0 - aspect, 0.0, 0.6)) * zoom;',
@@ -395,6 +403,7 @@
       gl.vertexAttribPointer(aLoc, 2, gl.FLOAT, false, 0, 0);
 
       const uRes    = gl.getUniformLocation(prog, 'uRes');
+      const uPat    = gl.getUniformLocation(prog, 'uPat');
       const uTrail  = gl.getUniformLocation(prog, 'uTrail');
       const uTrailV = gl.getUniformLocation(prog, 'uTrailV');
       const uRipple = gl.getUniformLocation(prog, 'uRipple');
@@ -412,17 +421,28 @@
       gl.uniform2f(uSeed, Math.random() * 100, Math.random() * 100);
 
       let everDrawn = false; // set on the first frame; guards the resize repaint
+      // Pattern-space pin — the uPat counterpart. 100lvh keeps the canvas box
+      // stable in real browsers, but in-app browsers (Instagram et al.) resize
+      // the whole webview as their chrome collapses, so the box legitimately
+      // changes height there. Re-pin only when the WIDTH changes (rotation,
+      // real window resize); height-only changes keep the pin and the field
+      // stays put while the buffer grows or crops beneath it.
+      let patW = 0, patH = 0;       // device px — drives uPat
+      let patCssW = 0, patCssH = 0; // CSS px — drives toPc
       function resize() {
         // The smoke is naturally soft so a lower render resolution is invisible —
         // DPR-3 phones especially benefit from a tighter cap.
         const dprCap = window.innerWidth <= 640 ? 1.25 : 1.5;
         const dpr = Math.min(window.devicePixelRatio || 1, dprCap);
-        // Size from the canvas box, not the window. The box is pinned to the
-        // large viewport (100lvh in CSS), so mobile URL-bar show/hide never
-        // changes it — the smoke stays put instead of rescaling; only real
-        // resizes (rotation, desktop drag) reallocate the buffer.
+        // Size from the canvas box, not the window, so browser-UI-driven
+        // innerHeight changes never reach the buffer in normal browsers.
         const w = Math.max(1, Math.floor(canvas.clientWidth  * dpr));
         const h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+        if (w !== patW) {
+          patW = w; patH = h;
+          patCssW = canvas.clientWidth; patCssH = canvas.clientHeight;
+          gl.uniform2f(uPat, patW, patH);
+        }
         if (canvas.width !== w || canvas.height !== h) {
           canvas.width = w; canvas.height = h;
           gl.viewport(0, 0, w, h);
@@ -464,12 +484,12 @@
       const trailVelData = new Float32Array(TRAIL_N * 2);
       let curX = null, curY = null;     // raw pointer, pc space
       let brushX = null, brushY = null; // smoothed brush
-      // Map client coords into the canvas box (100lvh — may overhang the
-      // visible viewport while the mobile URL bar is shown) so pointer input
-      // lands in the same space the shader samples.
+      // Map client coords into the pinned pattern space (not the live canvas
+      // box) so pointer input lands exactly where the shader samples, even
+      // mid-collapse in an in-app browser.
       const toPc = (cx, cy) => [
-        (cx / canvas.clientWidth - 0.5) * (canvas.clientWidth / canvas.clientHeight),
-        0.5 - cy / canvas.clientHeight,
+        (cx / patCssW - 0.5) * (patCssW / patCssH),
+        0.5 - cy / patCssH,
       ];
       if (!reduceMotion) {
         const notePointer = (cx, cy) => { [curX, curY] = toPc(cx, cy); };
