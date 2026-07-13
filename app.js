@@ -622,6 +622,19 @@
   })();
 
   // ============================================================================
+  //  Upcoming shows — rendered above the mix list under an "upcoming" divider
+  //  with the live slot time and a pulsing LIVE chip. `until` is the show's
+  //  end instant (with timezone offset); past that the card stops rendering on
+  //  its own, so a stale date never shows even before the list is updated.
+  //  Once a show has aired, move it into MIXES with its stream URL.
+  // ============================================================================
+  const UPCOMING = [
+    { code: 'LUS-055', title: 'July Radio', series: 'lus', tag: 'LUSOPHONICA', date: '17.07.2026',
+      when: '16:00 – 18:00', tz: 'Lisbon / London', until: '2026-07-17T18:00:00+01:00',
+      img: 'assets/mix-lus-055.jpeg', url: 'https://www.lusophonica.com/' },
+  ];
+
+  // ============================================================================
   //  Mix data — pulled from the real Linktree export
   // ============================================================================
   const MIXES = [
@@ -688,6 +701,32 @@
     let html = '';
     let currentY = null;
     let i = 0;
+    const upcoming = UPCOMING.filter(m => Date.now() < Date.parse(m.until));
+    if (upcoming.length) {
+      html += `<div class="yr yr-up" style="--yi:${i}"><span class="yr-num">upcoming</span><span class="yr-line"></span></div>`;
+      for (const m of upcoming) {
+        const idx = i++;
+        html += `
+        <a href="${m.url || '#'}" class="mix mix-up" data-series="${m.series}" style="--i:${idx}"${m.url ? ' target="_blank" rel="noopener noreferrer"' : ''}>
+          <div class="mix-rail"></div>
+          <div class="mix-art">
+            <img src="${m.img}" alt="" loading="eager" decoding="async">
+            <div class="mix-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+          </div>
+          <div class="mix-body">
+            <div class="mix-meta">
+              <span class="mix-date">${esc(m.date)}</span>
+            </div>
+            <div class="mix-title">${esc(m.title)}</div>
+            <div class="mix-sub"><span>${esc(m.when)}</span><span>${esc(m.tz)}</span></div>
+          </div>
+          <div class="mix-right">
+            <span class="mix-tag">${esc(m.tag)}</span>
+            <span class="mix-live" aria-label="Broadcast live"><span class="mix-live-dot"></span>live</span>
+          </div>
+        </a>`;
+      }
+    }
     for (const m of MIXES) {
       if (m.y !== currentY) {
         currentY = m.y;
