@@ -153,15 +153,25 @@
         if (!pending) { pending = true; requestAnimationFrame(apply); }
       }
 
-      // Pointer events instead of mouse+touch: after a tap, iOS fires a
-      // synthesized mousemove at the tap point, which used to re-push the
-      // letters right after the touchend release and leave them stuck.
+      // pointermove drives mouse/pen hover WITHOUT the old mousemove listener:
+      // after a tap, iOS fires a synthesized mousemove at the tap point, which
+      // used to re-push the letters right after the release and leave them
+      // stuck. Compatibility mouse events don't re-enter the pointer stream,
+      // so pointermove is immune. touchmove is still needed alongside it —
+      // once a drag becomes a scroll the browser fires pointercancel and
+      // pointermove goes quiet, but passive touchmove keeps reporting the
+      // finger, so the letters dodge it mid-scroll like they always did.
       const resetInput = () => {
         lastX = -9999; lastY = -9999;
         if (!pending) { pending = true; requestAnimationFrame(apply); }
       };
       window.addEventListener('pointermove', e => noteInput(e.clientX, e.clientY), { passive: true });
+      window.addEventListener('touchmove', e => {
+        if (e.touches.length) noteInput(e.touches[0].clientX, e.touches[0].clientY);
+      }, { passive: true });
       // A lifted or cancelled touch/pen leaves no hover point behind.
+      window.addEventListener('touchend', resetInput, { passive: true });
+      window.addEventListener('touchcancel', resetInput, { passive: true });
       window.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') resetInput(); }, { passive: true });
       window.addEventListener('pointercancel', e => { if (e.pointerType !== 'mouse') resetInput(); }, { passive: true });
       window.addEventListener('mouseleave', () => groups.forEach(release));
