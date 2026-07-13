@@ -153,15 +153,18 @@
         if (!pending) { pending = true; requestAnimationFrame(apply); }
       }
 
-      window.addEventListener('mousemove', e => noteInput(e.clientX, e.clientY), { passive: true });
-      window.addEventListener('touchmove', e => {
-        if (e.touches.length) noteInput(e.touches[0].clientX, e.touches[0].clientY);
-      }, { passive: true });
-      window.addEventListener('mouseleave', () => groups.forEach(release));
-      window.addEventListener('touchend', () => {
+      // Pointer events instead of mouse+touch: after a tap, iOS fires a
+      // synthesized mousemove at the tap point, which used to re-push the
+      // letters right after the touchend release and leave them stuck.
+      const resetInput = () => {
         lastX = -9999; lastY = -9999;
         if (!pending) { pending = true; requestAnimationFrame(apply); }
-      });
+      };
+      window.addEventListener('pointermove', e => noteInput(e.clientX, e.clientY), { passive: true });
+      // A lifted or cancelled touch/pen leaves no hover point behind.
+      window.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') resetInput(); }, { passive: true });
+      window.addEventListener('pointercancel', e => { if (e.pointerType !== 'mouse') resetInput(); }, { passive: true });
+      window.addEventListener('mouseleave', () => groups.forEach(release));
     }
   }
 
