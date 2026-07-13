@@ -112,7 +112,9 @@
       });
       if (!groups.length) return;
 
-      let lastX = -9999, lastY = -9999;
+      // Every live input is a repulsion point: the mouse (or pen) plus each
+      // finger on the screen. Letters sum the push from all nearby points.
+      const points = new Map(); // 'mouse' | 'pen' | 't<id>' → {x, y}
       let pending = false;
 
       function release(g) {
@@ -124,23 +126,36 @@
         pending = false;
         groups.forEach(g => {
           const box = g.el.getBoundingClientRect();
-          // Fast path: input nowhere near this container — release held offsets.
-          if (lastX < box.left - g.radius || lastX > box.right + g.radius ||
-              lastY < box.top - g.radius  || lastY > box.bottom + g.radius) {
+          // Fast path: no input point near this container — release held offsets.
+          let near = false;
+          for (const p of points.values()) {
+            if (p.x >= box.left - g.radius && p.x <= box.right + g.radius &&
+                p.y >= box.top - g.radius  && p.y <= box.bottom + g.radius) { near = true; break; }
+          }
+          if (!near) {
             if (g.active) release(g);
             return;
           }
           g.active = true;
           g.letters.forEach(el => {
             const r = el.getBoundingClientRect();
-            const dx = (r.left + r.width / 2) - lastX;
-            const dy = (r.top + r.height / 2) - lastY;
-            const dist = Math.hypot(dx, dy);
-            if (dist < g.radius) {
-              const k = 1 - dist / g.radius;
-              const strength = (k * k) * g.maxOffset;    // ease-in falloff
-              const inv = strength / (dist || 1);
-              el.style.transform = `translate(${(dx * inv).toFixed(2)}px, ${(dy * inv).toFixed(2)}px)`;
+            const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+            let ox = 0, oy = 0;
+            for (const p of points.values()) {
+              const dx = cx - p.x, dy = cy - p.y;
+              const dist = Math.hypot(dx, dy);
+              if (dist < g.radius) {
+                const k = 1 - dist / g.radius;
+                const strength = (k * k) * g.maxOffset;    // ease-in falloff
+                const inv = strength / (dist || 1);
+                ox += dx * inv; oy += dy * inv;
+              }
+            }
+            if (ox || oy) {
+              // Overlapping points (two close fingers) may not overdrive a letter.
+              const mag = Math.hypot(ox, oy);
+              if (mag > g.maxOffset) { ox *= g.maxOffset / mag; oy *= g.maxOffset / mag; }
+              el.style.transform = `translate(${ox.toFixed(2)}px, ${oy.toFixed(2)}px)`;
             } else if (el.style.transform) {
               el.style.transform = '';
             }
@@ -148,33 +163,41 @@
         });
       }
 
-      function noteInput(x, y) {
-        lastX = x; lastY = y;
+      function schedule() {
         if (!pending) { pending = true; requestAnimationFrame(apply); }
       }
 
-      // pointermove drives mouse/pen hover WITHOUT the old mousemove listener:
-      // after a tap, iOS fires a synthesized mousemove at the tap point, which
-      // used to re-push the letters right after the release and leave them
-      // stuck. Compatibility mouse events don't re-enter the pointer stream,
-      // so pointermove is immune. touchmove is still needed alongside it —
-      // once a drag becomes a scroll the browser fires pointercancel and
-      // pointermove goes quiet, but passive touchmove keeps reporting the
-      // finger, so the letters dodge it mid-scroll like they always did.
-      const resetInput = () => {
-        lastX = -9999; lastY = -9999;
-        if (!pending) { pending = true; requestAnimationFrame(apply); }
-      };
-      window.addEventListener('pointermove', e => noteInput(e.clientX, e.clientY), { passive: true });
-      window.addEventListener('touchmove', e => {
-        if (e.touches.length) noteInput(e.touches[0].clientX, e.touches[0].clientY);
+      // Mouse and pen ride the pointer stream. Touch-type pointer events are
+      // ignored here on purpose: the touch listeners below carry every finger
+      // and, unlike pointermove, keep reporting after the browser hijacks the
+      // gesture for scrolling (pointercancel). This also sidesteps the iOS
+      // tap bug — the synthesized mousemove fired after a tap never re-enters
+      // the pointer stream, so nothing re-pushes the letters after release.
+      window.addEventListener('pointermove', e => {
+        if (e.pointerType === 'touch') return;
+        points.set(e.pointerType === 'pen' ? 'pen' : 'mouse', { x: e.clientX, y: e.clientY });
+        schedule();
       }, { passive: true });
-      // A lifted or cancelled touch/pen leaves no hover point behind.
-      window.addEventListener('touchend', resetInput, { passive: true });
-      window.addEventListener('touchcancel', resetInput, { passive: true });
-      window.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') resetInput(); }, { passive: true });
-      window.addEventListener('pointercancel', e => { if (e.pointerType !== 'mouse') resetInput(); }, { passive: true });
-      window.addEventListener('mouseleave', () => groups.forEach(release));
+      window.addEventListener('pointerup', e => {
+        if (e.pointerType === 'pen') { points.delete('pen'); schedule(); }
+      }, { passive: true });
+      window.addEventListener('pointercancel', e => {
+        if (e.pointerType === 'pen') { points.delete('pen'); schedule(); }
+      }, { passive: true });
+      window.addEventListener('mouseleave', () => { points.delete('mouse'); schedule(); });
+
+      // Each finger repels from the moment it lands — a plain press moves the
+      // text, not just a drag. Rebuilding from e.touches on every event keeps
+      // the set exact through multi-finger lifts and missed events.
+      function syncTouches(e) {
+        for (const key of points.keys()) if (key[0] === 't') points.delete(key);
+        for (const t of e.touches) points.set('t' + t.identifier, { x: t.clientX, y: t.clientY });
+        schedule();
+      }
+      window.addEventListener('touchstart', syncTouches, { passive: true });
+      window.addEventListener('touchmove', syncTouches, { passive: true });
+      window.addEventListener('touchend', syncTouches, { passive: true });
+      window.addEventListener('touchcancel', syncTouches, { passive: true });
     }
   }
 
