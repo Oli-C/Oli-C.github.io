@@ -480,16 +480,33 @@
       }
 
       // Click / tap ripples — a light ring spreads through the fog, except when
-      // the press lands on something interactive (links, buttons).
+      // the press lands on something interactive (links, buttons). Mouse clicks
+      // ripple on the press; a touch waits for the lift and only ripples if the
+      // finger didn't travel — a scroll flick starts with the same pointerdown,
+      // and pulsing the fog on every scroll start read as noise, not intent.
       const ripples = [];
       const rippleData = new Float32Array(RIPPLE_N * 3); // refilled every frame by updateRipples
       if (!reduceMotion) {
-        window.addEventListener('pointerdown', e => {
-          if (e.target.closest && e.target.closest('a, button')) return;
-          const [x, y] = toPc(e.clientX, e.clientY);
+        const spawnRipple = (cx, cy) => {
+          const [x, y] = toPc(cx, cy);
           ripples.push({ x, y, t: performance.now() });
           if (ripples.length > RIPPLE_N) ripples.shift();
+        };
+        let press = null; // pending touch/pen press awaiting tap confirmation
+        window.addEventListener('pointerdown', e => {
+          if (e.target.closest && e.target.closest('a, button')) return;
+          if (e.pointerType === 'mouse') spawnRipple(e.clientX, e.clientY);
+          else press = { x: e.clientX, y: e.clientY };
         }, { passive: true });
+        window.addEventListener('pointerup', e => {
+          if (press && e.pointerType !== 'mouse' &&
+              Math.hypot(e.clientX - press.x, e.clientY - press.y) < 12) {
+            spawnRipple(e.clientX, e.clientY);
+          }
+          press = null;
+        }, { passive: true });
+        // The browser claimed the gesture for scrolling — not a tap.
+        window.addEventListener('pointercancel', () => { press = null; }, { passive: true });
       }
 
       // Fills rippleData ages for `now`; returns true while any ring is alive.
