@@ -909,7 +909,10 @@
   // ============================================================================
   (function initArtParallax() {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduce || !('IntersectionObserver' in window)) return;
+    // Touch scrolling (especially in-app browsers) makes the drifting
+    // thumbnails read as jitter rather than depth — desktop only.
+    const touch = window.matchMedia('(hover: none), (pointer: coarse)').matches;
+    if (reduce || touch || !('IntersectionObserver' in window)) return;
     const mixes = [...mixesEl.querySelectorAll('.mix')];
     if (!mixes.length) return;
 
