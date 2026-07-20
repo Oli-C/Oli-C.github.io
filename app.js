@@ -864,7 +864,9 @@
           obs.unobserve(e.target);
         }
       });
-    }, { rootMargin: '0px 0px 15% 0px', threshold: 0 });
+    // A full viewport of look-ahead: cards bloom before they're on screen, so
+    // a fast flick lands on settled cards instead of blanks popping in late.
+    }, { rootMargin: '0px 0px 100% 0px', threshold: 0 });
     remaining.forEach(el => obs.observe(el));
 
     // Safety net: if a fast flick scroll outpaces the observer, sweep on
@@ -872,7 +874,7 @@
     let pending = false;
     function sweep() {
       pending = false;
-      const fold = window.scrollY + window.innerHeight + 200;
+      const fold = window.scrollY + window.innerHeight * 2; // match the observer's 100% look-ahead
       for (let i = remaining.length - 1; i >= 0; i--) {
         const el = remaining[i];
         if (el.classList.contains('bloom')) {
