@@ -277,25 +277,13 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 .pills .pill:nth-child(5) { --pi: 4; --tilt: -1.2deg; --nudge: 0px; }
 .pills .pill:nth-child(6) { --pi: 5; --tilt:  0.9deg; --nudge: -1px; }
 .pills .pill:nth-child(7) { --pi: 6; --tilt: -1.5deg; --nudge: 1px; }
-/* Mixes and year-dividers are hidden by default; initBloomOnScroll in app.js
-   adds .bloom (run the smoke-emerge animation) or .bloom-instant (already in
-   final state — no animation). The initial-cohort cards get .bloom-load too,
-   which restores the original hero-cascade timing via --i / --yi. */
-.mix:not(.bloom), .yr:not(.bloom) {
-  opacity: 0;
-  filter: blur(14px);
-  transform: translateY(10px) scale(0.985);
-}
-.mix.bloom { animation: smoke-emerge 820ms var(--ease) backwards; }
-.yr.bloom  { animation: smoke-emerge 700ms var(--ease) backwards; }
-.mix.bloom-load { animation-delay: calc(1.35s + var(--i, 0) * 55ms); }
-.yr.bloom-load  { animation-delay: calc(1.3s + var(--yi, 0) * 55ms); }
-.mix.bloom-instant, .yr.bloom-instant {
-  animation: none;
-  opacity: 1;
-  filter: none;
-  transform: none;
-}
+/* Load cascade — initLoadCascade (app.js) tags cards and year-dividers in the
+   initial viewport with .bloom-load; they run smoke-emerge on the hero-cascade
+   timing via --i / --yi, held hidden through the delay by `backwards`. Cards
+   below the fold get no class and are simply visible — scrolling animates
+   nothing. */
+.mix.bloom-load { animation: smoke-emerge 820ms var(--ease) calc(1.35s + var(--i, 0) * 55ms) backwards; }
+.yr.bloom-load  { animation: smoke-emerge 700ms var(--ease) calc(1.3s + var(--yi, 0) * 55ms) backwards; }
 
 @keyframes ch-fly {
   0% {
@@ -312,12 +300,6 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 }
 @media (prefers-reduced-motion: reduce) {
   .page, .id-name .ch, .next, .pill, .mix, .yr { animation: none; }
-  /* The bloom-hidden state must not strand the cards invisible. */
-  .mix:not(.bloom), .yr:not(.bloom) {
-    opacity: 1;
-    filter: none;
-    transform: none;
-  }
 }
 
 /* =============================================================================
@@ -722,16 +704,11 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
           mask-image: linear-gradient(to right, black 0%, black 45%, transparent 100%);
 }
 .mix-art img {
-  /* +20px slack with -10px offset lets initArtParallax in app.js translate
-     the artwork up to ±8px without exposing the card edge. */
-  position: relative;
   width: 100%;
-  height: calc(100% + 20px);
-  top: -10px;
+  height: 100%;
   object-fit: cover;
   display: block;
 }
-.mix.visible .mix-art img { will-change: transform; }
 .mix-art::after { display: none; }
 .mix-play { display: none; }
 
@@ -834,7 +811,9 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 }
 
 /* Upcoming card — live chip sits where the platform badge normally goes;
-   geometry copies .mix-tag so the pair reads as one family. */
+   geometry copies .mix-tag so the pair reads as one family. Hidden until the
+   show is actually on air (JS adds .is-live inside the slot window). */
+.mix-live:not(.is-live) { display: none; }
 .mix-live {
   display: inline-flex;
   align-items: center;

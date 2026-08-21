@@ -696,18 +696,24 @@
 
   // ============================================================================
   //  Upcoming shows — rendered above the mix list under an "upcoming" divider
-  //  with the live slot time and a pulsing LIVE chip. `until` is the show's
-  //  end instant (with timezone offset); past that the card stops rendering on
+  //  with the live slot time. The pulsing LIVE chip only shows between `start`
+  //  and `until` (both instants with timezone offset) — before the slot the
+  //  card carries just the date and time; entries without `start` show the
+  //  chip whenever the card is up. Past `until` the card stops rendering on
   //  its own, so a stale date never shows even before the list is updated.
   //  Once a show has aired, move it into MIXES with its stream URL.
   // ============================================================================
-  const UPCOMING = [];
+  const UPCOMING = [
+    { code: 'LUS-056', title: 'August Radio', series: 'lus', tag: 'LUSOPHONICA', date: '22.08.2026',
+      when: '16:00 – 18:00', tz: 'Lisbon / London', start: '2026-08-22T16:00:00+01:00', until: '2026-08-22T18:00:00+01:00',
+      img: 'assets/mix-lus-056.jpeg', url: 'https://www.lusophonica.com/' },
+  ];
 
   // ============================================================================
   //  Mix data — pulled from the real Linktree export
   // ============================================================================
   const MIXES = [
-    { code: 'LUS-055', title: 'July Radio', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '17.07.2026', y: 2026, sub: 'Residency solo', img: 'assets/mix-lus-055.jpeg', url: 'https://www.youtube.com/watch?v=5_h7jc8kwR8' },
+    { code: 'LUS-055', title: 'July Radio', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '17.07.2026', y: 2026, sub: 'Residency solo', img: 'assets/mix-lus-055.jpeg', url: 'https://youtu.be/5_h7jc8kwR8' },
     { code: 'LUS-054', title: 'June Radio', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '03.06.2026', y: 2026, sub: 'Residency solo', img: 'assets/mix-lus-054.jpeg', url: 'https://youtu.be/twljVtkxQZE' },
     { code: 'RBV-001', title: 'allfield in Glasgow', series: 'rbv', platform: 'soundcloud', tag: 'RADIO BUENA VIDA', date: '22.05.2026', y: 2026, sub: 'Radio Buena Vida', img: 'assets/mix-rbv-001.jpeg', url: 'https://soundcloud.com/radiobuenavida/allfield-radio-buena-vida-22-1' },
     { code: 'CHA-039', title: 'Chameleon 039 - allfield meets yuba', series: 'cham', platform: 'soundcloud', tag: 'CHAMELEON', date: '04.04.2026', y: 2026, sub: 'Chameleon series w/ Yuba',      img: 'assets/mix-cha-039.jpeg', url: 'https://soundcloud.com/chamele-on-sound/chameleon-039-allfield-meets' },
@@ -776,6 +782,7 @@
       html += `<div class="yr yr-up" style="--yi:${i}"><span class="yr-num">upcoming</span><span class="yr-line"></span></div>`;
       for (const m of upcoming) {
         const idx = i++;
+        const live = !m.start || Date.now() >= Date.parse(m.start);
         html += `
         <a href="${m.url || '#'}" class="mix mix-up" data-series="${m.series}" style="--i:${idx}"${m.url ? ' target="_blank" rel="noopener noreferrer"' : ''}>
           <div class="mix-rail"></div>
@@ -792,7 +799,7 @@
           </div>
           <div class="mix-right">
             <span class="mix-tag">${esc(m.tag)}</span>
-            <span class="mix-live" aria-label="Broadcast live"><span class="mix-live-dot"></span>live</span>
+            <span class="mix-live${live ? ' is-live' : ''}"${m.start ? ` data-start="${esc(m.start)}" data-until="${esc(m.until)}"` : ''} aria-label="Broadcast live"><span class="mix-live-dot"></span>live</span>
           </div>
         </a>`;
       }
@@ -829,140 +836,32 @@
   render();
   initMagneticText();
 
-  // ============================================================================
-  //  Bloom-on-scroll — mix cards and year dividers stay hidden (CSS default)
-  //  until they enter the viewport, then run the smoke-emerge animation. The
-  //  initial-cohort (above the fold on load) gets .bloom-load which restores
-  //  the hero-cascade timing via --i / --yi so the entrance feels continuous.
-  // ============================================================================
-  (function initBloomOnScroll() {
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const items = [...mixesEl.querySelectorAll('.mix, .yr')];
-    if (!items.length) return;
-
-    if (reduce || !('IntersectionObserver' in window)) {
-      items.forEach(el => el.classList.add('bloom', 'bloom-instant'));
-      return;
-    }
-
-    const vh = window.innerHeight;
-    const remaining = [];
-    items.forEach(el => {
-      const rect = el.getBoundingClientRect();
-      if (rect.top < vh + 50) {
-        el.classList.add('bloom', 'bloom-load');
-      } else {
-        remaining.push(el);
-      }
+  // Flip the LIVE chip on/off at the slot boundaries on a page left open,
+  // without re-rendering (that would replay the entrance animations).
+  (function initLiveChips() {
+    const MAX_DELAY = 0x7fffffff; // setTimeout clamp — beyond this a reload handles it
+    mixesEl.querySelectorAll('.mix-live[data-start]').forEach(chip => {
+      const at = (instant, fn) => {
+        const delay = Date.parse(instant) - Date.now();
+        if (delay > 0 && delay < MAX_DELAY) setTimeout(fn, delay + 1000);
+      };
+      at(chip.dataset.start, () => chip.classList.add('is-live'));
+      at(chip.dataset.until, () => chip.classList.remove('is-live'));
     });
-    if (!remaining.length) return;
-
-    const obs = new IntersectionObserver((entries) => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          e.target.classList.add('bloom');
-          obs.unobserve(e.target);
-        }
-      });
-    // A full viewport of look-ahead: cards bloom before they're on screen, so
-    // a fast flick lands on settled cards instead of blanks popping in late.
-    }, { rootMargin: '0px 0px 100% 0px', threshold: 0 });
-    remaining.forEach(el => obs.observe(el));
-
-    // Safety net: if a fast flick scroll outpaces the observer, sweep on
-    // scroll-idle and force-bloom anything that's now above the fold.
-    let pending = false;
-    function sweep() {
-      pending = false;
-      const fold = window.scrollY + window.innerHeight * 2; // match the observer's 100% look-ahead
-      for (let i = remaining.length - 1; i >= 0; i--) {
-        const el = remaining[i];
-        if (el.classList.contains('bloom')) {
-          remaining.splice(i, 1);
-          continue;
-        }
-        const docTop = el.getBoundingClientRect().top + window.scrollY;
-        if (docTop < fold) {
-          el.classList.add('bloom', 'bloom-instant');
-          obs.unobserve(el);
-          remaining.splice(i, 1);
-        }
-      }
-      // Everything has bloomed — nothing left to watch, stop waking on scroll.
-      if (!remaining.length) {
-        window.removeEventListener('scroll', onScroll);
-        obs.disconnect();
-      }
-    }
-    function onScroll() {
-      if (!pending) { pending = true; requestAnimationFrame(sweep); }
-    }
-    window.addEventListener('scroll', onScroll, { passive: true });
   })();
 
   // ============================================================================
-  //  Mix-art parallax — within each visible card, the thumbnail image
-  //  translates ±8px on Y based on the card's vertical position in the
-  //  viewport. Only the visible set runs (IntersectionObserver-maintained),
-  //  and we short-circuit when the offset hasn't changed enough to matter.
+  //  Load cascade — cards and year dividers in the initial viewport run the
+  //  smoke-emerge entrance, continuing the hero cascade via --i / --yi.
+  //  Everything below the fold is plain visible from the start: scrolling
+  //  triggers no animation at all.
   // ============================================================================
-  (function initArtParallax() {
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    // Touch scrolling (especially in-app browsers) makes the drifting
-    // thumbnails read as jitter rather than depth — desktop only.
-    const touch = window.matchMedia('(hover: none), (pointer: coarse)').matches;
-    if (reduce || touch || !('IntersectionObserver' in window)) return;
-    const mixes = [...mixesEl.querySelectorAll('.mix')];
-    if (!mixes.length) return;
-
-    const visible = new Set();
-    const lastOffsets = new WeakMap();
-    let pending = false;
-    function schedule() {
-      if (!pending) { pending = true; requestAnimationFrame(update); }
-    }
-    const obs = new IntersectionObserver((entries) => {
-      let changed = false;
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          e.target.classList.add('visible');
-          if (!visible.has(e.target)) { visible.add(e.target); changed = true; }
-        } else {
-          e.target.classList.remove('visible');
-          if (visible.delete(e.target)) changed = true;
-          const img = e.target.querySelector('.mix-art img');
-          if (img && img.style.transform) {
-            img.style.transform = '';
-            lastOffsets.delete(img);
-          }
-        }
-      });
-      // The IO populates `visible` after this IIFE runs; without this we'd
-      // never compute offsets for cards already on screen at load.
-      if (changed) schedule();
-    }, { threshold: [0, 0.25, 0.5, 0.75, 1] });
-    mixes.forEach(m => obs.observe(m));
-
-    function update() {
-      pending = false;
-      const vh = window.innerHeight;
-      visible.forEach(m => {
-        if (!m.classList.contains('bloom')) return;
-        const img = m.querySelector('.mix-art img');
-        if (!img) return;
-        const rect = m.getBoundingClientRect();
-        const center = rect.top + rect.height / 2;
-        const progress = center / vh;
-        let offset = (progress - 0.5) * 16;
-        if (offset > 8) offset = 8;
-        else if (offset < -8) offset = -8;
-        const last = lastOffsets.get(img) || 0;
-        if (Math.abs(offset - last) < 0.25) return;
-        img.style.transform = `translate3d(0, ${offset.toFixed(2)}px, 0)`;
-        lastOffsets.set(img, offset);
-      });
-    }
-    window.addEventListener('scroll', schedule, { passive: true });
+  (function initLoadCascade() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const vh = window.innerHeight;
+    mixesEl.querySelectorAll('.mix, .yr').forEach(el => {
+      if (el.getBoundingClientRect().top < vh + 50) el.classList.add('bloom-load');
+    });
   })();
 
   // ============================================================================
