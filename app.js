@@ -703,16 +703,13 @@
   //  its own, so a stale date never shows even before the list is updated.
   //  Once a show has aired, move it into MIXES with its stream URL.
   // ============================================================================
-  const UPCOMING = [
-    { code: 'LUS-056', title: 'August Radio', series: 'lus', tag: 'LUSOPHONICA', date: '22.08.2026',
-      when: '16:00 – 18:00', tz: 'Lisbon / London', start: '2026-08-22T16:00:00+01:00', until: '2026-08-22T18:00:00+01:00',
-      img: 'assets/mix-lus-056.jpeg', url: 'https://www.lusophonica.com/' },
-  ];
+  const UPCOMING = [];
 
   // ============================================================================
   //  Mix data — pulled from the real Linktree export
   // ============================================================================
   const MIXES = [
+    { code: 'LUS-056', title: 'August Radio', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '22.08.2026', y: 2026, sub: 'Residency solo', img: 'assets/mix-lus-056.jpeg', url: 'https://youtu.be/sUSVFPTJj1w' },
     { code: 'LUS-055', title: 'July Radio', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '17.07.2026', y: 2026, sub: 'Residency solo', img: 'assets/mix-lus-055.jpeg', url: 'https://youtu.be/5_h7jc8kwR8' },
     { code: 'LUS-054', title: 'June Radio', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '03.06.2026', y: 2026, sub: 'Residency solo', img: 'assets/mix-lus-054.jpeg', url: 'https://youtu.be/twljVtkxQZE' },
     { code: 'RBV-001', title: 'allfield in Glasgow', series: 'rbv', platform: 'soundcloud', tag: 'RADIO BUENA VIDA', date: '22.05.2026', y: 2026, sub: 'Radio Buena Vida', img: 'assets/mix-rbv-001.jpeg', url: 'https://soundcloud.com/radiobuenavida/allfield-radio-buena-vida-22-1' },
