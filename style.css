@@ -151,7 +151,9 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   position: fixed; inset: 0; pointer-events: none; z-index: 0;
   /* Pin to the large viewport so the mobile URL-bar collapse doesn't resize
      these layers (the smoke canvas would rescale and visibly shift). While
-     the bar is shown the extra bottom strip is simply cropped. */
+     the bar is shown the extra bottom strip is simply cropped. In-app
+     browsers resize the whole webview, so on touch devices app.js overrides
+     this inline with the screen height (see pinBgHeight). */
   height: 100vh;
   height: 100lvh;
 }

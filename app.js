@@ -14,6 +14,24 @@
   window.addEventListener('scroll', () => { lastScroll = performance.now(); }, { passive: true });
   const scrolling = () => performance.now() - lastScroll < 100;
 
+  // In-app browsers (Instagram etc.) resize the whole webview as their bars
+  // collapse, so even 100lvh tracks it: every fixed background layer then
+  // re-rasterises and the GL buffer reallocates mid-scroll — the blank-rows
+  // moment. On touch devices pin those layers to the screen's height instead:
+  // constant, and never smaller than any webview state (surplus is cropped,
+  // exactly as the 100lvh rule already accepts). Runs before the shader init
+  // below so its first buffer is already the pinned size.
+  if (matchMedia('(pointer: coarse)').matches) {
+    const bgLayers = document.querySelectorAll('.bg-paper, .bg-grain, .bg-vignette, .bg-paint');
+    const pinBgHeight = () => {
+      const [short, long] = [screen.width, screen.height].sort((a, b) => a - b);
+      const h = innerHeight >= innerWidth ? long : short; // iOS reports screen in portrait regardless
+      bgLayers.forEach(el => { el.style.height = h + 'px'; });
+    };
+    pinBgHeight();
+    window.addEventListener('resize', pinBgHeight);
+  }
+
   // ============================================================================
   //  Intro title sequence — split the hero name into letters for the cascade
   //  reveal: each letter starts at a random scattered offset and flies into
