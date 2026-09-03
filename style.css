@@ -42,22 +42,17 @@
 
 :root {
   /* Shared fill for every link surface (pills + mix cards) so they match. */
-  --link-fill: 45%;
-  /* Accent palette — single source of truth.
-     Site palette: #001524 navy / #15616D teal / #FFECD1 cream /
-     #FF7D00 orange / #78290F rust. */
-  --orange:     #ff7d00;
+  --link-fill: 38%;
+  /* Accent palette — single source of truth. "Low light" scheme, in Pantone:
+     Black 6 C #101820 ground / 447 C #373A36 ash / 7527 C #D6D2C4 sand ink /
+     151 C #FF8200 sodium accent (1505 C #FF6900 by day) / 7421 C #651D32 wine /
+     7563 C #D57800 amber in the smoke. Day ground is Warm Gray 1 C #D7D2CB. */
+  --orange:     #ff8200;
   --amber:      #e3a23a;
   --moss:       #9eb05c;
   --ice:        #15616d;
 
-  /* Smoke palette — shader companion colours, shared across themes.
-     Teal highlight / deep navy / sea teal, from the site palette. */
-  --smoke-cyan:    #1f8fa3;
-  --smoke-deep:    #0a2e40;
-  --smoke-sea:     #15616d;
-
-  /* Defaults; per-theme blocks override accent + smoke-bg/c2/c3 below */
+  /* Defaults; per-theme blocks set the smoke palette below */
   --accent:     var(--orange);
   --accent-fg:  #001524;
   --accent-ink: var(--accent);
@@ -78,42 +73,44 @@
 
 /* ---------- Themes ---------- */
 [data-theme="charcoal"] {
-  --bg:          #001524;
-  --bg-2:        #06202e;
-  --bg-3:        #0c2a3a;
-  --fg:          #ffecd1;
-  --fg-muted:    #b3a793;
-  --fg-subtle:   #746f63;
-  /* Accent used as text ink: full accent reads fine on the dark bg. */
+  /* night — the club at 4am: blue-black ground, ash surfaces, sand ink, one
+     sodium lamp. The smoke glows amber over wine and ash. */
+  --bg:          #101820;
+  --bg-2:        #373a36;
+  --bg-3:        #4b4f54;
+  --fg:          #d6d2c4;
+  --fg-muted:    #968c83;
+  --fg-subtle:   #83786f;
   --accent-ink:  var(--accent);
-  --border:      rgba(255, 236, 209, 0.10);
-  --border-2:    rgba(255, 236, 209, 0.20);
-  --border-3:    rgba(255, 236, 209, 0.35);
-  --smoke-bg:    #000b14;
-  --smoke-c1:    var(--smoke-cyan);
-  --smoke-c2:    var(--smoke-deep);
-  --smoke-c3:    var(--smoke-sea);
-  --smoke-sat:   1.15; /* baked into the shader palette; was filter: saturate() */
+  --border:      rgba(214, 210, 196, 0.12);
+  --border-2:    rgba(214, 210, 196, 0.22);
+  --border-3:    rgba(214, 210, 196, 0.38);
+  --smoke-bg:    #0b1119;
+  --smoke-c1:    #d57800;
+  --smoke-c2:    #651d32;
+  --smoke-c3:    #373a36;
+  --smoke-sat:   1.0;
 }
 [data-theme="light"] {
-  --bg:          #ffecd1;
-  --bg-2:        #f4dfc0;
-  --bg-3:        #fff4e2;
-  --fg:          #001524;
-  --fg-muted:    #47525c;
-  --fg-subtle:   #6f7680;
-  /* Accent as text ink — pure orange fails contrast on cream, so lean it
-     toward the navy fg; with the default orange this lands on the palette's
-     rust (#78290F) and tracks the other accents automatically. */
+  /* day — the morning after: warm greys, black ink, the same amber and wine
+     left in the smoke, accent a shade hotter so it holds on the pale ground. */
+  --orange:      #ff6900;
+  --bg:          #d7d2cb;
+  --bg-2:        #bfb8af;
+  --bg-3:        #eae6e0;
+  --fg:          #101820;
+  --fg-muted:    #6e6259;
+  --fg-subtle:   #83786f;
+  /* Accent ink for text on the pale ground: pulled toward the black ink. */
   --accent-ink:  color-mix(in srgb, var(--accent) 58%, var(--fg));
-  --border:      rgba(0, 21, 36, 0.12);
-  --border-2:    rgba(0, 21, 36, 0.22);
-  --border-3:    rgba(0, 21, 36, 0.40);
-  --smoke-bg:    #fff8ec;
-  --smoke-c1:    #15616d;
-  --smoke-c2:    var(--smoke-deep);
-  --smoke-c3:    var(--smoke-sea);
-  --smoke-sat:   1.05;
+  --border:      rgba(16, 24, 32, 0.12);
+  --border-2:    rgba(16, 24, 32, 0.22);
+  --border-3:    rgba(16, 24, 32, 0.40);
+  --smoke-bg:    #e6e1da;
+  --smoke-c1:    #d57800;
+  --smoke-c2:    #651d32;
+  --smoke-c3:    #968c83;
+  --smoke-sat:   1.0;
 }
 
 html, body {
