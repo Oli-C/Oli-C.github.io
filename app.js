@@ -6,6 +6,14 @@
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
   window.scrollTo(0, 0);
 
+  // A touch that turns into a scroll is a scroll, not a stir. The magnetic
+  // text and the smoke trail both ignore input while the page is moving, so
+  // the main thread and GPU stay free to paint newly exposed rows — iOS
+  // in-app browsers otherwise show blank tiles on a fast flick.
+  let lastScroll = 0;
+  window.addEventListener('scroll', () => { lastScroll = performance.now(); }, { passive: true });
+  const scrolling = () => performance.now() - lastScroll < 100;
+
   // ============================================================================
   //  Intro title sequence — split the hero name into letters for the cascade
   //  reveal: each letter starts at a random scattered offset and flies into
@@ -191,7 +199,8 @@
       // the set exact through multi-finger lifts and missed events.
       function syncTouches(e) {
         for (const key of points.keys()) if (key[0] === 't') points.delete(key);
-        for (const t of e.touches) points.set('t' + t.identifier, { x: t.clientX, y: t.clientY });
+        // Mid-scroll the finger is steering the page, not the letters.
+        if (!scrolling()) for (const t of e.touches) points.set('t' + t.identifier, { x: t.clientX, y: t.clientY });
         schedule();
       }
       window.addEventListener('touchstart', syncTouches, { passive: true });
@@ -496,7 +505,7 @@
         const notePointer = (cx, cy) => { [curX, curY] = toPc(cx, cy); };
         window.addEventListener('mousemove', e => notePointer(e.clientX, e.clientY), { passive: true });
         window.addEventListener('touchmove', e => {
-          if (e.touches.length) notePointer(e.touches[0].clientX, e.touches[0].clientY);
+          if (e.touches.length && !scrolling()) notePointer(e.touches[0].clientX, e.touches[0].clientY);
         }, { passive: true });
       }
 
@@ -613,7 +622,9 @@
         const inIntro = elapsed < INTRO_MS;
         const trailActive = updateTrail(now);
         const rippleActive = updateRipples(now);
-        if (inIntro || trailActive || rippleActive || now - lastDraw >= FRAME_INTERVAL_MS) {
+        // A live trail normally forces 60fps — not while scrolling, when the GPU
+        // is needed for tiles; hold the 30fps cadence instead.
+        if (inIntro || (trailActive && !scrolling()) || rippleActive || now - lastDraw >= FRAME_INTERVAL_MS) {
           const t = reduceMotion ? 7.3 : elapsed * 0.001;
           gl.uniform1f(uTime, t);
           gl.uniform1f(uTrailOn, trailActive ? 1 : 0);
@@ -820,12 +831,12 @@
         html += `<div class="yr" style="--yi:${i}"><span class="yr-num">${m.y}</span><span class="yr-line"></span></div>`;
       }
       const idx = i++;
-      // Above-the-fold art loads eagerly so it's decoded before the card
-      // blooms in; everything below the fold stays lazy.
+      // All art loads eagerly — the whole set is ~170KB of 100px JPEGs, and
+      // lazy loading only made covers pop in late on a fast scroll.
       html += `
         <a href="${m.url || '#'}" class="mix" data-series="${m.series}" data-platform="${m.platform}" style="--i:${idx}"${m.url ? ' target="_blank" rel="noopener noreferrer"' : ''}>
           <div class="mix-art">
-            <img src="${m.img}" alt="" loading="${idx < 6 ? 'eager' : 'lazy'}" decoding="async">
+            <img src="${m.img}" alt="" loading="eager" decoding="async">
           </div>
           <div class="mix-body">
             <div class="mix-meta">
