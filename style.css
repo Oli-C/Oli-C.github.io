@@ -268,14 +268,14 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
    end. The negative pill-blob delay phase-offsets each pill's morph cycle,
    so every pill shows a different pebble shape at any moment. */
 .pill      { animation: pill-fly 500ms var(--ease) calc(1.2s + var(--pi, 0) * 60ms) backwards,
-                        pill-blob 9s ease-in-out calc(var(--pi, 0) * -1.5s) infinite; }
-.pills .pill:nth-child(1) { --pi: 0; --tilt: -1.6deg; --nudge: 1px; }
-.pills .pill:nth-child(2) { --pi: 1; --tilt:  1.2deg; --nudge: -1px; }
-.pills .pill:nth-child(3) { --pi: 2; --tilt: -0.8deg; --nudge: -2px; }
-.pills .pill:nth-child(4) { --pi: 3; --tilt:  1.8deg; --nudge: 2px; }
-.pills .pill:nth-child(5) { --pi: 4; --tilt: -1.2deg; --nudge: 0px; }
-.pills .pill:nth-child(6) { --pi: 5; --tilt:  0.9deg; --nudge: -1px; }
-.pills .pill:nth-child(7) { --pi: 6; --tilt: -1.5deg; --nudge: 1px; }
+                        pill-blob var(--blob, 9s) ease-in-out calc(var(--pi, 0) * -1.5s) infinite; }
+.pills .pill:nth-child(1) { --pi: 0; --tilt: -1.6deg; --nudge: 1px; --size: 44px; --blob: 8.2s; }
+.pills .pill:nth-child(2) { --pi: 1; --tilt:  1.2deg; --nudge: -1px; --size: 47px; --blob: 10.5s; }
+.pills .pill:nth-child(3) { --pi: 2; --tilt: -0.8deg; --nudge: -2px; --size: 45px; --blob: 9.1s; }
+.pills .pill:nth-child(4) { --pi: 3; --tilt:  1.8deg; --nudge: 2px; --size: 48px; --blob: 7.6s; }
+.pills .pill:nth-child(5) { --pi: 4; --tilt: -1.2deg; --nudge: 0px; --size: 44px; --blob: 11.3s; }
+.pills .pill:nth-child(6) { --pi: 5; --tilt:  0.9deg; --nudge: -1px; --size: 46px; --blob: 8.8s; }
+.pills .pill:nth-child(7) { --pi: 6; --tilt: -1.5deg; --nudge: 1px; --size: 45px; --blob: 9.7s; }
 /* Load cascade — initLoadCascade (app.js) tags cards and year-dividers in the
    initial viewport with .bloom-load; they run smoke-emerge on the hero-cascade
    timing via --i / --yi, held hidden through the delay by `backwards`. Cards
@@ -351,8 +351,10 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  /* Per-pill --size (44px floor for touch) and --blob duration are set with
+     --pi below, so the row reads as individually grown rather than stamped. */
+  width: var(--size, 44px);
+  height: var(--size, 44px);
   border: 1px solid var(--border);
   /* Static blob fallback = pill-blob's 0% state, for reduced-motion where the
      morph animation is disabled. */
@@ -460,17 +462,24 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 }
 .yr-line {
   flex: 1;
-  height: 1px;
+  height: 5px;
   background: linear-gradient(to right,
     color-mix(in srgb, var(--border) 90%, transparent) 0%,
     color-mix(in srgb, var(--border) 70%, transparent) 35%,
     transparent 100%);
+  /* Hand-drawn wobble: a wavy stroke masks the fade above, so it stays
+     theme-coloured. The 300px tile repeats and --yi (set inline per divider)
+     shifts its phase, so no two years wobble alike. */
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 5' preserveAspectRatio='none'><path d='M0 2.5 C 30 1.2, 55 3.9, 90 2.4 S 140 1.1, 175 2.7 S 230 4.1, 260 2.2 S 290 1.8, 300 2.5' fill='none' stroke='%23000' stroke-width='1.1' stroke-linecap='round'/></svg>") calc(var(--yi, 0) * -83px) 0 / 300px 100% repeat-x;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 5' preserveAspectRatio='none'><path d='M0 2.5 C 30 1.2, 55 3.9, 90 2.4 S 140 1.1, 175 2.7 S 230 4.1, 260 2.2 S 290 1.8, 300 2.5' fill='none' stroke='%23000' stroke-width='1.1' stroke-linecap='round'/></svg>") calc(var(--yi, 0) * -83px) 0 / 300px 100% repeat-x;
 }
 .yr-num {
   color: var(--fg);
   font-weight: 500;
   font-size: 11px;
+  transform: rotate(-0.6deg); /* stamped, not typeset; alternates below */
 }
+.yr:nth-child(even) .yr-num { transform: rotate(0.6deg); }
 /* Upcoming divider — accent instead of fg so the section reads as "not yet
    another year", without breaking the divider rhythm. */
 .yr-up .yr-num { color: var(--accent-ink); }
@@ -487,9 +496,10 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   min-height: 88px;
   touch-action: manipulation;
   border: 1px solid var(--border);
-  /* Organic hand-cut corners; two nth-child variants below cycle the shape
-     down the list so neighbours never share a silhouette. --card-tilt leans
-     the hover lift slightly, alternating direction per row. */
+  /* Organic hand-cut corners; five nth-child variants below cycle the shape
+     down the list (six with this base) so the repeat is never visible, and
+     two of them are deliberately lopsided. --card-tilt leans the hover lift
+     slightly, alternating direction per row. */
   --card-tilt: -0.3deg;
   border-radius: 24px 8px 20px 6px / 14px 24px 8px 22px;
   /* No backdrop-filter: the canvas beneath repaints 30x/s, so every blurred
@@ -507,8 +517,11 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
               box-shadow 200ms var(--ease);
 }
 .mix:nth-child(even) { --card-tilt: 0.3deg; }
-.mix:nth-child(3n)   { border-radius: 7px 22px 9px 24px / 20px 8px 24px 10px; }
-.mix:nth-child(3n+1) { border-radius: 20px 10px 26px 8px / 24px 18px 10px 26px; }
+.mix:nth-child(6n+1) { border-radius: 20px 10px 26px 8px / 24px 18px 10px 26px; }
+.mix:nth-child(6n+3) { border-radius: 7px 22px 9px 24px / 20px 8px 24px 10px; }
+.mix:nth-child(6n+4) { border-radius: 34px 6px 10px 28px / 30px 6px 28px 8px; }  /* lopsided left */
+.mix:nth-child(6n+5) { border-radius: 10px 30px 6px 16px / 8px 28px 22px 30px; }
+.mix:nth-child(6n)   { border-radius: 8px 12px 32px 6px / 10px 8px 30px 26px; }  /* lopsided bottom-right */
 .mix[data-platform="soundcloud"] { --plat-color: #ff7700; }
 .mix[data-platform="mixcloud"]   { --plat-color: #52aadc; }
 .mix[data-platform="youtube"]    { --plat-color: #ff3b30; }
@@ -543,9 +556,20 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   pointer-events: none;
   z-index: 0;
   overflow: hidden;
-  /* Hold solid longer so the photo reads as a photo before dissolving. */
-  -webkit-mask-image: linear-gradient(to right, black 0%, black 45%, transparent 100%);
-          mask-image: linear-gradient(to right, black 0%, black 45%, transparent 100%);
+  /* Hold solid longer so the photo reads as a photo before dissolving. The
+     fade is an SVG gradient pushed around by noise, so the edge bleeds
+     unevenly into the card like ink into paper. Static image: rasterised
+     once, no per-frame cost. Even cards use a second seed. */
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><defs><linearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' x2='100'><stop offset='0.42' stop-color='%23000'/><stop offset='1' stop-color='%23000' stop-opacity='0'/></linearGradient><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='0.012 0.05' numOctaves='3' seed='3'/><feDisplacementMap in='SourceGraphic' scale='28' xChannelSelector='R' yChannelSelector='G'/></filter></defs><rect x='-40' y='-40' width='180' height='180' fill='url(%23g)' filter='url(%23f)'/></svg>");
+          mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><defs><linearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' x2='100'><stop offset='0.42' stop-color='%23000'/><stop offset='1' stop-color='%23000' stop-opacity='0'/></linearGradient><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='0.012 0.05' numOctaves='3' seed='3'/><feDisplacementMap in='SourceGraphic' scale='28' xChannelSelector='R' yChannelSelector='G'/></filter></defs><rect x='-40' y='-40' width='180' height='180' fill='url(%23g)' filter='url(%23f)'/></svg>");
+  -webkit-mask-size: 100% 100%;
+          mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+}
+.mix:nth-child(even) .mix-art {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><defs><linearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' x2='100'><stop offset='0.42' stop-color='%23000'/><stop offset='1' stop-color='%23000' stop-opacity='0'/></linearGradient><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='0.012 0.05' numOctaves='3' seed='11'/><feDisplacementMap in='SourceGraphic' scale='28' xChannelSelector='R' yChannelSelector='G'/></filter></defs><rect x='-40' y='-40' width='180' height='180' fill='url(%23g)' filter='url(%23f)'/></svg>");
+          mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><defs><linearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' x2='100'><stop offset='0.42' stop-color='%23000'/><stop offset='1' stop-color='%23000' stop-opacity='0'/></linearGradient><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='0.012 0.05' numOctaves='3' seed='11'/><feDisplacementMap in='SourceGraphic' scale='28' xChannelSelector='R' yChannelSelector='G'/></filter></defs><rect x='-40' y='-40' width='180' height='180' fill='url(%23g)' filter='url(%23f)'/></svg>");
 }
 .mix-art img {
   width: 100%;
@@ -618,7 +642,10 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
      the 5/3 split optically centres the uppercase glyphs at line-height 1. */
   padding: 5px 4px 3px;
   padding-right: calc(4px - 0.14em);
-  border-radius: 3px;
+  /* Pill-family asymmetric corners and a hair of tilt (direction alternates
+     per card below) so the tag stops reading as a tidy rectangle. */
+  border-radius: 7px 3px 8px 4px / 4px 8px 3px 7px;
+  transform: rotate(-1deg);
   color: var(--fg-muted);
   border: 1px solid var(--border-2);
   /* Transparent shadow at final geometry: transitioning from `none` would
@@ -698,7 +725,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   align-items: center;
   justify-content: center;
   width: 22px; height: 22px;
-  border-radius: 999px;
+  border-radius: 46% 54% 50% 50% / 56% 46% 54% 44%; /* blob, not a circle */
   color: var(--fg-subtle);
   /* Pill-family look, but the badge sits ON the card's glass — stacking the
      full pill recipe (fill + blur + saturate) over it compounded far too
@@ -717,6 +744,9 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
               background 200ms var(--ease),
               box-shadow 200ms var(--ease);
 }
+/* Alternate the tilt and blob per card so neighbours never match. */
+.mix:nth-child(even) .mix-tag  { transform: rotate(1deg); }
+.mix:nth-child(even) .mix-plat { border-radius: 54% 46% 48% 52% / 44% 56% 46% 54%; }
 .mix-plat[data-plat="soundcloud"] { color: #ff7700; }
 .mix-plat[data-plat="mixcloud"]   { color: #52aadc; }
 .mix-plat[data-plat="youtube"]    { color: #ff3b30; }
