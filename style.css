@@ -649,10 +649,9 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
      the 5/3 split optically centres the uppercase glyphs at line-height 1. */
   padding: 5px 4px 3px;
   padding-right: calc(4px - 0.14em);
-  /* Pill-family asymmetric corners and a hair of tilt (direction alternates
-     per card below) so the tag stops reading as a tidy rectangle. */
+  /* Pill-family asymmetric corners so the tag stops reading as a tidy
+     rectangle; the text itself stays level. */
   border-radius: 7px 3px 8px 4px / 4px 8px 3px 7px;
-  transform: rotate(-1deg);
   color: var(--fg-muted);
   border: 1px solid var(--border-2);
   /* Transparent shadow at final geometry: transitioning from `none` would
@@ -751,8 +750,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
               background 200ms var(--ease),
               box-shadow 200ms var(--ease);
 }
-/* Alternate the tilt and blob per card so neighbours never match. */
-.mix:nth-child(even) .mix-tag  { transform: rotate(1deg); }
+/* Alternate the badge blob per card so neighbours never match. */
 .mix:nth-child(even) .mix-plat { border-radius: 54% 46% 48% 52% / 44% 56% 46% 54%; }
 .mix-plat[data-plat="soundcloud"] { color: #ff7700; }
 .mix-plat[data-plat="mixcloud"]   { color: #52aadc; }
