@@ -251,7 +251,8 @@
       '}',
       'float fbm(vec2 p){',
       '  float v=0., a=0.5;',
-      '  for(int i=0;i<6;i++){ v+=a*noise(p); p*=2.03; a*=0.5; }',
+      '  // 5 octaves: at the capped DPR the 6th is sub-pixel.',
+      '  for(int i=0;i<5;i++){ v+=a*noise(p); p*=2.03; a*=0.5; }',
       '  return v;',
       '}',
       'void main(){',
@@ -653,18 +654,32 @@
         ];
       }
 
-      // Smoke palette is now sourced from CSS — `--smoke-bg/c2/c3` per theme
+      // CSS saturate() as a matrix on the palette. The shader output is a
+      // linear blend of these four colours, so this equals the old
+      // `filter: saturate()` on the canvas minus one full-screen filter pass.
+      function saturate([r, g, b], s) {
+        return [
+          (0.213 + 0.787 * s) * r + (0.715 - 0.715 * s) * g + (0.072 - 0.072 * s) * b,
+          (0.213 - 0.213 * s) * r + (0.715 + 0.285 * s) * g + (0.072 - 0.072 * s) * b,
+          (0.213 - 0.213 * s) * r + (0.715 - 0.715 * s) * g + (0.072 + 0.928 * s) * b,
+        ];
+      }
+
+      // Smoke palette is sourced from CSS — `--smoke-bg/c1/c2/c3/sat` per theme
       // in style.css. JS reads the active values via getComputedStyle so any
       // palette tweak only needs to happen in CSS. Accent (uC1) flows in via
       // the --accent variable (set on <html> by apply() from TWEAK_DEFAULTS).
       realSetPalette = function (_theme, accentHex) {
         const cs = getComputedStyle(document.documentElement);
+        const sat = parseFloat(cs.getPropertyValue('--smoke-sat')) || 1;
         // --smoke-c1 (ocean cyan) overrides the accent for the shader highlight;
         // themes without it fall back to the site accent.
-        const c1 = hexToRgb(cs.getPropertyValue('--smoke-c1').trim() || accentHex);
-        const c2 = hexToRgb(cs.getPropertyValue('--smoke-c2'));
-        const c3 = hexToRgb(cs.getPropertyValue('--smoke-c3'));
-        const bg = hexToRgb(cs.getPropertyValue('--smoke-bg'));
+        const [c1, c2, c3, bg] = [
+          cs.getPropertyValue('--smoke-c1').trim() || accentHex,
+          cs.getPropertyValue('--smoke-c2'),
+          cs.getPropertyValue('--smoke-c3'),
+          cs.getPropertyValue('--smoke-bg'),
+        ].map(h => saturate(hexToRgb(h), sat));
         gl.useProgram(prog);
         gl.uniform3f(uC1, c1[0], c1[1], c1[2]);
         gl.uniform3f(uC2, c2[0], c2[1], c2[2]);
@@ -782,10 +797,8 @@
         const live = !m.start || Date.now() >= Date.parse(m.start);
         html += `
         <a href="${m.url || '#'}" class="mix mix-up" data-series="${m.series}" style="--i:${idx}"${m.url ? ' target="_blank" rel="noopener noreferrer"' : ''}>
-          <div class="mix-rail"></div>
           <div class="mix-art">
             <img src="${m.img}" alt="" loading="eager" decoding="async">
-            <div class="mix-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
           </div>
           <div class="mix-body">
             <div class="mix-meta">
@@ -811,10 +824,8 @@
       // blooms in; everything below the fold stays lazy.
       html += `
         <a href="${m.url || '#'}" class="mix" data-series="${m.series}" data-platform="${m.platform}" style="--i:${idx}"${m.url ? ' target="_blank" rel="noopener noreferrer"' : ''}>
-          <div class="mix-rail"></div>
           <div class="mix-art">
             <img src="${m.img}" alt="" loading="${idx < 6 ? 'eager' : 'lazy'}" decoding="async">
-            <div class="mix-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
           </div>
           <div class="mix-body">
             <div class="mix-meta">
@@ -862,7 +873,7 @@
   })();
 
   // ============================================================================
-  //  Page state — applies theme / accent / grain / view from TWEAK_DEFAULTS.
+  //  Page state — applies theme / accent / grain from TWEAK_DEFAULTS.
   //  Theme follows the OS dark/light preference.
   // ============================================================================
   const root = document.documentElement;
@@ -880,9 +891,6 @@
     root.setAttribute('data-accent', state.accent);
     root.style.setProperty('--grain', String(state.grain / 100));
     setPaintPalette(state.theme, getComputedStyle(root).getPropertyValue('--accent'));
-    mixesEl.classList.toggle('cards', state.view === 'cards');
-    mixesEl.classList.toggle('log', state.view === 'log');
-    mixesEl.classList.toggle('show-rail', !!state.showTimeline);
   }
 
   apply();

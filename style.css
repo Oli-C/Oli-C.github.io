@@ -41,6 +41,8 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+  /* Shared fill for every link surface (pills + mix cards) so they match. */
+  --link-fill: 45%;
   /* Accent palette — single source of truth.
      Site palette: #001524 navy / #15616D teal / #FFECD1 cream /
      #FF7D00 orange / #78290F rust. */
@@ -91,6 +93,7 @@
   --smoke-c1:    var(--smoke-cyan);
   --smoke-c2:    var(--smoke-deep);
   --smoke-c3:    var(--smoke-sea);
+  --smoke-sat:   1.15; /* baked into the shader palette; was filter: saturate() */
 }
 [data-theme="light"] {
   --bg:          #ffecd1;
@@ -110,6 +113,7 @@
   --smoke-c1:    #15616d;
   --smoke-c2:    var(--smoke-deep);
   --smoke-c3:    var(--smoke-sea);
+  --smoke-sat:   1.05;
 }
 
 html, body {
@@ -160,12 +164,10 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   display: block;
   opacity: 0.9;
   mix-blend-mode: screen;
-  filter: saturate(1.15);
 }
 [data-theme="light"] .bg-paint {
   mix-blend-mode: multiply;
   opacity: 0.7;
-  filter: saturate(1.05);
 }
 .bg-paper {
   background:
@@ -223,10 +225,6 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   from { opacity: 0; filter: blur(6px); }
   to   { opacity: 1; filter: blur(0); }
 }
-@keyframes fly-in {
-  from { opacity: 0; transform: translateY(16px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
 @keyframes pill-fly {
   from { opacity: 0; transform: translateY(16px) scale(0.97); }
   to   { opacity: 1; transform: rotate(var(--tilt, 0deg)) translateY(var(--nudge, 0px)); }
@@ -263,7 +261,6 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   transition: transform 340ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.next      { animation: fly-in 600ms var(--ease) 1.05s backwards; }
 /* pill-fly (not fly-in) so the entrance lands on the tilted resting pose
    instead of snapping from transform:none to the scatter tilt at animation
    end. The negative pill-blob delay phase-offsets each pill's morph cycle,
@@ -299,7 +296,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .page, .id-name .ch, .next, .pill, .mix, .yr { animation: none; }
+  .page, .id-name .ch, .pill, .mix, .yr { animation: none; }
 }
 
 /* =============================================================================
@@ -308,31 +305,6 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 .id {
   margin-bottom: 20px;
 }
-
-.id-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 20px;
-  font-family: 'Anek Kannada', sans-serif;
-}
-.id-call-label, .id-freq-label {
-  font-size: 9px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--fg-subtle);
-  margin-bottom: 3px;
-}
-.id-call-value, .id-freq-value {
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  color: var(--fg);
-  font-weight: 500;
-}
-.id-call-value span { color: var(--accent); }
-.id-freq { text-align: right; }
 
 .id-body {
   display: block;
@@ -367,19 +339,6 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   text-transform: lowercase;
   color: var(--fg);
 }
-.id-bio {
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--fg-muted);
-  max-width: 42ch;
-  text-wrap: pretty;
-}
-.id-bio em {
-  font-style: normal;
-  color: var(--fg);
-  font-weight: 500;
-}
-
 /* Pills */
 .pills {
   display: flex;
@@ -400,9 +359,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   touch-action: manipulation;
   /* Hand-placed scatter: per-pill --tilt/--nudge set alongside --pi above. */
   transform: rotate(var(--tilt, 0deg)) translateY(var(--nudge, 0px));
-  background: color-mix(in srgb, var(--bg-2) 38%, transparent);
-  backdrop-filter: blur(14px) saturate(1.3);
-  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  background: color-mix(in srgb, var(--bg-2) var(--link-fill), transparent); /* no backdrop-filter, see .mix */
   box-shadow: 0 4px 14px -6px rgba(0, 0, 0, 0.35),
               inset 0 1px 0 0 color-mix(in srgb, var(--fg) 5%, transparent);
   transition: border-color 220ms var(--ease),
@@ -473,119 +430,6 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 }
 
 /* =============================================================================
-   Next event
-   ============================================================================= */
-.next {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px;
-  min-height: 88px;
-  margin-bottom: 20px;
-  touch-action: manipulation;
-  background: color-mix(in srgb, var(--bg-2) 38%, transparent);
-  backdrop-filter: blur(18px) saturate(1.4);
-  -webkit-backdrop-filter: blur(18px) saturate(1.4);
-  border: 1px solid var(--border);
-  /* Organic hand-cut corners, matching the mix cards below. */
-  border-radius: 22px 8px 24px 7px / 12px 22px 9px 24px;
-  color: var(--fg);
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 14px 50px -16px color-mix(in srgb, var(--accent) 32%, transparent),
-              0 6px 18px -10px rgba(0, 0, 0, 0.4),
-              inset 0 1px 0 0 color-mix(in srgb, var(--fg) 8%, transparent);
-  transition: border-color 200ms var(--ease),
-              transform 200ms var(--ease),
-              box-shadow 200ms var(--ease);
-}
-.next::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at 88% 0%,
-              color-mix(in srgb, var(--accent) 22%, transparent),
-              transparent 55%);
-  pointer-events: none;
-  border-radius: inherit;
-  z-index: 0;
-}
-@media (hover: hover) {
-  .next:hover {
-    border-color: var(--accent);
-    transform: translateY(-2px) rotate(-0.25deg);
-    box-shadow: 0 14px 40px -10px color-mix(in srgb, var(--accent) 50%, transparent),
-                inset 0 1px 0 0 color-mix(in srgb, var(--fg) 14%, transparent);
-  }
-  .next:hover .next-arrow { color: var(--accent); }
-}
-.next-img {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: clamp(80px, 20%, 140px);
-  height: 100%;
-  border-radius: 0;
-  object-fit: cover;
-  display: block;
-  pointer-events: none;
-  z-index: 0;
-  -webkit-mask-image: linear-gradient(to right, black 0%, black 18%, transparent 100%);
-          mask-image: linear-gradient(to right, black 0%, black 18%, transparent 100%);
-}
-.next-body {
-  min-width: 0;
-  position: relative;
-  z-index: 1;
-  flex: 1;
-  padding-left: clamp(74px, 21%, 140px);
-}
-.next-tag {
-  display: inline-block;
-  font-family: 'Anek Kannada', sans-serif;
-  font-size: 8px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  font-weight: 500;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  border-radius: 999px;
-  padding: 3px 7px;
-  margin-bottom: 6px;
-}
-.next-title {
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  color: var(--fg);
-  margin-bottom: 3px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.next-meta {
-  font-family: 'Anek Kannada', sans-serif;
-  font-size: 8.5px;
-  letter-spacing: 0.05em;
-  color: var(--fg-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.next-arrow {
-  width: 16px;
-  height: 16px;
-  color: var(--fg-subtle);
-  margin-right: 6px;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 1;
-  transition: color 160ms var(--ease);
-}
-
-/* =============================================================================
    Mixes — cards view
    ============================================================================= */
 .mixes {
@@ -646,9 +490,9 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
      the hover lift slightly, alternating direction per row. */
   --card-tilt: -0.3deg;
   border-radius: 24px 8px 20px 6px / 14px 24px 8px 22px;
-  background: color-mix(in srgb, var(--bg-2) 42%, transparent);
-  backdrop-filter: blur(14px) saturate(1.3);
-  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  /* No backdrop-filter: the canvas beneath repaints 30x/s, so every blurred
+     card was re-blurred each frame. The smoke is soft anyway. */
+  background: color-mix(in srgb, var(--bg-2) var(--link-fill), transparent);
   box-shadow: 0 6px 22px -10px rgba(0, 0, 0, 0.35),
               0 2px 8px -3px color-mix(in srgb, var(--accent) 10%, transparent),
               inset 0 1px 0 0 color-mix(in srgb, var(--fg) 5%, transparent);
@@ -686,8 +530,6 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   .mix:hover .mix-tag { color: var(--plat-color); }
 }
 
-.mix-rail { display: none; }
-
 .mix-art {
   position: absolute;
   left: 0;
@@ -709,8 +551,6 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   object-fit: cover;
   display: block;
 }
-.mix-art::after { display: none; }
-.mix-play { display: none; }
 
 .mix-body {
   position: relative;
@@ -732,22 +572,9 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   text-transform: uppercase;
   color: var(--fg-subtle);
 }
-.mix-code {
-  color: var(--accent);
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
 .mix-date { white-space: nowrap; flex-shrink: 0; }
 .mix-meta { flex-wrap: nowrap; }
 .mix-date { color: var(--fg-muted); }
-.mix-dot {
-  width: 3px; height: 3px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.6;
-}
 .mix-title {
   font-size: 13px;
   font-weight: 500;
@@ -863,90 +690,6 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 /* Hover glow + tag hover colour on this card follow the same ink. */
 .mix-up { --plat-color: var(--accent-ink); }
 
-/* =============================================================================
-   Log (table) view
-   ============================================================================= */
-.mixes.log {
-  display: block;
-  border: 1px solid var(--border-2);
-  border-radius: var(--radius);
-  overflow: hidden;
-  background: var(--bg-2);
-}
-.mixes.log::before { display: none !important; }
-.mixes.log .yr {
-  padding: 10px 16px;
-  margin: 0;
-  background: var(--bg-3);
-  border-bottom: 1px solid var(--border);
-  border-top: 1px solid var(--border);
-}
-.mixes.log .yr::before { display: none; }
-.mixes.log .yr:first-child { border-top: 0; }
-
-.mixes.log .mix {
-  display: grid;
-  grid-template-columns: 90px 1fr 110px;
-  gap: 14px;
-  padding: 9px 16px;
-  border: 0;
-  border-top: 1px solid var(--border);
-  border-radius: 0;
-  background: transparent;
-  animation: none;
-  min-height: 38px;
-  align-items: center;
-}
-@media (hover: hover) {
-  .mixes.log .mix:hover {
-    background: var(--bg-3);
-    transform: none;
-  }
-}
-.mixes.log .mix-rail { display: none; }
-.mixes.log .mix-art { display: none; }
-.mixes.log .mix-sub { display: none; }
-
-/* In log view the mix-body becomes the title column; the meta (code + date)
-   is split and hoisted into its own columns via CSS grid positioning. */
-.mixes.log .mix-body {
-  grid-column: 2 / 3;
-  min-width: 0;
-  padding-left: 0;
-}
-.mixes.log .mix-meta {
-  display: contents; /* let children participate in the grid */
-}
-.mixes.log .mix-code {
-  grid-column: 1 / 2;
-  grid-row: 1;
-  font-size: 10px;
-  align-self: center;
-}
-.mixes.log .mix-date {
-  grid-column: 1 / 2;
-  grid-row: 1;
-  font-size: 10px;
-  color: var(--fg-muted);
-  align-self: center;
-}
-.mixes.log .mix-dot { display: none; }
-.mixes.log .mix-title {
-  font-family: 'Anek Kannada', sans-serif;
-  font-size: 11.5px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
-  text-transform: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.mixes.log .mix-right {
-  grid-column: 3 / 4;
-  justify-content: flex-end;
-}
-.mixes.log .mix-tag { font-size: 8.5px; padding: 3px 2px 1px; }
-
 /* Platform badge (SoundCloud / Mixcloud / YouTube) */
 .mix-plat {
   display: inline-flex;
@@ -956,7 +699,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   border-radius: 999px;
   color: var(--fg-subtle);
   /* Pill-family look, but the badge sits ON the card's glass — stacking the
-     full pill recipe (38% fill + blur + saturate) over it compounded far too
+     full pill recipe (fill + blur + saturate) over it compounded far too
      bright. A thin fill over the card's existing glass composites to roughly
      the same value as a pill on the bare page. border-2 matches the station
      tag beside it. */
@@ -979,60 +722,6 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
    sits a touch smaller inside the badge — more breathing room around it. */
 .mix-plat svg { width: 12px; height: 12px; }
 .mix-plat[data-plat="youtube"] svg { width: 10px; height: 7px; }
-.mixes.log .mix-plat { width: 18px; height: 18px; }
-.mixes.log .mix-plat svg { width: 10px; height: 10px; }
-
-/* =============================================================================
-   Footer
-   ============================================================================= */
-.foot {
-  margin-top: 48px;
-  font-family: 'Anek Kannada', sans-serif;
-}
-.foot-line {
-  height: 1px;
-  background: var(--border);
-  margin-bottom: 20px;
-  position: relative;
-}
-.foot-line::before {
-  content: '';
-  position: absolute;
-  left: 0; top: -3px;
-  width: 40px; height: 7px;
-  background: var(--accent);
-}
-.foot-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 20px;
-}
-.foot-mark {
-  font-family: 'Anek Kannada', sans-serif;
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -0.035em;
-  text-transform: lowercase;
-  color: var(--fg);
-  line-height: 1;
-}
-.foot-mark span { color: var(--accent); }
-.foot-sub {
-  margin-top: 6px;
-  font-size: 9.5px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--fg-subtle);
-}
-.foot-meta {
-  font-size: 9.5px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--fg-subtle);
-  text-align: right;
-  line-height: 1.6;
-}
 
 /* =============================================================================
    Animations / responsive
@@ -1050,7 +739,6 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
     padding-bottom: max(48px, env(safe-area-inset-bottom));
     padding-left: max(14px, env(safe-area-inset-left));
   }
-  .id-top { margin-bottom: 20px; }
   .id-body { grid-template-columns: 72px 1fr; gap: 14px; }
   .id-name { letter-spacing: -0.045em; }
   .id-body { margin-bottom: 12px; }
@@ -1068,8 +756,6 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
      keeps them out of this shrink. */
   .pill svg { width: 18px; height: 18px; }
   .pill .pill-mask:not(.cham-mask) { width: 18px; height: 18px; }
-  .next { padding: 12px; min-height: 78px; gap: 10px; }
-  .next-title { font-size: 12px; }
 
   .mix {
     padding: 12px 12px 12px 12px;
@@ -1087,14 +773,7 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   .mix-plat { width: 20px; height: 20px; }
   .mix-right { gap: 6px; }
 
-  .mixes.log .mix { grid-template-columns: 1fr 84px; gap: 10px; padding: 10px 12px; }
-  .mixes.log .mix-date { display: none; }
-  .mixes.log .mix-body { grid-column: 1 / 2; }
-  .mixes.log .mix-right { grid-column: 2 / 3; }
-
   .yr { margin: 14px 0 6px; }
-  .foot-row { flex-direction: column; align-items: flex-start; gap: 16px; }
-  .foot-meta { text-align: left; }
 }
 
 @media (max-width: 400px) {
@@ -1104,7 +783,6 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
     padding-bottom: max(40px, env(safe-area-inset-bottom));
     padding-left: max(12px, env(safe-area-inset-left));
   }
-  .id-top .id-freq { display: none; }
   .mix { padding: 10px 10px; min-height: 70px; }
 }
 
