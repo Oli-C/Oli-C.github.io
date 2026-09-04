@@ -985,6 +985,10 @@
     return `<span class="mix-plat" data-plat="${p}" title="${PLATFORM_LABEL[p]}" aria-label="${PLATFORM_LABEL[p]}">${PLATFORM_ICONS[p]}</span>`;
   }
 
+  // Each card gets its own ink-bleed edge: a tile of the 6x6 mask sprite
+  // sheet behind .mix-art (see style.css), cycling every 36 cards.
+  const maskPos = i => `${(i % 6) * 20}% ${(Math.floor(i / 6) % 6) * 20}%`;
+
   function render() {
     let html = '';
     let currentY = null;
@@ -996,7 +1000,7 @@
         const idx = i++;
         const live = !m.start || Date.now() >= Date.parse(m.start);
         html += `
-        <a href="${m.url || '#'}" class="mix mix-up" data-series="${m.series}" style="--i:${idx}"${m.url ? ' target="_blank" rel="noopener noreferrer"' : ''}>
+        <a href="${m.url || '#'}" class="mix mix-up" data-series="${m.series}" style="--i:${idx};--mask-pos:${maskPos(idx)}"${m.url ? ' target="_blank" rel="noopener noreferrer"' : ''}>
           <div class="mix-art">
             <img src="${m.img}" alt="" loading="eager" decoding="async">
           </div>
@@ -1023,7 +1027,7 @@
       // All art loads eagerly — the whole set is ~170KB of 100px JPEGs, and
       // lazy loading only made covers pop in late on a fast scroll.
       html += `
-        <a href="${m.url || '#'}" class="mix" data-series="${m.series}" data-platform="${m.platform}" style="--i:${idx}"${m.url ? ' target="_blank" rel="noopener noreferrer"' : ''}>
+        <a href="${m.url || '#'}" class="mix" data-series="${m.series}" data-platform="${m.platform}" style="--i:${idx};--mask-pos:${maskPos(idx)}"${m.url ? ' target="_blank" rel="noopener noreferrer"' : ''}>
           <div class="mix-art">
             <img src="${m.img}" alt="" loading="eager" decoding="async">
           </div>

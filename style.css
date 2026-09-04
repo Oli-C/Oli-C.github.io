@@ -597,22 +597,24 @@ body.pills-away .pill { animation-play-state: running, paused; }
   overflow: hidden;
   /* Hold solid longer so the photo reads as a photo before dissolving. The
      fade is an SVG gradient pushed around by noise, so the edge bleeds
-     unevenly into the card like ink into paper. Even cards use a second seed.
-     Pre-rasterised from those exact SVGs (256x256 greyscale+alpha, generated
-     once) rather than inlined: as a data URI the browser ran feTurbulence +
-     feDisplacementMap per card — 28 filter rasterisations at load, and again
-     on every viewport resize, which in-app browsers fire constantly while
-     scrolling. Same alpha ramp, no filter graph. */
-  -webkit-mask-image: url('assets/mask-art-1.png');
-          mask-image: url('assets/mask-art-1.png');
-  -webkit-mask-size: 100% 100%;
-          mask-size: 100% 100%;
+     unevenly into the card like ink into paper — and every card gets its own
+     bleed: 36 seeds pre-rasterised into one 6x6 sprite sheet (96px tiles,
+     8px gutters filled with edge-clamped copies of the neighbouring tile so
+     bilinear sampling never pulls a neighbour's edge in). One request and no
+     filter graph: inlined as SVG the browser ran feTurbulence +
+     feDisplacementMap per card at load and again on every viewport resize,
+     which in-app browsers fire constantly while scrolling. render() picks
+     the tile through --mask-pos; the cycle repeats every 36 cards.
+     Regenerate with tools/mask-sheet.js. */
+  -webkit-mask-image: url('assets/mask-art-sheet.webp');
+          mask-image: url('assets/mask-art-sheet.webp');
+  /* (6 tiles + 5 gutters) / 1 tile = 616 / 96 */
+  -webkit-mask-size: 641.6667% 641.6667%;
+          mask-size: 641.6667% 641.6667%;
   -webkit-mask-repeat: no-repeat;
           mask-repeat: no-repeat;
-}
-.mix:nth-child(even) .mix-art {
-  -webkit-mask-image: url('assets/mask-art-2.png');
-          mask-image: url('assets/mask-art-2.png');
+  -webkit-mask-position: var(--mask-pos, 0 0);
+          mask-position: var(--mask-pos, 0 0);
 }
 .mix-art img {
   width: 100%;
