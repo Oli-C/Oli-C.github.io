@@ -18,13 +18,24 @@
      first paint no longer waits on the fonts.googleapis.com CSS round trip.
      crossorigin is required on font preloads even same-origin. -->
 <link rel="preload" href="assets/fonts/anek-kannada-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=102">
+<link rel="stylesheet" href="style.css?v=103">
 <script>
   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
     "theme": "charcoal",
     "grain": 12,
     "accent": "orange"
   }/*EDITMODE-END*/;
+  // Stamp theme, accent and grain before the first paint. app.js used to do
+  // this after it ran, so light-mode visitors saw the charcoal ground flash
+  // and every visitor paid a full-page restyle on a document that already had
+  // ~1600 elements. The <html> attribute keeps charcoal as the no-JS default.
+  (function () {
+    var root = document.documentElement;
+    root.setAttribute('data-theme',
+      matchMedia('(prefers-color-scheme: dark)').matches ? 'charcoal' : 'light');
+    root.setAttribute('data-accent', TWEAK_DEFAULTS.accent);
+    root.style.setProperty('--grain', String(TWEAK_DEFAULTS.grain / 100));
+  })();
 </script>
 </head>
 <body>
@@ -81,6 +92,6 @@
 
   </main>
 
-<script src="app.js?v=91"></script>
+<script src="app.js?v=92"></script>
 </body>
 </html>

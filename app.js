@@ -150,6 +150,13 @@
 
       function apply() {
         pending = false;
+        // No live input point — a finger lifted, the pen left, the mouse went
+        // out of the window. Nothing can be near anything, so release what is
+        // still held and skip measuring all ~90 containers.
+        if (points.size === 0) {
+          groups.forEach(g => { if (g.active) release(g); });
+          return;
+        }
         groups.forEach(g => {
           const box = g.el.getBoundingClientRect();
           // Fast path: no input point near this container — release held offsets.
@@ -233,7 +240,7 @@
   //  Replaces the previous CSS blob layer. Palette is driven by the current
   //  theme + accent (via setPaintPalette, called from apply() below).
   // ============================================================================
-  const setPaintPalette = (function initPaint() {
+  function initPaint() {
     const canvas = document.getElementById('paint-canvas');
     if (!canvas) return () => {};
     const gl = canvas.getContext('webgl', { antialias: false, premultipliedAlpha: true })
@@ -269,7 +276,29 @@
       '// Idle gates — 1 while any trail point / ripple is alive, else 0.',
       'uniform float uTrailOn;',
       'uniform float uRippleOn;',
-      'float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }',
+      '// Page backdrop, folded in from CSS (was .bg-paper over the body colour,',
+      '// the canvas mix-blend-mode, and .bg-vignette). The shader now outputs',
+      '// the finished composite so those two fixed layers and the blend mode',
+      '// can go. Geometry (gradient centres) is constant; colours come from the',
+      '// theme via setPalette. uPaper*.w is the start alpha, uPaper*E the',
+      '// gradient extent as a fraction of the farthest-corner distance.',
+      'uniform vec3 uPageBg;',
+      'uniform vec4 uPaper1, uPaper2;',
+      'uniform float uPaper1E, uPaper2E;',
+      'uniform vec3 uVigCol;',
+      'uniform float uVigA, uVigStart;',
+      '// 0 = screen (dark theme), 1 = multiply (light); uPaintOp is the old',
+      '// canvas opacity, applied to the blended result exactly as CSS did.',
+      'uniform float uBlend, uPaintOp;',
+      '// sin-free hash (Dave Hoskins hash12). The old fract(sin(dot()))*k cost',
+      '// a transcendental per lattice corner — ~228 sin() per fragment — and',
+      '// loses precision at large coordinates on mobile GPUs. Different noise',
+      '// field, statistically identical, and uSeed re-randomises it per load.',
+      'float hash(vec2 p){',
+      '  vec3 q = fract(vec3(p.xyx) * 0.1031);',
+      '  q += dot(q, q.yzx + 33.33);',
+      '  return fract((q.x + q.y) * q.z);',
+      '}',
       'float noise(vec2 p){',
       '  vec2 i=floor(p), f=fract(p);',
       '  float a=hash(i), b=hash(i+vec2(1.,0.)), c=hash(i+vec2(0.,1.)), d=hash(i+vec2(1.,1.));',
@@ -281,6 +310,31 @@
       '  // 5 octaves: at the capped DPR the 6th is sub-pixel.',
       '  for(int i=0;i<5;i++){ v+=a*noise(p); p*=2.03; a*=0.5; }',
       '  return v;',
+      '}',
+      '// 3-octave variant for the terms sampled at low frequency (the domain',
+      '// warp at p*0.35, the back layer at p*0.55, the ray shimmer) — octaves 4',
+      '// and 5 are sub-pixel there.',
+      '// The correction is an OFFSET, not a scale. Amplitudes halve per octave,',
+      '// so dropping octaves 4 and 5 costs 0.03125+0.0625 of weight — it moves',
+      '// the mean (0.5*0.96875 -> 0.5*0.875) but takes only 1.5% of the variance,',
+      '// which the first octave dominates. Scaling to fix the mean would have',
+      '// multiplied contrast by 1.107^2, brightening the whole field; adding the',
+      '// difference back matches the mean and leaves contrast where it was, so',
+      '// every downstream smoothstep sees the same distribution.',
+      'float fbm3(vec2 p){',
+      '  float v=0., a=0.5;',
+      '  for(int i=0;i<3;i++){ v+=a*noise(p); p*=2.03; a*=0.5; }',
+      '  return v + 0.046875;',
+      '}',
+      '// One CSS radial-gradient(circle at cx cy, rgba(col,a), transparent E%)',
+      '// composited source-over. farthest-corner sizing, premultiplied stop',
+      '// interpolation — the same alpha ramp the browser produced.',
+      'vec3 paperLayer(vec3 b, vec2 cuv, vec4 col, float ext, vec2 ctr){',
+      '  vec2 c  = ctr * uRes;',
+      '  vec2 fc = max(c, uRes - c);',
+      '  float r = length(fc) * ext;',
+      '  float a = col.w * clamp(1.0 - length(cuv * uRes - c) / r, 0.0, 1.0);',
+      '  return mix(b, col.xyz, a);',
       '}',
       'void main(){',
       '  // y measured down from the canvas top, so a height change cannot move it.',
@@ -341,14 +395,14 @@
       '  // Ambient current — the ink drifts slowly across the frame. The back',
       '  // layer inherits it at 0.55x via pBack, giving free parallax.',
       '  p += uTime * vec2(0.022, -0.008);',
-      '  vec2 m = 0.6 * vec2(fbm(p*0.35 + 0.03*uTime), fbm(p*0.35 + vec2(4.0,2.0) - 0.03*uTime));',
+      '  vec2 m = 0.6 * vec2(fbm3(p*0.35 + 0.03*uTime), fbm3(p*0.35 + vec2(4.0,2.0) - 0.03*uTime));',
       '  p += m;',
       '  float t = uTime * 0.065;',
       '  // Back layer — slower, larger scale, softer movement. Sits behind everything else.',
       '  vec2 pBack = p * 0.55 + vec2(7.3, 11.7);',
       '  float tBack = uTime * 0.032;',
-      '  vec2 qBack = vec2(fbm(pBack + tBack), fbm(pBack + vec2(3.1, 5.7) - tBack));',
-      '  float fBack = fbm(pBack + 1.6 * qBack);',
+      '  vec2 qBack = vec2(fbm3(pBack + tBack), fbm3(pBack + vec2(3.1, 5.7) - tBack));',
+      '  float fBack = fbm3(pBack + 1.6 * qBack);',
       '  // Front layer — existing domain-warped smoke.',
       '  vec2 q = vec2(fbm(p + t), fbm(p + vec2(5.2, 1.3) - t));',
       '  vec2 r = vec2(fbm(p + 2.0*q + vec2(1.7, 9.2) + 0.15*t),',
@@ -378,7 +432,7 @@
       '  // Near layer: broad, slow, bright. Far layer: finer, faster, opposite drift.',
       '  float rayN = pow(noise(vec2(across * 6.0 + tR, 2.7)), 3.0);',
       '  float rayF = pow(noise(vec2(across * 14.0 - tR * 1.8, 9.1)), 3.0);',
-      '  float shimmer = 0.7 + 0.3 * fbm(vec2(across * 4.0, uTime * 0.12));',
+      '  float shimmer = 0.7 + 0.3 * fbm3(vec2(across * 4.0, uTime * 0.12));',
       '  float rays = (rayN * 0.9 + rayF * 0.5) * shimmer;',
       '  float fadeTop = smoothstep(1.0, 0.1, depth);',
       '  float scatter = smoothstep(0.25, 0.85, f);',
@@ -389,6 +443,23 @@
       '  // Depth cue — the water column darkens slightly toward the bottom.',
       '  col *= 1.0 - depth * 0.14;',
       '  col *= 1.0 + (1.0 - intro) * 0.6;',
+      '  // ---- CSS layers, folded in ----------------------------------------',
+      '  // Reproduces exactly what the compositor used to do above this canvas:',
+      '  //   body background -> .bg-paper gradients -> this canvas blended at',
+      '  //   its old opacity -> .bg-vignette. All in sRGB, like CSS blending.',
+      '  // cuv is the canvas box normalised from the TOP-left, matching CSS.',
+      '  vec2 cuv = vec2(gl_FragCoord.x / uRes.x, 1.0 - gl_FragCoord.y / uRes.y);',
+      '  vec3 base = uPageBg;',
+      '  // Later-listed background images paint underneath, so paper2 first.',
+      '  base = paperLayer(base, cuv, uPaper2, uPaper2E, vec2(0.82, 0.85));',
+      '  base = paperLayer(base, cuv, uPaper1, uPaper1E, vec2(0.18, 0.15));',
+      '  vec3 blended = mix(1.0 - (1.0 - base) * (1.0 - col), base * col, uBlend);',
+      '  col = mix(base, blended, uPaintOp);',
+      '  // Vignette: ellipse farthest-corner from centre. For a centred ellipse',
+      '  // that sizing gives radii of half-box * sqrt(2), so the normalised',
+      '  // radius is just the centred offset * sqrt(2) — resolution independent.',
+      '  float vt = length((cuv - 0.5) * 1.41421356);',
+      '  col = mix(col, uVigCol, uVigA * clamp((vt - uVigStart) / max(1.0 - uVigStart, 0.0001), 0.0, 1.0));',
       '  gl_FragColor = vec4(col, 1.0);',
       '}',
     ].join('\n');
@@ -443,6 +514,17 @@
       const uC2     = gl.getUniformLocation(prog, 'uC2');
       const uC3     = gl.getUniformLocation(prog, 'uC3');
       const uBg     = gl.getUniformLocation(prog, 'uBg');
+      // Folded-in CSS backdrop (see the FRAG comments above).
+      const uPageBg   = gl.getUniformLocation(prog, 'uPageBg');
+      const uPaper1   = gl.getUniformLocation(prog, 'uPaper1');
+      const uPaper2   = gl.getUniformLocation(prog, 'uPaper2');
+      const uPaper1E  = gl.getUniformLocation(prog, 'uPaper1E');
+      const uPaper2E  = gl.getUniformLocation(prog, 'uPaper2E');
+      const uVigCol   = gl.getUniformLocation(prog, 'uVigCol');
+      const uVigA     = gl.getUniformLocation(prog, 'uVigA');
+      const uVigStart = gl.getUniformLocation(prog, 'uVigStart');
+      const uBlend    = gl.getUniformLocation(prog, 'uBlend');
+      const uPaintOp  = gl.getUniformLocation(prog, 'uPaintOp');
 
       // Random per-page-load offset so the smoke pattern starts in a different
       // place every time. Doesn't affect the intro ramp since it leaves uTime alone.
@@ -457,18 +539,38 @@
       // stays put while the buffer grows or crops beneath it.
       let patW = 0, patH = 0;       // device px — drives uPat
       let patCssW = 0, patCssH = 0; // CSS px — drives toPc
-      function resize() {
+      // Absolute fragment budget. A DPR cap alone is a ratio, so a 4K/5K
+      // display rendered 8.3 Mpx of heavy FBM — 16x an iPhone — through the
+      // same shader every frame, which is what made big screens stutter.
+      // The canvas is CSS-stretched to 100%, so anything below the budget is
+      // bilinearly upscaled for free; the smoke and the folded-in gradients
+      // are all low-frequency, so the upscale doesn't read. Phones are far
+      // under this already, so it only ever binds on large screens.
+      const MAX_PIXELS = 2.2e6;
+      // Chosen at pin time and held across height-only resizes: the scale
+      // feeds the buffer width, and a width change is what re-pins pattern
+      // space. Recomputing it on every height change would re-pin the field
+      // whenever an in-app browser's chrome collapses — the thing the pin
+      // exists to prevent.
+      let bufScale = 0;
+      function pickScale(cw, ch) {
         // The smoke is naturally soft so a lower render resolution is invisible —
         // DPR-3 phones especially benefit from a tighter cap.
-        const dprCap = window.innerWidth <= 640 ? 1.25 : 1.5;
-        const dpr = Math.min(window.devicePixelRatio || 1, dprCap);
+        const dprCap = cw <= 640 ? 1.25 : 1.5;
+        const s = Math.min(window.devicePixelRatio || 1, dprCap);
+        const px = cw * ch * s * s;
+        return px > MAX_PIXELS ? s * Math.sqrt(MAX_PIXELS / px) : s;
+      }
+      function resize() {
         // Size from the canvas box, not the window, so browser-UI-driven
         // innerHeight changes never reach the buffer in normal browsers.
-        const w = Math.max(1, Math.floor(canvas.clientWidth  * dpr));
-        const h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+        const cw = canvas.clientWidth, ch = canvas.clientHeight;
+        if (cw !== patCssW) bufScale = pickScale(cw, ch);
+        const w = Math.max(1, Math.floor(cw * bufScale));
+        const h = Math.max(1, Math.floor(ch * bufScale));
         if (w !== patW) {
           patW = w; patH = h;
-          patCssW = canvas.clientWidth; patCssH = canvas.clientHeight;
+          patCssW = cw; patCssH = ch;
           gl.uniform2f(uPat, patW, patH);
         }
         if (canvas.width !== w || canvas.height !== h) {
@@ -496,6 +598,16 @@
       // every 50ms). 30ms accepts every second tick on 60Hz displays (every
       // fourth on 120Hz) — an even, true 30fps.
       const FRAME_INTERVAL_MS = 30;
+      // Ceiling for the 60fps path. rAF ticks every 8.3ms on a 120Hz phone and
+      // 6.9ms at 144Hz, and the old gate drew on every one of them — 120-144
+      // full-screen shader passes a second. 15ms accepts every tick at 60Hz
+      // and every second tick at 120Hz.
+      const FAST_INTERVAL_MS = 15;
+      // A trail point lives ~4s while it dissolves, but the wake only needs
+      // 60fps while it is being drawn. Once the pointer stops, the remaining
+      // dissolve is slow and reads identically at the 30fps cadence.
+      const MOVE_WINDOW_MS = 150;
+      let lastMove = -1e9;
       let start = performance.now();
       let lastDraw = 0;
       let paused = false;
@@ -520,7 +632,7 @@
         0.5 - cy / patCssH,
       ];
       if (!reduceMotion) {
-        const notePointer = (cx, cy) => { [curX, curY] = toPc(cx, cy); };
+        const notePointer = (cx, cy) => { [curX, curY] = toPc(cx, cy); lastMove = performance.now(); };
         window.addEventListener('mousemove', e => notePointer(e.clientX, e.clientY), { passive: true });
         window.addEventListener('touchmove', e => {
           if (e.touches.length && !scrolling()) notePointer(e.touches[0].clientX, e.touches[0].clientY);
@@ -640,18 +752,35 @@
         const inIntro = elapsed < INTRO_MS;
         const trailActive = updateTrail(now);
         const rippleActive = updateRipples(now);
-        // A live trail normally forces 60fps — not while scrolling, when the GPU
-        // is needed for tiles; hold the 30fps cadence instead.
-        if (inIntro || (trailActive && !scrolling()) || rippleActive || now - lastDraw >= FRAME_INTERVAL_MS) {
+        // The fast path is for motion the eye can actually track: the intro,
+        // a wake being drawn right now, a spreading ripple. A live trail no
+        // longer forces it for its whole dissolve, and not while scrolling
+        // either, when the GPU is needed for tiles.
+        const fast = inIntro
+          || (trailActive && now - lastMove < MOVE_WINDOW_MS && !scrolling())
+          || rippleActive;
+        if (now - lastDraw >= (fast ? FAST_INTERVAL_MS : FRAME_INTERVAL_MS)) {
           const t = reduceMotion ? 7.3 : elapsed * 0.001;
           gl.uniform1f(uTime, t);
           gl.uniform1f(uTrailOn, trailActive ? 1 : 0);
           gl.uniform1f(uRippleOn, rippleActive ? 1 : 0);
-          gl.uniform4fv(uTrail, trailData);
-          gl.uniform2fv(uTrailV, trailVelData);
-          gl.uniform3fv(uRipple, rippleData);
+          // The uTrailOn / uRippleOn gates make the shader skip these loops
+          // entirely, so stale array contents are unobservable — only upload
+          // them while they are actually being read.
+          if (trailActive) {
+            gl.uniform4fv(uTrail, trailData);
+            gl.uniform2fv(uTrailV, trailVelData);
+          }
+          if (rippleActive) gl.uniform3fv(uRipple, rippleData);
           gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-          everDrawn = true;
+          if (!everDrawn) {
+            everDrawn = true;
+            // The shader now paints the paper gradients and the vignette
+            // itself, so their CSS layers are redundant from here on. Held
+            // until the first frame lands so the pre-shader page looks the
+            // same, and never set if WebGL is missing or the compile failed.
+            document.body.classList.add('paint-live');
+          }
           lastDraw = now;
         }
         if (!reduceMotion) requestAnimationFrame(frame);
@@ -714,6 +843,28 @@
         gl.uniform3f(uC2, c2[0], c2[1], c2[2]);
         gl.uniform3f(uC3, c3[0], c3[1], c3[2]);
         gl.uniform3f(uBg, bg[0], bg[1], bg[2]);
+
+        // Folded-in CSS backdrop. Also CSS-driven: --paper-1/--paper-2 are
+        // `r g b a extent%` and --vig is `r g b a start%`, mirroring the
+        // gradients these replace; --paint-blend / --paint-op mirror the
+        // canvas's old mix-blend-mode and opacity. Not run through saturate()
+        // — the CSS layers weren't either.
+        const nums = v => cs.getPropertyValue(v).trim().split(/\s+/).map(Number);
+        const p1 = nums('--paper-1'), p2 = nums('--paper-2'), vg = nums('--vig');
+        const pg = hexToRgb(cs.getPropertyValue('--bg'));
+        gl.uniform3f(uPageBg, pg[0], pg[1], pg[2]);
+        gl.uniform4f(uPaper1, p1[0] / 255, p1[1] / 255, p1[2] / 255, p1[3]);
+        gl.uniform4f(uPaper2, p2[0] / 255, p2[1] / 255, p2[2] / 255, p2[3]);
+        gl.uniform1f(uPaper1E, p1[4] / 100);
+        gl.uniform1f(uPaper2E, p2[4] / 100);
+        gl.uniform3f(uVigCol, vg[0] / 255, vg[1] / 255, vg[2] / 255);
+        gl.uniform1f(uVigA, vg[3]);
+        gl.uniform1f(uVigStart, vg[4] / 100);
+        gl.uniform1f(uBlend,   parseFloat(cs.getPropertyValue('--paint-blend')) || 0);
+        gl.uniform1f(uPaintOp, parseFloat(cs.getPropertyValue('--paint-op'))   || 1);
+        // A theme flip mid-life must repaint now: the frame loop is throttled
+        // to 30fps and the palette change is otherwise invisible until it ticks.
+        if (everDrawn) gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       };
       if (queuedPalette) realSetPalette(queuedPalette[0], queuedPalette[1]);
     }
@@ -736,7 +887,27 @@
       if (realSetPalette) realSetPalette(theme, accentHex);
       else queuedPalette = [theme, accentHex];
     };
-  })();
+  }
+
+  // Getting a WebGL context, building the shader source and queueing the
+  // compile all ran synchronously inside app.js's own evaluation, and the
+  // link status query that follows blocks the main thread outright — landing
+  // in the middle of the title cascade. None of it is needed for the first
+  // paint (the canvas starts transparent and the smoke fades in over its own
+  // 1.6s ramp from whenever it is ready), so it waits for a frame to be on
+  // screen first. Two rAFs: the callback of the first runs before that
+  // frame's paint, the second after it.
+  let paintPalette = null;
+  let pendingPalette = null;
+  function setPaintPalette(theme, accentHex) {
+    if (paintPalette) paintPalette(theme, accentHex);
+    else pendingPalette = [theme, accentHex];
+  }
+  function startPaint() {
+    paintPalette = initPaint();
+    if (pendingPalette) paintPalette(pendingPalette[0], pendingPalette[1]);
+  }
+  requestAnimationFrame(() => requestAnimationFrame(startPaint));
 
   // ============================================================================
   //  Upcoming shows — rendered above the mix list under an "upcoming" divider
@@ -915,12 +1086,34 @@
     apply();
   });
 
+  // The inline head script already stamped all three of these from the same
+  // TWEAK_DEFAULTS before first paint, so on load this only feeds the shader
+  // palette. Writing them unconditionally invalidated style on <html> and
+  // restyled the whole page — ~1600 elements — right after first paint.
   function apply() {
-    root.setAttribute('data-theme', state.theme);
-    root.setAttribute('data-accent', state.accent);
-    root.style.setProperty('--grain', String(state.grain / 100));
+    if (root.getAttribute('data-theme') !== state.theme) root.setAttribute('data-theme', state.theme);
+    if (root.getAttribute('data-accent') !== state.accent) root.setAttribute('data-accent', state.accent);
+    const grain = String(state.grain / 100);
+    if (root.style.getPropertyValue('--grain') !== grain) root.style.setProperty('--grain', grain);
     setPaintPalette(state.theme, getComputedStyle(root).getPropertyValue('--accent'));
   }
 
   apply();
+
+  // ============================================================================
+  //  The pill row's pebble morph animates border-radius, which no browser can
+  //  run on the compositor — it repaints and re-layerizes all seven pills on
+  //  every frame, forever. `steps()` on the keyframes (style.css) cuts that to
+  //  ~10 repaints a second, and once the row has scrolled away there is no
+  //  reason to run it at all. Only the second animation in the shorthand
+  //  (pill-blob) is paused, so the entrance is never interrupted.
+  // ============================================================================
+  (function initPillIdle() {
+    const pills = document.querySelector('.pills');
+    if (!pills || !('IntersectionObserver' in window)) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    new IntersectionObserver(entries => {
+      document.body.classList.toggle('pills-away', !entries[0].isIntersecting);
+    }, { rootMargin: '80px' }).observe(pills);
+  })();
 })();

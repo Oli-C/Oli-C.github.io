@@ -90,6 +90,15 @@
   --smoke-c2:    #651d32;
   --smoke-c3:    #373a36;
   --smoke-sat:   1.0;
+  /* Backdrop the shader composites for itself — see .bg-paint. These mirror
+     the .bg-paper gradients (`r g b a extent%`), the .bg-vignette gradient
+     (`r g b a start%`), and the canvas's old mix-blend-mode / opacity
+     (0 = screen, 1 = multiply). Kept here so the palette still lives in CSS. */
+  --paper-1:     216 90 43 0.10 40;
+  --paper-2:     237 229 208 0.04 45;
+  --vig:         0 0 0 0.35 40;
+  --paint-blend: 0;
+  --paint-op:    0.9;
 }
 [data-theme="light"] {
   /* day — the morning after: warm greys, black ink, the same amber and wine
@@ -111,6 +120,11 @@
   --smoke-c2:    #651d32;
   --smoke-c3:    #968c83;
   --smoke-sat:   1.0;
+  --paper-1:     106 30 30 0.08 40;
+  --paper-2:     74 93 58 0.06 50;
+  --vig:         26 22 18 0.15 55;
+  --paint-blend: 1;
+  --paint-op:    0.7;
 }
 
 html, body {
@@ -156,17 +170,26 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
 }
 
 /* Shader-rendered paint canvas — see bg-shader init in app.js.
-   Height comes from the shared 100lvh rule above. */
+   Height comes from the shared 100lvh rule above.
+   No mix-blend-mode and no opacity: the shader composites the page colour,
+   the .bg-paper gradients, its own blend and the vignette itself and outputs
+   the finished result opaque. That leaves the canvas a plain layer the
+   compositor never has to blend against its backdrop, and lets the two
+   gradient layers below drop out entirely once the first frame lands.
+   The blend maths and colours live in the --paint-* / --paper-* / --vig
+   variables per theme above. */
 .bg-paint {
   z-index: 0;
   width: 100%;
   display: block;
-  opacity: 0.9;
-  mix-blend-mode: screen;
 }
-[data-theme="light"] .bg-paint {
-  mix-blend-mode: multiply;
-  opacity: 0.7;
+/* Only until the shader's first frame — before that the canvas is still
+   transparent, so these carry the backdrop exactly as they always did. If
+   WebGL is missing or the shader fails to compile the class is never set and
+   they simply stay. */
+body.paint-live .bg-paper,
+body.paint-live .bg-vignette {
+  display: none;
 }
 .bg-paper {
   background:
@@ -220,9 +243,13 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
     padding-left: max(28px, env(safe-area-inset-left));
   }
 }
+/* Opacity only. The blur that used to ride along here cost a full-viewport
+   filter pass per frame during the busiest 600ms of the load, and had almost
+   nothing to show for it: every child that is visible in that window is held
+   at opacity 0 by its own entrance animation's `backwards` fill. */
 @keyframes page-emerge {
-  from { opacity: 0; filter: blur(6px); }
-  to   { opacity: 1; filter: blur(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 @keyframes pill-fly {
   from { opacity: 0; transform: translateY(16px) scale(0.97); }
@@ -271,8 +298,16 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
    instead of snapping from transform:none to the scatter tilt at animation
    end. The negative pill-blob delay phase-offsets each pill's morph cycle,
    so every pill shows a different pebble shape at any moment. */
+/* pill-blob animates border-radius, which cannot run on the compositor: at a
+   smooth 60fps it repainted and re-layerized all seven pills every frame for
+   as long as the page was open, which measured ~18% of the mobile main thread
+   while idle. steps(24) per keyframe segment holds each shape for ~95ms
+   instead — the radii move at most ~8px over a segment, so a step is a third
+   of a pixel and the morph looks the same. app.js pauses this one animation
+   (not the entrance) once the row scrolls out of view. */
 .pill      { animation: pill-fly 500ms var(--ease) calc(1.2s + var(--pi, 0) * 60ms) backwards,
-                        pill-blob var(--blob, 9s) ease-in-out calc(var(--pi, 0) * -1.5s) infinite; }
+                        pill-blob var(--blob, 9s) steps(24) calc(var(--pi, 0) * -1.5s) infinite; }
+body.pills-away .pill { animation-play-state: running, paused; }
 .pills .pill:nth-child(1) { --pi: 0; --tilt: -1.6deg; --nudge: 1px; --size: 44px; --blob: 8.2s; }
 .pills .pill:nth-child(2) { --pi: 1; --tilt:  1.2deg; --nudge: -1px; --size: 47px; --blob: 10.5s; }
 .pills .pill:nth-child(3) { --pi: 2; --tilt: -0.8deg; --nudge: -2px; --size: 45px; --blob: 9.1s; }
@@ -562,18 +597,22 @@ button { font: inherit; border: 0; background: transparent; color: inherit; curs
   overflow: hidden;
   /* Hold solid longer so the photo reads as a photo before dissolving. The
      fade is an SVG gradient pushed around by noise, so the edge bleeds
-     unevenly into the card like ink into paper. Static image: rasterised
-     once, no per-frame cost. Even cards use a second seed. */
-  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><defs><linearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' x2='100'><stop offset='0.42' stop-color='%23000'/><stop offset='1' stop-color='%23000' stop-opacity='0'/></linearGradient><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='0.012 0.05' numOctaves='3' seed='3'/><feDisplacementMap in='SourceGraphic' scale='28' xChannelSelector='R' yChannelSelector='G'/></filter></defs><rect x='-40' y='-40' width='180' height='180' fill='url(%23g)' filter='url(%23f)'/></svg>");
-          mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><defs><linearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' x2='100'><stop offset='0.42' stop-color='%23000'/><stop offset='1' stop-color='%23000' stop-opacity='0'/></linearGradient><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='0.012 0.05' numOctaves='3' seed='3'/><feDisplacementMap in='SourceGraphic' scale='28' xChannelSelector='R' yChannelSelector='G'/></filter></defs><rect x='-40' y='-40' width='180' height='180' fill='url(%23g)' filter='url(%23f)'/></svg>");
+     unevenly into the card like ink into paper. Even cards use a second seed.
+     Pre-rasterised from those exact SVGs (256x256 greyscale+alpha, generated
+     once) rather than inlined: as a data URI the browser ran feTurbulence +
+     feDisplacementMap per card — 28 filter rasterisations at load, and again
+     on every viewport resize, which in-app browsers fire constantly while
+     scrolling. Same alpha ramp, no filter graph. */
+  -webkit-mask-image: url('assets/mask-art-1.png');
+          mask-image: url('assets/mask-art-1.png');
   -webkit-mask-size: 100% 100%;
           mask-size: 100% 100%;
   -webkit-mask-repeat: no-repeat;
           mask-repeat: no-repeat;
 }
 .mix:nth-child(even) .mix-art {
-  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><defs><linearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' x2='100'><stop offset='0.42' stop-color='%23000'/><stop offset='1' stop-color='%23000' stop-opacity='0'/></linearGradient><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='0.012 0.05' numOctaves='3' seed='11'/><feDisplacementMap in='SourceGraphic' scale='28' xChannelSelector='R' yChannelSelector='G'/></filter></defs><rect x='-40' y='-40' width='180' height='180' fill='url(%23g)' filter='url(%23f)'/></svg>");
-          mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><defs><linearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' x2='100'><stop offset='0.42' stop-color='%23000'/><stop offset='1' stop-color='%23000' stop-opacity='0'/></linearGradient><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='0.012 0.05' numOctaves='3' seed='11'/><feDisplacementMap in='SourceGraphic' scale='28' xChannelSelector='R' yChannelSelector='G'/></filter></defs><rect x='-40' y='-40' width='180' height='180' fill='url(%23g)' filter='url(%23f)'/></svg>");
+  -webkit-mask-image: url('assets/mask-art-2.png');
+          mask-image: url('assets/mask-art-2.png');
 }
 .mix-art img {
   width: 100%;
