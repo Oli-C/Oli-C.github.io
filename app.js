@@ -924,6 +924,7 @@
   //  Mix data — pulled from the real Linktree export
   // ============================================================================
   const MIXES = [
+    { code: 'LUS-057', title: 'Prata Da Casa w/ Prokta', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '05.09.2026', y: 2026, sub: 'Prolongamento guest w/ Prokta', img: 'assets/mix-lus-057.jpeg', url: 'https://youtu.be/Y2x3akfcnjI' },
     { code: 'LUS-056', title: 'August Radio', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '22.08.2026', y: 2026, sub: 'Residency solo', img: 'assets/mix-lus-056.jpeg', url: 'https://youtu.be/sUSVFPTJj1w' },
     { code: 'LUS-055', title: 'July Radio', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '17.07.2026', y: 2026, sub: 'Residency solo', img: 'assets/mix-lus-055.jpeg', url: 'https://youtu.be/5_h7jc8kwR8' },
     { code: 'LUS-054', title: 'June Radio', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '03.06.2026', y: 2026, sub: 'Residency solo', img: 'assets/mix-lus-054.jpeg', url: 'https://youtu.be/twljVtkxQZE' },
