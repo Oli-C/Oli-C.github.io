@@ -918,7 +918,11 @@
   //  its own, so a stale date never shows even before the list is updated.
   //  Once a show has aired, move it into MIXES with its stream URL.
   // ============================================================================
-  const UPCOMING = [];
+  const UPCOMING = [
+    { code: 'LUS-058', title: 'September Radio w/ Owari', series: 'lus', tag: 'LUSOPHONICA', date: '20.09.2026',
+      when: '13:00 – 15:00', tz: 'Lisbon / London', start: '2026-09-20T13:00:00+01:00', until: '2026-09-20T15:00:00+01:00',
+      img: 'assets/mix-lus-058.jpeg', url: 'https://www.lusophonica.com/' },
+  ];
 
   // ============================================================================
   //  Mix data — pulled from the real Linktree export
