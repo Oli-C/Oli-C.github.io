@@ -918,16 +918,13 @@
   //  its own, so a stale date never shows even before the list is updated.
   //  Once a show has aired, move it into MIXES with its stream URL.
   // ============================================================================
-  const UPCOMING = [
-    { code: 'LUS-058', title: 'September Radio w/ Owari', series: 'lus', tag: 'LUSOPHONICA', date: '20.09.2026',
-      when: '13:00 – 15:00', tz: 'Lisbon / London', start: '2026-09-20T13:00:00+01:00', until: '2026-09-20T15:00:00+01:00',
-      img: 'assets/mix-lus-058.jpeg', url: 'https://www.lusophonica.com/' },
-  ];
+  const UPCOMING = [];
 
   // ============================================================================
   //  Mix data — pulled from the real Linktree export
   // ============================================================================
   const MIXES = [
+    { code: 'LUS-058', title: 'September Radio w/ Owari', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '20.09.2026', y: 2026, sub: 'Residency w/ Owari', img: 'assets/mix-lus-058.jpeg', url: 'https://youtu.be/AwsD1EYgqv8' },
     { code: 'LUS-057', title: 'Prata Da Casa w/ Prokta', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '05.09.2026', y: 2026, sub: 'Prolongamento guest w/ Prokta', img: 'assets/mix-lus-057.jpeg', url: 'https://youtu.be/Y2x3akfcnjI' },
     { code: 'LUS-056', title: 'August Radio', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '22.08.2026', y: 2026, sub: 'Residency solo', img: 'assets/mix-lus-056.jpeg', url: 'https://youtu.be/sUSVFPTJj1w' },
     { code: 'LUS-055', title: 'July Radio', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '17.07.2026', y: 2026, sub: 'Residency solo', img: 'assets/mix-lus-055.jpeg', url: 'https://youtu.be/5_h7jc8kwR8' },
