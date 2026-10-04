@@ -918,7 +918,11 @@
   //  its own, so a stale date never shows even before the list is updated.
   //  Once a show has aired, move it into MIXES with its stream URL.
   // ============================================================================
-  const UPCOMING = [];
+  const UPCOMING = [
+    { code: 'COL-001', title: 'allfield at Collect Radio', series: 'col', tag: 'COLLECT RADIO', date: '27.10.2026',
+      when: '19:00 – 21:00', tz: 'Lisbon / London', start: '2026-10-27T19:00:00+00:00', until: '2026-10-27T21:00:00+00:00',
+      img: 'assets/mix-col-001.jpeg', url: 'https://www.youtube.com/c/collectradio' },
+  ];
 
   // ============================================================================
   //  Mix data — pulled from the real Linktree export
