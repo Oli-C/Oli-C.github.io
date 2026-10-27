@@ -1004,6 +1004,39 @@
   }
   .icon-btn:hover, .icon-btn:focus-visible { border-color: var(--accent); color: var(--accent-ink); outline: none; }
   #v-close { background: var(--accent); color: #101820; border-color: var(--accent); }
+  .go-top {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 40px;
+    padding: 0 14px 0 12px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--fg);
+    background: var(--bg-3);
+    border: 1px solid var(--border-2);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: border-color .2s var(--ease), color .2s var(--ease);
+  }
+  .go-top span { padding-top: 2px; }
+  .go-top:hover, .go-top:focus-visible { border-color: var(--accent); color: var(--accent-ink); outline: none; }
+  @media (max-width: 700px) {
+    .sheet-head { gap: 8px; padding-left: 14px; }
+    .sheet-head #v-open { display: none; }
+    .sheet-title .name {
+      white-space: normal;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      font-size: 18px;
+    }
+    .sheet-title .where { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .go-top { height: 38px; padding: 0 12px 0 10px; font-size: 13px; }
+  }
   #v-close:hover, #v-close:focus-visible { color: #101820; filter: brightness(1.08); }
 
   .frame {
@@ -1262,6 +1295,46 @@
     color: var(--bg);
     background: var(--fg);
   }
+  /* Scrubbing: a cursor through every graph, the hour's column lit, an
+     accent time tag (tap it to go back to now). */
+  .plot, .axis, .w-arrows { touch-action: pan-y; cursor: crosshair; user-select: none; -webkit-user-select: none; }
+  .graph { outline: none; }
+  .graph:focus-visible { border-color: var(--accent); }
+  .graph.scrub .g-big { color: var(--accent-ink); }
+  .plot .cursor {
+    position: absolute;
+    top: -6px;
+    bottom: -6px;
+    z-index: 5;
+    width: 2px;
+    margin-left: -1px;
+    border-radius: 1px;
+    background: var(--accent);
+    pointer-events: none;
+  }
+  .plot .cursor[hidden] { display: none; }
+  .plot .bars .sel i { opacity: 1; box-shadow: 0 0 0 1.5px var(--accent); }
+  .plot.band .bars .sel i { box-shadow: 0 0 0 2px var(--accent); }
+  .plot .tdot.sel { z-index: 6; width: 10px; height: 10px; margin: -5px 0 0 -5px; background: var(--accent); }
+  .plot .tdot[hidden] { display: none; }
+  .axis .sel-tag {
+    position: absolute;
+    top: 0;
+    z-index: 2;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    padding: 2px 7px 1px;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    color: #101820;
+    background: var(--accent);
+    border: 0;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .axis .sel-tag[hidden] { display: none; }
+  .axis .sel-tag::after { content: " ×"; font-weight: 600; }
 
   /* "Right now": water, air, light, tide, suit */
   .now-row {
@@ -1552,6 +1625,10 @@
         <div class="name" id="v-name"></div>
         <div class="where" id="v-where"></div>
       </div>
+      <button class="go-top" id="v-go" type="button" data-go="" title="Directions to this spot">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+        <span>Directions</span>
+      </button>
       <a class="icon-btn" id="v-open" target="_blank" rel="noopener noreferrer" aria-label="Open on source site" title="Open on source site">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
       </a>
@@ -2707,11 +2784,16 @@
     const axis = '<div class="axis">' +
       [3, 6, 9, 12, 15, 18, 21].filter((x) => Math.abs(x * 60 - nowM) > 150)
         .map((x) => `<span style="left:${pct(x * 60)}">${x === 12 ? 'Noon' : x}</span>`).join('') +
-      `<span class="now-tag" style="left:${pct(Math.min(1380, Math.max(60, nowM)))}">${fmtMins(nowM)}</span></div>`;
-    const plot = (kind, inner, extra = '') => `<div class="plot ${kind}">${night}${inner}${nowLine}</div>${extra}${axis}`;
-    const card = (label, big, sub, graph, key = '') =>
-      `<div class="graph"><div class="g-head"><span class="k">${label}</span>${key}</div>` +
+      `<span class="now-tag" style="left:${pct(Math.min(1380, Math.max(60, nowM)))}">${fmtMins(nowM)}</span>` +
+      '<button class="sel-tag" type="button" aria-label="Back to now" hidden></button></div>';
+    const plot = (kind, inner, extra = '') =>
+      `<div class="plot ${kind}">${night}${inner}${nowLine}<span class="cursor" hidden></span></div>${extra}${axis}`;
+    const card = (g, label, big, sub, graph, key = '') =>
+      `<div class="graph" data-g="${g}" tabindex="0" aria-label="${label} through the day; arrow keys step the hour"><div class="g-head"><span class="k">${label}</span>${key}</div>` +
       `<span class="g-big">${big}</span><div class="g-sub">${sub}</div>${graph}</div>`;
+    // What each card says by default (the day) and at any one hour, for
+    // scrubbing; filled in as each card is built.
+    const def = {}, hour = {};
     const daylight = (h) => byHour[h] && !dark(h);
     const short = (m) => (units === 'ft' ? String(Math.round(m * 3.281)) : m.toFixed(1));
     const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
@@ -2729,10 +2811,16 @@
       const avg = w.reduce((s, r) => s + r.total, 0) / 3;
       if (!best || avg > best.avg) best = { h, avg };
     }
-    const quality = card('Quality',
+    def.quality = [
       qLo == null ? 'No light left' : qLo === qHi ? LEVELS[qHi] : `${LEVELS[qLo]} to ${LEVELS[qHi]}`,
-      best ? `Best <b>${pad(best.h)}:00–${pad(best.h + 3)}:00</b>, around ${fmt(Math.round(best.avg * 2) / 2)}/10` : 'Hour by hour; daylight hours count',
-      band);
+      best ? `Best <b>${pad(best.h)}:00–${pad(best.h + 3)}:00</b>, around ${fmt(Math.round(best.avg * 2) / 2)}/10` : 'Hour by hour; daylight hours count'];
+    hour.quality = (h) => {
+      const r = scores[h];
+      if (!r) return null;
+      return [`${fmt(r.total)}<small>/10 ${LEVELS[r.level]}</small>`,
+        `<b>${pad(h)}:00</b> · ${r.cap ? esc(r.cap) : esc(cap(r.wind)) + ' wind'}`];
+    };
+    const quality = card('quality', 'Quality', ...def.quality, band);
 
     // Surf: breaking face height at the beach, the day's peak labelled.
     const faces = byHour.map((k) => (k && k.h != null ? faceRange(c, k) : null));
@@ -2747,10 +2835,12 @@
       return `<span class="${cls(h)}" title="${pad(h)}:00 · ${rng(f[0], f[1])}"><i style="height:${Math.max(4, top).toFixed(1)}%"></i>` +
         (h === fPeak ? `<em style="bottom:${top.toFixed(1)}%">${short(f[1])}</em>` : '') + '</span>';
     }).join('') + '</span>';
-    const surf = card('Surf',
-      rng(fLo, fHi).replace(/ (m|ft)$/, '<small>$1</small>'),
-      `${esc(sizeWord(fHi))} · swell <b>${hgt(now.h)}</b> ${Math.round(now.p)} s${now.d != null ? ' from ' + dirName(now.d) : ''}`,
-      plot('surf', surfBars));
+    const swellTxt = (k) => `swell <b>${hgt(k.h)}</b> ${Math.round(k.p)} s${k.d != null ? ' from ' + dirName(k.d) : ''}`;
+    const unit = (s) => s.replace(/ (m|ft)$/, '<small>$1</small>');
+    def.surf = [unit(rng(fLo, fHi)), `${esc(sizeWord(fHi))} · ${swellTxt(now)}`];
+    hour.surf = (h) => (faces[h]
+      ? [unit(rng(faces[h][0], faces[h][1])), `<b>${pad(h)}:00</b> · ${esc(sizeWord(faces[h][1]))} · ${swellTxt(byHour[h])}`] : null);
+    const surf = card('surf', 'Surf', ...def.surf, plot('surf', surfBars));
 
     // Wind: speed bars coloured by how the spot takes it, gusts as a paler
     // cap, the peak labelled, and direction arrows every three hours.
@@ -2768,9 +2858,11 @@
       const k = byHour[h];
       return `<span class="${REL_SHORT[windRel(c, k)]}" style="left:${((h + 0.5) / 24 * 100).toFixed(2)}%;--rot:${Math.round(k.wd + 180)}deg" title="${pad(h)}:00 from ${dirName(k.wd)}">${GLYPH}</span>`;
     }).join('') + '</div>';
-    const wind = card('Wind',
-      `${kts(now.ws)}<small>kts ${dirName(now.wd)}</small>`,
-      esc(cap(windRel(c, now))) + (now.wg != null ? ` · gusts <b>${kts(now.wg)} kts</b>` : ''),
+    const windTxt = (k) => [`${kts(k.ws)}<small>kts ${dirName(k.wd)}</small>`,
+      esc(cap(windRel(c, k))) + (k.wg != null ? ` · gusts <b>${kts(k.wg)} kts</b>` : '')];
+    def.wind = windTxt(now);
+    hour.wind = (h) => { if (!byHour[h]) return null; const [b, s] = windTxt(byHour[h]); return [b, `<b>${pad(h)}:00</b> · ${s}`]; };
+    const wind = card('wind', 'Wind', ...def.wind,
       plot('wind', windBars, arrows),
       '<span class="g-key"><span><i style="--c:#9eb05c"></i>off</span><span><i style="--c:#9fb3c8"></i>cross</span><span><i style="--c:#ff5a5a"></i>on</span></span>');
 
@@ -2801,20 +2893,93 @@
           `<span class="tlab ${e.kind === 'High' ? 'hi' : 'lo'}" style="left:${left};top:${top}">${fmtMins(e.mins)}<small>${e.kind}</small></span>`;
       }).join('');
       const nowDot = `<span class="tdot now" style="left:${X(nowM)}%;top:${Y(at(nowM)).toFixed(1)}%"></span>`;
-      const next = (cnd.tides || []).find((e) => e.mins > nowM);
-      const inTxt = (m) => { const d = m - nowM; return d < 60 ? `${d} min` : `${Math.floor(d / 60)} h ${pad(d % 60)}`; };
-      tide = card('Tide',
-        cap(now.tn != null ? tideWord(now.tn) : 'tide') + (now.tdir ? `<small>${now.tdir === 'rising' ? '▲ rising' : '▼ falling'}</small>` : ''),
-        next ? `${next.kind} at <b>${fmtMins(next.mins)}</b> · in ${inTxt(next.mins)}` : esc(tideTimes(cnd)),
-        plot('tide', svg + evs + nowDot));
+      const selDot = '<span class="tdot sel" hidden></span>';
+      const inTxt = (from, m) => { const d = m - from; return d < 60 ? `${d} min` : `${Math.floor(d / 60)} h ${pad(d % 60)}`; };
+      const tideTxt = (k, from) => {
+        const next = (cnd.tides || []).find((e) => e.mins > from);
+        return [cap(k.tn != null ? tideWord(k.tn) : 'tide') + (k.tdir ? `<small>${k.tdir === 'rising' ? '▲ rising' : '▼ falling'}</small>` : ''),
+          next ? `${next.kind} at <b>${fmtMins(next.mins)}</b> · in ${inTxt(from, next.mins)}` : esc(tideTimes(cnd))];
+      };
+      def.tide = tideTxt(now, nowM);
+      hour.tide = (h) => {
+        if (!byHour[h]) return null;
+        const [b, s] = tideTxt(byHour[h], h * 60 + 30);
+        return [b, `<b>${pad(h)}:00</b> · ${s}`];
+      };
+      hour.tideAt = (h) => [X(h * 60 + 30), Y(at(h * 60 + 30)).toFixed(1)];
+      tide = card('tide', 'Tide', ...def.tide, plot('tide', svg + evs + nowDot + selDot));
     }
 
     el.hidden = false;
     el.innerHTML =
-      `<div class="today-head"><span class="k">Today</span>${goButton(c)}</div>` +
+      `<div class="today-head"><span class="k">Today</span></div>` +
       `<p class="today-sum">${esc(daySummary(c))}</p>` +
       `<div class="day-graphs">${quality}${surf}${wind}${tide}</div>`;
+    el._scrub = { def, hour };
+    el._sel = null;   // fresh render shows the day again
   }
+
+  // Scrub the day: hover, or drag a finger across any graph, and one cursor
+  // runs through all four while each headline shows that hour. The mouse
+  // leaving puts it back to now; on touch it holds until the time tag is
+  // tapped. Plots only claim horizontal drags, so the sheet still scrolls.
+  const todayEl = $('v-today');
+  const hourAt = (e) => {
+    const p = e.target.closest('.plot, .axis, .w-arrows');
+    if (!p) return null;
+    const r = p.getBoundingClientRect();
+    return Math.max(0, Math.min(23, Math.floor((e.clientX - r.left) / r.width * 24)));
+  };
+  function selectHour(h) {
+    const s = todayEl._scrub;
+    if (!s) return;
+    if (h === todayEl._sel) return;
+    todayEl._sel = h;
+    for (const g of todayEl.querySelectorAll('.graph')) {
+      const v = h == null ? s.def[g.dataset.g] : s.hour[g.dataset.g](h) || s.def[g.dataset.g];
+      g.querySelector('.g-big').innerHTML = v[0];
+      g.querySelector('.g-sub').innerHTML = v[1];
+      g.classList.toggle('scrub', h != null);
+    }
+    const left = h == null ? '' : ((h + 0.5) / 24 * 100).toFixed(2) + '%';
+    for (const cur of todayEl.querySelectorAll('.cursor')) { cur.hidden = h == null; cur.style.left = left; }
+    for (const t of todayEl.querySelectorAll('.sel-tag')) {
+      t.hidden = h == null;
+      if (h != null) { t.style.left = `clamp(26px, ${left}, calc(100% - 26px))`; t.textContent = String(h).padStart(2, '0') + ':00'; }
+    }
+    for (const col of todayEl.querySelectorAll('.bars > .sel')) col.classList.remove('sel');
+    if (h != null) for (const bars of todayEl.querySelectorAll('.bars')) bars.children[h] && bars.children[h].classList.add('sel');
+    const dot = todayEl.querySelector('.tdot.sel');
+    if (dot) {
+      dot.hidden = h == null;
+      if (h != null && s.hour.tideAt) { const [x, y] = s.hour.tideAt(h); dot.style.left = x + '%'; dot.style.top = y + '%'; }
+    }
+  }
+  todayEl.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.sel-tag')) { selectHour(null); return; }
+    const h = hourAt(e);
+    if (h == null) return;
+    todayEl._drag = true;
+    selectHour(h);
+  });
+  todayEl.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse' && !todayEl._drag) return;
+    const h = hourAt(e);
+    if (h != null) selectHour(h);
+  });
+  const endDrag = () => { todayEl._drag = false; };
+  todayEl.addEventListener('pointerup', endDrag);
+  todayEl.addEventListener('pointercancel', endDrag);
+  todayEl.addEventListener('pointerleave', (e) => { endDrag(); if (e.pointerType === 'mouse') selectHour(null); });
+  // Keyboard: arrow keys step the hour while a graph has focus.
+  todayEl.addEventListener('keydown', (e) => {
+    if (!e.target.closest('.graph')) return;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const cur = todayEl._sel == null ? new Date().getHours() : todayEl._sel;
+      selectHour(Math.max(0, Math.min(23, cur + (e.key === 'ArrowRight' ? 1 : -1))));
+    } else if (e.key === 'Escape' && todayEl._sel != null) { e.stopPropagation(); selectHour(null); }
+  });
 
   /* ---------- "Was it right?" ---------- */
 
@@ -2945,7 +3110,7 @@
     const b = c.best;
     const item = (k, v) => `<span>${k} <b>${v}</b></span>`;
     $('v-local').innerHTML = `
-      <div class="today-head"><span class="k">Local knowledge</span>${conditions[c.id] ? '' : goButton(c)}</div>
+      <div class="today-head"><span class="k">Local knowledge</span></div>
       <div class="local-row">
         ${item('Swell', windowText(b.swell))}
         ${item('Size', rng(b.size[0], b.size[1]))}
@@ -2964,6 +3129,7 @@
     $('v-name').textContent = c.name;
     $('v-where').textContent = `${c.zone && c.zone !== c.town ? c.zone + ' · ' : ''}${c.town} · ${c.area}`;
     $('v-open').href = c.link;
+    $('v-go').dataset.go = c.id;
     $('v-foot').innerHTML = `Stream by ${esc(c.source)} · <a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">open original</a>`;
     renderScore(c);
     renderFb(c);
