@@ -113,7 +113,7 @@ function score(c, k) {
   }
   arrive *= b.gain || 1;
   const h = k.h * arrive;
-  const hNow = Math.abs(arrive - 1) < 0.05 ? hgt(h) : `${hgt(h)} at the beach (${hgt(k.h)} offshore)`;
+  const hNow = (Math.abs(arrive - 1) < 0.05 ? hgt(h) : `${hgt(h)} at the beach (${hgt(k.h)} offshore)`) + (geo && k.d != null ? ' · by geometry' : '');
 
   const sweet = lo + 0.4 * (hi - lo);
   const size = h <= sweet ? lerp(h, lo * 0.5, 0, sweet, 4) : h <= hi ? 4 : lerp(h, hi, 4, hi * 1.4, 0);

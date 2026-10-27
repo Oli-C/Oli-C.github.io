@@ -43,10 +43,16 @@ async function getJson(url, init) {
   return r.json();
 }
 
-// --- 1. coastline segments within 12 km ---
+// --- 1. coastline segments within 12 km (Overpass, with mirrors + retries) ---
+const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://lz4.overpass-api.de/api/interpreter'];
 async function coastline(c) {
   const q = `[out:json][timeout:60];way(around:12000,${c.lat},${c.lng})["natural"="coastline"];out geom;`;
-  const j = await getJson('https://overpass-api.de/api/interpreter', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'data=' + encodeURIComponent(q) });
+  let j = null, err = null;
+  for (let attempt = 0; attempt < 6 && !j; attempt++) {
+    try { j = await getJson(OVERPASS[attempt % OVERPASS.length], { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'data=' + encodeURIComponent(q) }); }
+    catch (e) { err = e; await sleep(4000 + attempt * 3000); }
+  }
+  if (!j) throw err;
   const P = proj(c), segs = [];
   for (const w of j.elements || []) {
     if (!w.geometry) continue;
@@ -75,47 +81,31 @@ function shadow(segs, dir) {
   return blockedAt;   // metres to the blocking land, or null
 }
 
-// --- 2. offshore slope direction from GEBCO ---
-async function slopeNormal(c) {
-  const pts = [];
-  for (let i = -3; i <= 3; i++) for (let j = -3; j <= 3; j++) pts.push(dest(c.lat, c.lng, 0, i * 600).map((v, k) => k === 0 ? v : v) && dest(...dest(c.lat, c.lng, 0, i * 600), 90, j * 600));
-  // centre the grid ~2 km out along the nominal facing so it sits on the shelf
-  const centre = dest(c.lat, c.lng, c.faces, 2000);
-  const grid = [];
-  for (let i = -3; i <= 3; i++) for (let j = -3; j <= 3; j++) grid.push(dest(...dest(centre[0], centre[1], 0, i * 600), 90, j * 600));
-  const j = await getJson('https://api.opentopodata.org/v1/gebco2020?locations=' + grid.map((p) => p.join(',')).join('|'));
-  const P = proj({ lat: centre[0], lng: centre[1] });
-  // least squares plane z = a x + b y + c over sea cells
-  let sxx = 0, sxy = 0, syy = 0, sxz = 0, syz = 0, sx = 0, sy = 0, sz = 0, n = 0;
-  j.results.forEach((r, i) => {
-    if (r.elevation == null || r.elevation > 0) return;
-    const p = P(grid[i][0], grid[i][1]), z = r.elevation;
-    sxx += p.x * p.x; sxy += p.x * p.y; syy += p.y * p.y; sxz += p.x * z; syz += p.y * z; sx += p.x; sy += p.y; sz += z; n++;
-  });
-  if (n < 10) return null;
-  // solve normal equations (3x3) via Cramer's rule
-  const A = [[sxx, sxy, sx], [sxy, syy, sy], [sx, sy, n]], B = [sxz, syz, sz];
-  const det = (m) => m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
-  const D = det(A); if (Math.abs(D) < 1e-9) return null;
-  const col = (k) => A.map((row, i) => row.map((v, jx) => (jx === k ? B[i] : v)));
-  const a = det(col(0)) / D, b = det(col(1)) / D;   // dz/dx, dz/dy (depth gets more negative seaward)
-  // downslope (deeper) direction = -(gradient of elevation)
-  const bearing = (toD(Math.atan2(-a, -b)) + 360) % 360;
-  return { normal: Math.round(bearing), n };
+// --- 2+3. shore normal and depth profile from EMODnet bathymetry ---
+// Sample depth along five candidate bearings (facing ±30°); the one that
+// deepens fastest out to 4 km is the true seaward normal of the contours.
+async function depthAt(lat, lng) {
+  try {
+    const j = await getJson(`https://rest.emodnet-bathymetry.eu/depth_sample?geom=POINT(${lng.toFixed(5)}%20${lat.toFixed(5)})`);
+    return j.avg == null ? null : +(-j.avg).toFixed(1);
+  } catch { return null; }
 }
-
-// --- 3. EMODnet depth profile along the normal ---
-async function profile(c, normal) {
-  const out = [];
-  for (const km of [0.25, 0.5, 1, 1.5, 2, 3, 4, 6]) {
-    const [la, lo] = dest(c.lat, c.lng, normal, km * 1000);
-    try {
-      const j = await getJson(`https://rest.emodnet-bathymetry.eu/depth_sample?geom=POINT(${lo.toFixed(5)}%20${la.toFixed(5)})`);
-      out.push({ km, depth: j.avg == null ? null : +(-j.avg).toFixed(1) });
-    } catch { out.push({ km, depth: null }); }
-    await sleep(250);
+const PROFILE_KM = [0.3, 0.6, 1, 1.5, 2.5, 4];
+async function slopeNormal(c) {
+  let best = null;
+  for (const off of [-30, -15, 0, 15, 30]) {
+    const bearing = (c.faces + off + 360) % 360, prof = [];
+    for (const km of PROFILE_KM) {
+      const [la, lo] = dest(c.lat, c.lng, bearing, km * 1000);
+      prof.push({ km, depth: await depthAt(la, lo) });
+      await sleep(220);
+    }
+    const far = prof.filter((p) => p.km >= 1.5 && p.depth != null);
+    if (!far.length) continue;
+    const score = far.reduce((a, p) => a + p.depth, 0) / far.length;   // mean depth 1.5–4 km out
+    if (!best || score > best.score) best = { normal: bearing, score, prof };
   }
-  return out;
+  return best;
 }
 
 // --- 4. Snell's law refraction coefficient, deep water → breaking depth ---
@@ -137,13 +127,10 @@ function Kr(theta0deg, T, hb = 2.5) {
 const PERIODS = [8, 11, 14];
 async function build(c) {
   const segs = await coastline(c);
-  await sleep(1500);
+  await sleep(2500);
   const sl = await slopeNormal(c);
-  await sleep(1000);
-  const normal = sl ? sl.normal : c.faces;
-  // Sanity: the fitted normal shouldn't swing more than 60° from the hand-set facing.
-  const useNormal = angleDiff(normal, c.faces) <= 60 ? normal : c.faces;
-  const prof = await profile(c, useNormal);
+  const useNormal = sl ? sl.normal : c.faces;
+  const prof = sl ? sl.prof : [];
   const depth1k = (prof.find((p) => p.km === 1) || {}).depth;
   const resp = {};
   for (let dir = 0; dir < 360; dir += 15) {
@@ -169,8 +156,13 @@ async function build(c) {
       const open = Object.entries(g.resp).filter(([, v]) => v[1] >= 0.8).map(([d]) => d);
       console.log(`normal ${g.normal}° (fitted ${g.fitted}, faces ${g.faces}) depth@1km ${g.depth1k} m, coast segs ${g.coastSegs}, open dirs ${open[0]}–${open[open.length - 1]} (${open.length})`);
     } catch (e) { console.log('FAILED', e.message); }
-    await sleep(1500);
+    await sleep(3000);
   }
+  // Keep any spots a previous run managed if this run failed for them.
+  try {
+    const old = new Function(fs.readFileSync(new URL('../geo.js', import.meta.url), 'utf8') + '; return GEO;')();
+    for (const [id, g] of Object.entries(old || {})) if (!GEO[id] && g && g.resp) GEO[id] = g;
+  } catch {}
   const out = `/* Generated by tools/exposure.mjs on ${new Date().toISOString().slice(0, 10)} from OSM coastline,
    GEBCO (OpenTopoData) and EMODnet bathymetry. Per spot: the fitted shore
    normal, depth 1 km out, and the arrival factor for deep-water swell FROM

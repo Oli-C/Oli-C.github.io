@@ -84,19 +84,25 @@ const BUOYS = [
   { id: 'sines', name: 'Sines coastal buoy (IH)', ds: 'TS_70_Sines-coast-buoy_MO_UND', lat: 37.9211, lng: -8.9289 },
 ];
 async function verifyWaves() {
-  const since = out.lastWaveObs && out.lastWaveObs > new Date(Date.now() - 10 * 864e5).toISOString() ? out.lastWaveObs : new Date(Date.now() - 10 * 864e5).toISOString().slice(0, 19) + 'Z';
+  out.lastWave = out.lastWave || {};
+  const floor = new Date(Date.now() - 10 * 864e5).toISOString().slice(0, 19) + 'Z';
   const lat = BUOYS.map((b) => b.lat).join(','), lng = BUOYS.map((b) => b.lng).join(',');
   const models = MARINE_MODELS.map((m) => m.id || m.key).join();
   const fc = await getJson(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&hourly=wave_height,wave_direction,swell_wave_peak_period,swell_wave_height&models=${models}&past_days=10&forecast_days=1&timezone=UTC`);
   const F = Array.isArray(fc) ? fc : [fc];
-  let latest = out.lastWaveObs, total = 0;
+  let total = 0;
   for (let bi = 0; bi < BUOYS.length; bi++) {
     const b = BUOYS[bi], h = F[bi] && F[bi].hourly;
     if (!h) continue;
+    const last = out.lastWave[b.id] || out.lastWaveObs || '';
+    const since = last > floor ? last : floor;
     let rows;
     try {
-      const j = await getJson(`https://platform-erddap.emodnet-physics.eu/erddap/tabledap/${b.ds}.json?time,VHM0,VTPK,VMDR&time%3E=${since}&orderBy(%22time%22)`);
-      rows = j.table.rows;
+      // VPED = direction at the spectral peak, carried by both buoys (VMDR isn't).
+      const r = await fetch(`https://platform-erddap.emodnet-physics.eu/erddap/tabledap/${b.ds}.json?time,VHM0,VTPK,VPED&time%3E=${since}&orderBy(%22time%22)`, { headers: { 'User-Agent': UA } });
+      if (r.status === 404) { console.log(`waves: ${b.id} nothing new since ${since.slice(0, 16)}`); out.buoys.push({ id: b.id, name: b.name, lat: b.lat, lng: b.lng, hours: 0, latest: last || null }); continue; }
+      if (!r.ok) throw new Error(String(r.status));
+      rows = (await r.json()).table.rows;
     } catch (e) { console.log(`waves: ${b.id} unavailable (${e.message})`); continue; }
     // Rows come split by parameter; fold them by hour.
     const byHour = {};
@@ -105,9 +111,9 @@ async function verifyWaves() {
       if (H != null) r.h = H; if (T != null) r.p = T; if (D != null) r.d = D;
     }
     const idx = Object.fromEntries(h.time.map((t, j) => [hourKey(t), j]));
-    let n = 0;
+    let n = 0, newest = last;
     for (const r of Object.values(byHour)) {
-      if (r.h == null || r.t <= out.lastWaveObs) continue;
+      if (r.h == null || r.t <= last) continue;
       const j = idx[hourKey(r.t)]; if (j == null) continue;
       for (const m of MARINE_MODELS) {
         const key = m.key, mid = m.id || m.key;
@@ -119,14 +125,15 @@ async function verifyWaves() {
         if (r.p != null && pm && pm[j] != null) ema(s, 'p', Math.abs(pm[j] - r.p));
         if (r.d != null && dm && dm[j] != null) ema(s, 'dir', angleDiff(dm[j], r.d));
       }
-      if (r.t > latest) latest = r.t;
+      if (r.t > newest) newest = r.t;
       n++;
     }
-    out.buoys.push({ id: b.id, name: b.name, lat: b.lat, lng: b.lng, hours: n, latest: Object.values(byHour).map((r) => r.t).sort().pop() || null });
+    if (newest) out.lastWave[b.id] = newest;
+    out.buoys.push({ id: b.id, name: b.name, lat: b.lat, lng: b.lng, hours: n, latest: newest || null });
     total += n;
   }
-  if (latest) out.lastWaveObs = latest;
-  console.log(`waves: ${total} buoy-hours, up to ${out.lastWaveObs || 'n/a'}`);
+  out.lastWaveObs = Object.values(out.lastWave).sort().pop() || out.lastWaveObs;
+  console.log(`waves: ${total} buoy-hours; latest ${JSON.stringify(out.lastWave)}`);
 }
 
 (async () => {

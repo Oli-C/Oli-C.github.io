@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-27T11:55:55.073Z",
+ "updated": "2026-10-27T11:59:51.125Z",
  "wind": {
   "best_match": {
    "n": 477,
@@ -66,7 +66,7 @@
  },
  "lastWindObs": "2026-10-27T11:00",
  "lastWaveObs": "2026-10-23T14:00:00Z",
- "runs": 1,
+ "runs": 3,
  "stations": [
   "Setúbal, Areias",
   "Alcochete / Campo Tiro",
@@ -112,8 +112,19 @@
    "name": "Nazaré / Pedrógão coastal buoy (IH)",
    "lat": 39.56,
    "lng": -9.21,
-   "hours": 147,
+   "hours": 0,
+   "latest": "2026-10-23T14:00:00Z"
+  },
+  {
+   "id": "sines",
+   "name": "Sines coastal buoy (IH)",
+   "lat": 37.9211,
+   "lng": -8.9289,
+   "hours": 0,
    "latest": "2026-10-23T14:00:00Z"
   }
- ]
+ ],
+ "lastWave": {
+  "nazare": "2026-10-23T14:00:00Z"
+ }
 }
