@@ -641,6 +641,7 @@
     margin-top: 8px;
     letter-spacing: 0.02em;
   }
+  .map-hint a { color: var(--accent-ink); white-space: nowrap; }
 
   /* OSM's street tiles are light; in the charcoal theme we invert them.
      Satellite imagery is left alone. */
@@ -682,6 +683,36 @@
   }
   .leaflet-marker-icon:hover .pin, .leaflet-marker-icon.hot .pin { transform: scale(1.18); }
   .leaflet-marker-icon.hot { z-index: 1000 !important; }
+
+  /* Wind / swell arrows drawn just offshore of each pin */
+  .arrow-wrap { background: none; border: 0; pointer-events: none; }
+  .arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    width: 52px;
+    color: var(--arrow, #fff);
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+  }
+  .arrow svg { width: 22px; height: 22px; fill: currentColor; transform: rotate(var(--rot)); }
+  .arrow b {
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    color: #fff;
+    background: rgba(0,0,0,0.55);
+    padding: 3px 5px 2px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .arrow.w0 { --arrow: #9eb05c; }   /* light */
+  .arrow.w1 { --arrow: #e3a23a; }   /* fresh */
+  .arrow.w2 { --arrow: #ff8200; }   /* strong */
+  .arrow.w3 { --arrow: #e5484d; }   /* gale */
+  .arrow.swell { --arrow: #4fc3dc; }
+  .arrow.swell svg { width: 26px; height: 26px; }
 
   /* Leaflet chrome in our palette */
   .leaflet-container { font-family: inherit; background: var(--bg-3); }
@@ -1125,7 +1156,7 @@
           <span class="lvl-4"><i></i>Epic</span>
         </div>
       </div>
-      <p class="map-hint" id="map-hint">Pins show each spot’s score. Tap one for details, directions and the cam.</p>
+      <p class="map-hint" id="map-hint">Pins show each spot’s score; arrows show wind and swell. Tap a pin for details, directions and the cam. <a id="windy" href="https://www.windy.com/-Wind-wind?38.70,-9.40,9" target="_blank" rel="noopener noreferrer">Open this view in Windy ↗</a></p>
     </aside>
   </div>
   <p class="empty" id="empty">No cams match that. Try another spot or clear the filter.</p>
@@ -1525,7 +1556,7 @@
   let hideTimer = 0, goTimer = 0;
   let conditions = {};   // cam id -> { now: {...}, hours: [{...}], t }
   let condNote = '';
-  let map = null;
+  let map = null, windLayer = null, swellLayer = null;
   const markers = {};
   const tiles = {};      // cam id -> { video, hls, visible, active, hold, dead }
   const nativeHls = !!document.createElement('video').canPlayType('application/vnd.apple.mpegurl');
@@ -2184,8 +2215,22 @@
     let base = 'osm';
     try { base = localStorage.getItem('surf-base') || 'osm'; } catch {}
     (base === 'sat' ? sat : osm).addTo(map);
-    L.control.layers({ 'Streets': osm, 'Satellite': sat }, null, { position: 'topright', collapsed: false }).addTo(map);
+    // Wind and swell arrows, drawn from the same Open-Meteo data as the scores.
+    windLayer = L.layerGroup();
+    swellLayer = L.layerGroup();
+    let overlays = { wind: true, swell: false };
+    try { overlays = { ...overlays, ...JSON.parse(localStorage.getItem('surf-overlays') || '{}') }; } catch {}
+    if (overlays.wind) windLayer.addTo(map);
+    if (overlays.swell) swellLayer.addTo(map);
+    L.control.layers({ 'Streets': osm, 'Satellite': sat }, { 'Wind': windLayer, 'Swell': swellLayer }, { position: 'topright', collapsed: false }).addTo(map);
     map.on('baselayerchange', (e) => { try { localStorage.setItem('surf-base', e.layer === sat ? 'sat' : 'osm'); } catch {} });
+    const saveOverlays = () => { try { localStorage.setItem('surf-overlays', JSON.stringify({ wind: map.hasLayer(windLayer), swell: map.hasLayer(swellLayer) })); } catch {} };
+    map.on('overlayadd overlayremove', saveOverlays);
+    // "Open in Windy" follows the map.
+    const windy = $('windy');
+    const syncWindy = () => { const c = map.getCenter(); windy.href = `https://www.windy.com/-Wind-wind?${c.lat.toFixed(3)},${c.lng.toFixed(3)},${Math.max(5, Math.min(11, map.getZoom()))}`; };
+    map.on('moveend', syncWindy);
+    buildArrows();
 
     for (const c of CAMS) {
       markers[c.id] = L.marker([c.lat, c.lng], { icon: pinIcon(c), title: c.name, keyboard: true })
@@ -2226,6 +2271,33 @@
   function refreshPins() {
     if (!map) return;
     for (const c of CAMS) markers[c.id].setIcon(pinIcon(c));
+    buildArrows();
+  }
+
+  // One arrow per spot, a little way out to sea so it clears the pin. Wind
+  // arrows point where the wind is blowing TO; swell arrows where it travels.
+  const ARROW = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l6 9h-3.5v11h-5V11H6z"/></svg>';
+  const arrowIcon = (toward, label, cls) => L.divIcon({
+    className: 'arrow-wrap',
+    html: `<span class="arrow ${cls}" style="--rot:${Math.round(toward)}deg">${ARROW}<b>${label}</b></span>`,
+    iconSize: [52, 40], iconAnchor: [26, 20],
+  });
+  const windClass = (ws) => (ws < 12 ? 'w0' : ws < 25 ? 'w1' : ws < 40 ? 'w2' : 'w3');
+  // A point `km` kilometres out to sea from the cam, in the direction it faces.
+  const seaward = (c, km) => {
+    const rad = c.faces * Math.PI / 180, d = km / 111;
+    return [c.lat + d * Math.cos(rad), c.lng + d * Math.sin(rad) / Math.cos(c.lat * Math.PI / 180)];
+  };
+  function buildArrows() {
+    if (!windLayer) return;
+    windLayer.clearLayers();
+    swellLayer.clearLayers();
+    for (const c of CAMS) {
+      const k = conditions[c.id] && conditions[c.id].now;
+      if (!k) continue;
+      windLayer.addLayer(L.marker(seaward(c, 1.3), { icon: arrowIcon(k.wd + 180, `${Math.round(k.ws)} km/h`, windClass(k.ws)), interactive: false, keyboard: false }));
+      if (k.d != null) swellLayer.addLayer(L.marker(seaward(c, 2.6), { icon: arrowIcon(k.d + 180, `${hgt(k.h)} ${Math.round(k.p)}s`, 'swell'), interactive: false, keyboard: false }));
+    }
   }
 
   async function showMap() {
