@@ -1237,7 +1237,7 @@
       town:    'Peniche', area: 'Peniche', zone: 'Baleal',
       country: 'Portugal',
       tags:    ['reef break', 'left', 'baleal'],
-      lat: 39.3728, lng: -9.3370, faces: 320,   // reef on the north side of the Baleal isthmus
+      lat: 39.3734, lng: -9.3367, faces: 320,   // OSM coastline, north side of the Baleal isthmus
       best: {
         swell: [270, 350], size: [0.6, 3.0], period: 9, exposure: 0.6, wind: [120, 200], tide: { range: [0.3, 0.8], dir: 'rising', text: 'mid, on the rise' },
         notes: 'Long, mellow left over flat reef on the north side of Baleal. Likes W–NW swell with a S/SE wind; rocks and urchins show at low tide, so mid tide on the push is the call. Handles size when the beaches max out. Busy, and the bodyboarders have priority on the inside.',
@@ -1256,7 +1256,7 @@
       town:    'Peniche', area: 'Peniche', zone: 'Peniche south',
       country: 'Portugal',
       tags:    ['beach break', 'barrels', 'wsl'],
-      lat: 39.3475, lng: -9.3660, faces: 250,   // beach at the end of Estrada da Supertubos
+      lat: 39.3483, lng: -9.3660, faces: 250,   // OSM coastline at the end of Estrada da Supertubos
       best: {
         swell: [210, 290], size: [1.0, 3.0], period: 10, exposure: 0.7, wind: [20, 100], tide: { range: [0.4, 1], dir: null, text: 'mid to high' },
         notes: 'Heavy, hollow beach break, the "European Pipeline" and the WSL contest site. Wants SW–W swell from head high to double overhead with a NE/E wind, mid to high tide; bigger than that it closes out. Advanced only, and crowded. Sept–Nov is prime.',
@@ -1275,7 +1275,7 @@
       town:    'Sintra', area: 'Sintra', zone: 'Praia Grande',
       country: 'Portugal',
       tags:    ['beach break', 'west facing', 'bodyboard', 'colares'],
-      lat: 38.8175, lng: -9.4730, faces: 260,   // north end, below the cliff path to Praia Pequena
+      lat: 38.8185, lng: -9.4752, faces: 260,   // OSM coastline, north end below Praia Pequena
       best: {
         swell: [260, 330], size: [0.6, 2.5], period: 9, wind: [40, 130], tide: { range: [0.4, 1], dir: 'rising', text: 'mid to high' },
         notes: 'The open northern half of Praia Grande, wider, sandier banks and a bit more exposed than the south end, so it picks up the most swell and is first to blow out in a nortada. Same recipe: W–NW swell, E/NE wind, mid to high tide as the shorebreak at low is heavy. Lots of room when the south end is crowded; strong rips when it’s big.',
@@ -1294,7 +1294,7 @@
       town:    'Sintra', area: 'Sintra', zone: 'Praia Grande',
       country: 'Portugal',
       tags:    ['beach break', 'west facing', 'bodyboard', 'colares'],
-      lat: 38.8105, lng: -9.4725, faces: 255,   // south end of Praia Grande, by the rocks
+      lat: 38.8121, lng: -9.4789, faces: 255,   // OSM: Praia Grande do Rodízio, south end
       best: {
         swell: [260, 330], size: [0.6, 2.5], period: 9, wind: [40, 130], tide: { range: [0.4, 1], dir: 'rising', text: 'mid to high' },
         notes: 'Sintra’s long, open beach break, consistent, punchy and a bodyboarding stronghold. The south end has the best-shaped banks and a rock ledge for shelter. Takes W–NW swell with an E/NE wind; low tide is a heavy shorebreak, so mid to high on the push is the call. Rips when it’s big; the nortada blows it out in summer afternoons.',
@@ -1334,7 +1334,7 @@
       town:    'Cascais', area: 'Cascais', zone: 'Guincho',
       country: 'Portugal',
       tags:    ['beach break', 'west facing', 'sintra-cascais'],
-      lat: 38.7300, lng: -9.4718, faces: 265,   // south end, by the Muchaxo
+      lat: 38.7306, lng: -9.4750, faces: 265,   // OSM coastline, south end by the Muchaxo
       best: {
         swell: [270, 340], size: [0.6, 2.4], period: 9, wind: [60, 130], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
         notes: 'The southern end of Guincho, tucked in a touch under the headland so it holds a little longer when the nortada picks up. Same recipe as the north end: NW swell, E wind, low to mid tide, and early. Rips run hard along the rocks when it’s big.',
@@ -1592,8 +1592,11 @@
      Then multipliers, because these are what ruin an otherwise good day:
        Wind       ×1.0 glassy or light offshore … ×0.1 strong onshore,
                   less again if it's gusty
-       Sea state  wind chop riding on the swell: ×1.0 clean groundswell
-                  … ×0.5 when the chop is as big as the swell
+       Sea state  wind chop and any secondary swell crossing the main one:
+                  ×1.0 one clean groundswell … ×0.5 when the mess is as big
+                  as the swell
+       Period     a second, whole-score penalty for short period: ×0.8 under
+                  10 s, ×0.6 under 8 s — lumpy is lumpy whatever the wind
        Tide       where today's tide sits (0 = low water, 1 = high) against
                   the range the spot likes: ×1.0 inside, ×0.85 just outside,
                   ×0.65 well outside; ×0.9 more if it's running the wrong way
@@ -1624,7 +1627,10 @@
     f.push({ label: 'Size', pts: size, max: 4, now: hNow, likes: `${lo}–${hi} m` });
 
     const per = lerp(p, P - 2, 0, P + 5, 3);
-    f.push({ label: 'Period', pts: per, max: 3, now: `${Math.round(p)} s`, likes: `${P} s and up` });
+    // Short-period swell is lumpy however clean the wind is, so it also
+    // scales the whole score, not just its own 3 points.
+    const clean = p < 8 ? 0.6 : p < 10 ? 0.8 : p < 12 ? 0.9 : 1;
+    f.push({ label: 'Period', pts: per, max: 3, now: `${Math.round(p)} s${clean < 1 ? ', lumpy' : ''}`, likes: `${P} s and up` });
 
     // Angle still matters once the swell is in: straight into the window
     // lines up the banks; well outside it tends to bend in as closeouts.
@@ -1641,13 +1647,20 @@
     if (gusty) wind *= 0.85;
     f.push({ label: 'Wind', mult: wind, now: `${Math.round(ws)} km/h ${dirName(k.wd)}, ${rel}${gusty ? `, gusting ${Math.round(k.wg)}` : ''}`, likes: `${windowText(b.wind)} offshore` });
 
-    // Chop is sampled offshore; an offshore wind grooms it out by the beach,
-    // so it counts half as much then.
+    // Sea state: wind chop (sampled offshore, so an offshore wind grooms it
+    // and it counts half) plus any secondary swell crossing the main one,
+    // which shows up as total wave height above the swell height and no
+    // wind can tidy.
     let sea = 1;
-    if (k.wwh != null && h > 0) {
-      const r = (k.wwh / h) * (rel === 'offshore' ? 0.5 : 1);
+    if (h > 0 && (k.wwh != null || k.th != null)) {
+      const wwh = k.wwh || 0;
+      const cross = k.th != null ? Math.sqrt(Math.max(0, k.th * k.th - k.h * k.h - wwh * wwh)) : 0;
+      const r = (wwh * (rel === 'offshore' ? 0.5 : 1) + cross) / k.h;
       sea = r > 1 ? 0.5 : r > 0.6 ? 0.7 : r > 0.35 ? 0.85 : 1;
-      f.push({ label: 'Sea state', mult: sea, now: `${k.wwh.toFixed(1)} m wind chop on ${h.toFixed(1)} m swell`, likes: 'clean groundswell' });
+      const bits = [];
+      if (wwh >= 0.1) bits.push(`${wwh.toFixed(1)} m wind chop`);
+      if (cross >= 0.2) bits.push(`${cross.toFixed(1)} m cross swell`);
+      f.push({ label: 'Sea state', mult: sea, now: bits.length ? `${bits.join(' + ')} on ${k.h.toFixed(1)} m swell` : 'clean', likes: 'one clean groundswell' });
     }
 
     let tide = 1;
@@ -1659,7 +1672,7 @@
       f.push({ label: 'Tide', mult: tide, now: `${tideWord(k.tn)}${k.tdir ? ` and ${k.tdir}` : ''}`, likes: b.tide.text });
     }
 
-    let total = (size + per + dir) * wind * sea * tide, cap = '', dark = false;
+    let total = (size + per + dir) * wind * sea * tide * clean, cap = '', dark = false;
     if (k.day === 0) { total = 0; cap = 'After dark'; dark = true; }
     else if (h < 0.4) { total = 0; cap = 'Under 0.4 m, flat'; }
     else if (h > hi * 1.4) { total = Math.min(total, 3); cap = `Capped: ${h.toFixed(1)} m is too big for this spot`; }
@@ -1755,7 +1768,7 @@
     const h = m.swell_wave_height ?? m.wave_height;
     if (h == null || w.wind_speed_10m == null) return null;
     return {
-      h, p: m.swell_wave_period ?? m.wave_period, d: m.swell_wave_direction ?? m.wave_direction, wwh: m.wind_wave_height,
+      h, p: m.swell_wave_period ?? m.wave_period, d: m.swell_wave_direction ?? m.wave_direction, wwh: m.wind_wave_height, th: m.wave_height,
       ws: w.wind_speed_10m, wd: w.wind_direction_10m, wg: w.wind_gusts_10m, day: w.is_day == null ? 1 : w.is_day,
       tide: m.sea_level_height_msl, sst: m.sea_surface_temperature, air: w.temperature_2m,
     };
