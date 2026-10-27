@@ -639,6 +639,9 @@
     padding: 7px 10px 5px;
     pointer-events: none;
   }
+  .legend { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .lg-row { display: flex; align-items: center; gap: 10px; }
+  .lg-k { color: var(--fg-muted); min-width: 34px; }
   .legend span { display: inline-flex; align-items: center; gap: 5px; }
   .legend i { width: 9px; height: 9px; border-radius: 50%; background: var(--pin); }
   .map-hint {
@@ -692,8 +695,8 @@
   .pin .swell svg { color: #4fc3dc; }
   /* Wind figure coloured by relation: offshore green, cross amber, onshore red */
   .pin .wind.off em { color: #9eb05c; }
-  .pin .wind.cross em { color: #e3a23a; }
-  .pin .wind.on em { color: #e5484d; }
+  .pin .wind.cross em { color: #9fb3c8; }
+  .pin .wind.on em { color: #ff5a5a; }
   .pin .wind svg { color: rgba(255,255,255,0.85); }
   .pin .mini { height: 12px; gap: 1.5px; }
   .pin .mini i { width: 3px; }
@@ -709,7 +712,7 @@
   .particles { pointer-events: none; mix-blend-mode: screen; }
   [data-theme="light"] .particles { mix-blend-mode: multiply; opacity: 0.85; }
 
-  /* Legend: wind-colour key alongside the score levels */
+  /* Legend: wind-colour swatches are square to tell them from score dots */
   .legend .wl i { border-radius: 2px; }
 
   /* Leaflet chrome in our palette */
@@ -1159,14 +1162,20 @@
       <div style="position: relative">
         <div id="map" role="region" aria-label="Map of surf cams"></div>
         <div class="legend" aria-hidden="true">
-          <span class="lvl-0"><i></i>Flat</span>
-          <span class="lvl-1"><i></i>Poor</span>
-          <span class="lvl-2"><i></i>Fair</span>
-          <span class="lvl-3"><i></i>Good</span>
-          <span class="lvl-4"><i></i>Epic</span>
-          <span class="wl" style="--pin:#9eb05c"><i></i>wind off</span>
-          <span class="wl" style="--pin:#e3a23a"><i></i>cross</span>
-          <span class="wl" style="--pin:#e5484d"><i></i>on</span>
+          <div class="lg-row">
+            <span class="lg-k">Score</span>
+            <span class="lvl-0"><i></i>Flat</span>
+            <span class="lvl-1"><i></i>Poor</span>
+            <span class="lvl-2"><i></i>Fair</span>
+            <span class="lvl-3"><i></i>Good</span>
+            <span class="lvl-4"><i></i>Epic</span>
+          </div>
+          <div class="lg-row">
+            <span class="lg-k">Wind</span>
+            <span class="wl" style="--pin:#9eb05c"><i></i>Offshore</span>
+            <span class="wl" style="--pin:#9fb3c8"><i></i>Cross</span>
+            <span class="wl" style="--pin:#ff5a5a"><i></i>Onshore</span>
+          </div>
         </div>
       </div>
       <p class="map-hint" id="map-hint">Pins show each spot’s score; arrows show wind and swell. Tap a pin for details, directions and the cam. <a id="windy" href="https://www.windy.com/-Wind-wind?38.70,-9.40,9" target="_blank" rel="noopener noreferrer">Open this view in Windy ↗</a></p>
