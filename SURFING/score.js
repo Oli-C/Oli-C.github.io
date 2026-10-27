@@ -38,6 +38,8 @@ const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 const lerp = (x, x0, y0, x1, y1) => y0 + (y1 - y0) * Math.min(1, Math.max(0, (x - x0) / (x1 - x0)));
 
 const tideWord = (tn) => (tn < 0.33 ? 'low' : tn < 0.66 ? 'mid' : 'high');
+// Body-height words for a wave face (the swell height, roughly).
+const sizeWord = (h) => (h < 0.3 ? 'Flat' : h < 0.6 ? 'Knee to thigh' : h < 0.9 ? 'Thigh to waist' : h < 1.2 ? 'Waist to shoulder' : h < 1.6 ? 'Shoulder to head' : h < 2.2 ? 'Head high to overhead' : h < 3 ? 'Well overhead' : 'Double overhead and up');
 // Wetsuit by water temperature — a rule of thumb, not gospel.
 const suit = (t) => (t >= 22 ? 'boardies' : t >= 19 ? '2 mm spring' : t >= 16 ? '3/2 mm' : t >= 13 ? '4/3 mm' : '5/4 mm + boots');
 

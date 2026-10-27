@@ -1074,6 +1074,37 @@
   .tbar.now .col { outline: 2px solid var(--fg); outline-offset: 1px; }
   .today-sum { margin-top: 12px; font-size: 14px; line-height: 1.45; }
 
+  /* Whole-day strips: quality band, surf, wind, tide. Night is shaded,
+     the clock is a thin line, the axis is 3-hourly. */
+  .strip { margin-top: 14px; }
+  .strip + .strip { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .sx-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .sx-head .k { display: block; }
+  .sx-head .big { font-size: 26px; font-weight: 600; line-height: 1; letter-spacing: -0.02em; }
+  .sx-head .big small { font-size: 14px; font-weight: 500; color: var(--fg-muted); margin-left: 2px; }
+  .sx-head .sub { font-size: 13px; color: var(--fg-muted); margin-top: 3px; }
+  .sx-head .side { font-size: 13px; color: var(--fg-muted); text-align: right; white-space: nowrap; }
+  .sx-head .side b { color: var(--fg); font-weight: 600; }
+  .plot { position: relative; margin-top: 10px; height: 56px; }
+  .plot.band { height: 14px; }
+  .plot.tide { height: 64px; }
+  .plot .night { position: absolute; top: -6px; bottom: 0; background: var(--shade); opacity: .22; pointer-events: none; z-index: 2; border-radius: 3px; }
+  .plot .bars { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; align-items: end; }
+  .plot .bars i { display: block; min-height: 2px; border-radius: 3px 3px 0 0; background: var(--pin, color-mix(in srgb, var(--accent) 45%, var(--bg-2))); }
+  .plot.band .bars { gap: 1px; align-items: stretch; }
+  .plot.band .bars i { height: 100%; border-radius: 2px; }
+  .plot .bars i.off { background: #9eb05c; }
+  .plot .bars i.cross { background: #9fb3c8; }
+  .plot .bars i.on { background: #ff5a5a; }
+  .plot svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; overflow: visible; }
+  .plot .nowline { position: absolute; top: -8px; bottom: -2px; width: 1px; background: var(--fg); z-index: 3; }
+  .plot .nowline b { position: absolute; top: -15px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .plot .ev { position: absolute; transform: translateX(-50%); font-size: 11px; line-height: 1.15; text-align: center; white-space: nowrap; z-index: 3; }
+  .plot .ev b { display: block; font-weight: 600; }
+  .plot .ev span { color: var(--fg-muted); }
+  .axis { position: relative; height: 16px; margin-top: 4px; font-size: 11px; color: var(--fg-muted); }
+  .axis span { position: absolute; transform: translateX(-50%); }
+
   /* "Right now": water, air, light, tide, suit */
   .now-row {
     display: grid;
@@ -2182,21 +2213,84 @@
     el.innerHTML = `<span class="k">Right now</span><div class="now-row">${items.join('')}</div>`;
   }
 
+  // The whole day as strips, Surfline style: an hour-by-hour quality band,
+  // surf and wind bars, and the tide curve, with night shaded and the clock
+  // drawn through all of them.
   function renderToday(c) {
-    const bars = dayBars(c);
+    const cnd = conditions[c.id], hs = cnd && cnd.hours, now = cnd && cnd.now;
     const el = $('v-today');
-    if (!bars) { el.hidden = true; el.innerHTML = ''; return; }
+    if (!hs || hs.length < 3 || !now) { el.hidden = true; el.innerHTML = ''; return; }
+    const byHour = Array(24).fill(null);
+    for (const k of hs) byHour[hourOf(k.t)] = k;
+    const mins = (hhmm) => hhmm ? parseInt(hhmm.slice(0, 2), 10) * 60 + parseInt(hhmm.slice(3, 5), 10) : null;
+    const pct = (m) => (100 * m / 1440).toFixed(2) + '%';
+    const rise = cnd.sun && mins(cnd.sun.rise), set = cnd.sun && mins(cnd.sun.set);
+    const nowM = new Date().getHours() * 60 + new Date().getMinutes();
+    const night = rise != null && set != null
+      ? `<span class="night" style="left:0;width:${pct(rise)}"></span><span class="night" style="left:${pct(set)};width:${pct(1440 - set)}"></span>` : '';
+    const clock = `<span class="nowline" style="left:${pct(nowM)}"><b>${fmtMins(nowM)}</b></span>`;
+    const axis = `<div class="axis">${[3, 6, 9, 12, 15, 18, 21].map((h) => `<span style="left:${pct(h * 60)}">${h === 12 ? 'Noon' : h}</span>`).join('')}</div>`;
+    const plot = (cls, inner) => `<div class="plot ${cls}">${night}${inner}${clock}</div>${axis}`;
+    const light = hs.filter((k) => k.day !== 0);
+    const rows = light.length ? light : hs;
+
+    // Quality: one segment per hour, dark hours grey.
+    const scores = byHour.map((k) => (k ? score(c, k) : null));
+    const band = plot('band', `<span class="bars">${scores.map((r) => `<i class="${r ? 'lvl-' + r.level : 'lvl-x'}" title="${r ? fmt(r.total) : ''}"></i>`).join('')}</span>`);
+    const dayScores = scores.filter((r) => r && r.total > 0).map((r) => r.total);
+    const qLo = dayScores.length ? levelOf(Math.min(...dayScores)) : null, qHi = dayScores.length ? levelOf(Math.max(...dayScores)) : null;
+    const qWord = qLo == null ? 'No light left' : qLo === qHi ? LEVELS[qHi] : `${LEVELS[qLo]} to ${LEVELS[qHi]}`;
+
+    // Surf: hourly swell height, headline is the daylight range.
+    const hMax = Math.max(...hs.map((k) => k.h || 0), 0.3);
+    const hDay = rows.map((k) => k.h).filter((v) => v != null);
+    const surf = `
+      <div class="sx-head">
+        <div><span class="k">Surf</span><span class="big">${hDay.length ? rng(+Math.min(...hDay).toFixed(1), +Math.max(...hDay).toFixed(1)) : '–'}</span><div class="sub">${esc(sizeWord(Math.max(...hDay, 0)))}</div></div>
+        <div class="side">now <b>${hgt(now.h)}</b> · <b>${Math.round(now.p)}s</b> · ${now.d != null ? `<b>${dirName(now.d)}</b> ${Math.round(now.d)}°` : ''}</div>
+      </div>
+      ${plot('surf', `<span class="bars">${byHour.map((k) => `<i style="height:${k ? Math.max(3, 100 * k.h / hMax) : 0}%" title="${k ? hgt(k.h) : ''}"></i>`).join('')}</span>`)}`;
+
+    // Wind: speed bars coloured by how the spot takes that direction.
+    const wMax = Math.max(...hs.map((k) => k.ws || 0), 10);
+    const nowRel = windRel(c, now);
+    const wind = `
+      <div class="sx-head">
+        <div><span class="k">Wind</span><span class="big">${kts(now.ws)}<small>kts</small>${now.wg != null ? ` <span class="big" style="color:var(--fg-muted)">${kts(now.wg)}<small>kts</small></span>` : ''}</span><div class="sub">${dirName(now.wd)}, ${nowRel}${now.wg != null ? ' · gusts in grey' : ''}</div></div>
+        <div class="side"><b style="color:#9eb05c">■</b> offshore &nbsp;<b style="color:#9fb3c8">■</b> cross &nbsp;<b style="color:#ff5a5a">■</b> onshore</div>
+      </div>
+      ${plot('wind', `<span class="bars">${byHour.map((k) => `<i class="${k ? REL_SHORT[windRel(c, k)] : ''}" style="height:${k ? Math.max(3, 100 * k.ws / wMax) : 0}%" title="${k ? kts(k.ws) + ' kts ' + dirName(k.wd) : ''}"></i>`).join('')}</span>`)}`;
+
+    // Tide: the hourly curve, highs and lows labelled with their height.
+    const tl = hs.map((k) => k.tide).filter((v) => v != null);
+    let tide = '';
+    if (tl.length >= 3) {
+      const tMin = Math.min(...tl), tMax = Math.max(...tl), span = Math.max(0.3, tMax - tMin);
+      const y = (v) => (100 - 18 - 64 * (v - tMin) / span).toFixed(1);
+      const pts = hs.filter((k) => k.tide != null).map((k) => `${(100 * (hourOf(k.t) + 0.5) / 24).toFixed(2)},${y(k.tide)}`);
+      const evs = (cnd.tides || []).map((e) => {
+        const k = byHour[Math.min(23, Math.round(e.mins / 60))];
+        const hgtAt = k && k.tide != null ? k.tide : null;
+        return `<span class="ev" style="left:${pct(e.mins)};${e.kind === 'High' ? 'top:-6px' : 'bottom:-2px'}"><b>${fmtMins(e.mins)}</b><span>${hgtAt != null ? hgt(hgtAt) : e.kind}</span></span>`;
+      }).join('');
+      tide = `
+        <div class="sx-head">
+          <div><span class="k">Tide</span><span class="big">${now.tide != null ? hgt(now.tide) : '–'} <small>${now.tdir === 'rising' ? '▲' : now.tdir === 'falling' ? '▼' : ''}</small></span><div class="sub">${now.tn != null ? tideWord(now.tn) : ''}${now.tdir ? ', ' + now.tdir : ''}</div></div>
+          <div class="side">${esc(tideTimes(cnd))}</div>
+        </div>
+        ${plot('tide', `<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" stroke="color-mix(in srgb, var(--accent) 70%, var(--fg))" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round" points="${pts.join(' ')}"/></svg>${evs}`)}`;
+    }
+
     el.hidden = false;
     el.innerHTML = `
       <div class="today-head"><span class="k">Today</span>${goButton(c)}</div>
-      <div class="today-bars">
-        ${bars.map((b) => `
-          <div class="tbar ${b.level == null ? 'lvl-x' : 'lvl-' + b.level}${b.past ? ' past' : ''}${b.now ? ' now' : ''}" title="${b.from}:00–${b.to}:00">
-            <b>${b.score == null ? '–' : fmt(b.score)}</b>
-            <span class="col"><i style="height:${b.score == null ? 3 : Math.max(4, b.score * 10)}%"></i></span>
-            <span>${b.label}</span>
-          </div>`).join('')}
+      <div class="strip">
+        <div class="sx-head"><div><span class="k">Quality</span><span class="big">${esc(qWord)}</span><div class="sub">hour by hour, daylight only counts</div></div>${cnd.sun && cnd.sun.rise ? `<div class="side">light <b>${cnd.sun.rise}</b> to <b>${cnd.sun.set}</b></div>` : ''}</div>
+        ${band}
       </div>
+      <div class="strip">${surf}</div>
+      <div class="strip">${wind}</div>
+      ${tide ? `<div class="strip">${tide}</div>` : ''}
       <p class="today-sum">${esc(daySummary(c))}</p>`;
   }
 
