@@ -568,6 +568,8 @@
     text-transform: uppercase;
   }
   .cam.offline .off svg { width: 22px; height: 22px; opacity: .8; }
+  .cam .t-blk, .cam.blocked .t-off { display: none; }
+  .cam.blocked .t-blk { display: inline; }
   .cam.offline img { filter: grayscale(1) brightness(.4); }
   .cam.offline video, .cam.offline .live { display: none; }
   @keyframes pulse {
@@ -986,6 +988,7 @@
     color: #d6d2c4;
     font-size: 15px;
   }
+  .frame-msg .nav { display: flex; width: max-content; margin: 14px auto 0; }
   /* Plyr in our palette. Plyr is given ratio 16:9 so it fills .frame.video exactly. */
   .plyr {
     --plyr-color-main: var(--accent);
@@ -1756,7 +1759,7 @@
       ${c.thumb ? `<img src="${esc(thumbUrl(c.thumb))}" alt="" loading="lazy" decoding="async" onload="this.classList.add('ready')" onerror="this.remove()">` : ''}
       ${c.type === 'hls' ? `<video muted playsinline preload="none"${c.poster ? ` poster="${esc(c.poster)}"` : ''} aria-hidden="true"></video>` : ''}
       <span class="live"><i></i>Live</span>
-      <span class="off" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M15 15v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h2m4 0h4a1 1 0 0 1 1 1v3l5-3v9"/></svg>Camera offline</span>
+      <span class="off" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M15 15v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h2m4 0h4a1 1 0 0 1 1 1v3l5-3v9"/></svg><span class="t-off">Camera offline</span><span class="t-blk">Plays on ${esc(sourceName(c))} only</span></span>
       <span class="score-slot">${badge(c)}</span>
       <div class="overlay">
         <div class="name">${esc(c.name)}</div>
@@ -1853,9 +1856,15 @@
     t.active = true;
     video.muted = true;
     const card = video.closest('.cam');
-    // A stream that never gets to playing counts as a failure too.
-    let stall = 0;
-    const arm = () => { clearTimeout(stall); stall = setTimeout(() => fail(), 30000); };
+    // A stream that never gets to playing counts as a failure too, unless
+    // it did load (the browser just refused to autoplay it: iOS Low Power
+    // Mode does that), in which case the tile keeps its snapshot.
+    let stall = 0, refused = false;
+    const arm = () => {
+      clearTimeout(stall);
+      stall = setTimeout(() => { if (!refused && video.readyState < 1) fail(); }, 30000);
+    };
+    const play = () => video.play().catch((e) => { if (e && e.name === 'NotAllowedError') refused = true; });
     const onPlaying = () => { clearTimeout(stall); video.classList.add('ready'); card.classList.add('streaming'); };
     video.addEventListener('playing', onPlaying);
     t.cleanup = () => { clearTimeout(stall); video.removeEventListener('playing', onPlaying); };
@@ -1872,7 +1881,7 @@
       if (nativeHls) {
         video.addEventListener('error', fail, { once: true });
         video.src = src;
-        video.play().catch(() => {});
+        play();
         return;
       }
       if (!window.Hls || !Hls.isSupported()) { t.active = false; return; }
@@ -1883,7 +1892,7 @@
         if (data.type === Hls.ErrorTypes.MEDIA_ERROR && t.hls) return t.hls.recoverMediaError();
         fail();
       });
-      t.hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+      t.hls.on(Hls.Events.MANIFEST_PARSED, play);
       t.hls.loadSource(src);
       t.hls.attachMedia(video);
     };
@@ -1921,8 +1930,10 @@
      cam drops to the end of its area with an offline card; an area with
      nothing live drops to the end of the list. Cams found down by the check
      are re-checked every few minutes; one whose tile failed to play stays
-     down until reload, so it can't flap. */
-  const offline = new Map();   // id -> 'probe' | 'play'
+     down until reload, so it can't flap. A 401/403 isn't "offline": the
+     host refuses this site (MEO's auth-beachcam paths want a signed token
+     their own player fetches), so the card says where it does play. */
+  const offline = new Map();   // id -> 'probe' | 'play' | 'blocked'
 
   function reorder() {
     const rank = (c) => CAMS.indexOf(c) + (offline.has(c.id) ? 1000 : 0);
@@ -1937,12 +1948,17 @@
   }
 
   function markOffline(id, why) {
-    if (offline.get(id) === 'play' || offline.get(id) === why) return;
+    const cur = offline.get(id);
+    if (cur === why || (cur && why === 'probe')) return;   // a re-check never downgrades
     offline.set(id, why);
     const t = tiles[id];
     if (t) { stopTile(id); t.dead = true; }
     const el = grid.querySelector(`.cam[data-id="${CSS.escape(id)}"]`);
-    if (el) { el.classList.add('offline'); el.title = 'Camera offline right now'; }
+    if (el) {
+      el.classList.add('offline');
+      el.classList.toggle('blocked', why === 'blocked');
+      el.title = why === 'blocked' ? `Only plays on ${sourceName(byId(id))} for now` : 'Camera offline right now';
+    }
     reorder();
     syncTiles();
   }
@@ -1963,25 +1979,28 @@
   async function probe(url) {
     try {
       const r = await fetch(url, { cache: 'no-store' });
-      return r.ok && (await r.text()).includes('#EXTM3U');
+      if (r.status === 401 || r.status === 403) return 'blocked';
+      return r.ok && (await r.text()).includes('#EXTM3U') ? 'up' : 'down';
     } catch {
-      if (!nativeHls) return false;
+      if (!nativeHls) return 'down';
       return new Promise((res) => {
         const v = document.createElement('video');
         let settled = false;
-        const done = (ok) => {
+        const done = (state) => {
           if (settled) return;
           settled = true;
           clearTimeout(timer);
           v.removeAttribute('src');
           v.load();
-          res(ok);
+          res(state);
         };
-        const timer = setTimeout(() => done(false), 15000);
+        // iOS may not load metadata on a hidden video at all, so silence
+        // proves nothing; only a real error counts as down.
+        const timer = setTimeout(() => done('unknown'), 15000);
         v.muted = true;
         v.preload = 'metadata';
-        v.addEventListener('loadedmetadata', () => done(true), { once: true });
-        v.addEventListener('error', () => done(false), { once: true });
+        v.addEventListener('loadedmetadata', () => done('up'), { once: true });
+        v.addEventListener('error', () => done('down'), { once: true });
         v.src = url;
       });
     }
@@ -1989,8 +2008,11 @@
 
   async function checkCam(c) {
     if (c.type !== 'hls' || offline.get(c.id) === 'play') return;
-    const up = (await probe(c.embed)) || (c.alt ? await probe(c.alt) : false);
-    if (up) markOnline(c.id); else markOffline(c.id, 'probe');
+    let s = await probe(c.embed);
+    if (s !== 'up' && c.alt && (await probe(c.alt)) === 'up') s = 'up';
+    if (s === 'up') markOnline(c.id);
+    else if (s === 'blocked') markOffline(c.id, 'blocked');
+    else if (s === 'down') markOffline(c.id, 'probe');
   }
 
   function setupTiles() {
@@ -2326,8 +2348,12 @@
 
   /* ---------- Viewer ---------- */
 
-  function frameMsg(text) {
-    frame.insertAdjacentHTML('beforeend', `<div class="frame-msg">${esc(text)}</div>`);
+  // "MEO Beachcam via viewsurf" -> "MEO Beachcam"
+  const sourceName = (c) => (c.source || 'the source site').replace(/ via .*/, '');
+  function frameMsg(text, c) {
+    const link = c && c.link
+      ? `<a class="nav" href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">Watch on ${esc(sourceName(c))} ↗</a>` : '';
+    frame.insertAdjacentHTML('beforeend', `<div class="frame-msg"><div>${esc(text)}${link}</div></div>`);
   }
 
   const iframeHtml = (url, c) =>
@@ -2342,7 +2368,7 @@
   // A dead or blocked stream falls back to the cam's page when it has one.
   function streamFailed(c, text) {
     stopPlayback();
-    if (!c.fallback) { frame.className = 'frame video'; return frameMsg(text); }
+    if (!c.fallback) { frame.className = 'frame video'; return frameMsg(text, c); }
     frame.className = 'frame page';
     frame.innerHTML = iframeHtml(c.fallback, c);
   }
@@ -2715,7 +2741,8 @@
     if (tiles[c.id]) tiles[c.id].hold = true;
     syncTiles();
     frame.className = 'frame ' + (c.type === 'page' ? 'page' : 'video');
-    if (c.type === 'hls') playHls(c);
+    if (offline.get(c.id) === 'blocked') frameMsg(`This cam only plays on ${sourceName(c)} for now.`, c);
+    else if (c.type === 'hls') playHls(c);
     else frame.innerHTML = iframeHtml(c.embed, c);
     viewer.hidden = false;
     viewer.querySelector('.sheet').scrollTop = 0;
