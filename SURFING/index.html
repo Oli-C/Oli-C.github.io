@@ -161,9 +161,26 @@
     transition: border-color .2s var(--ease), transform .2s var(--ease);
   }
   .best-chip:hover, .best-chip:focus-visible { border-color: var(--accent); transform: translateY(-1px); outline: none; }
-  /* Wide: title left, best-right-now chips fill the right of the header. */
+  /* Today's tide, coast-wide, right by the title. */
+  .tide-now {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  .tide-now[hidden] { display: none; }
+  .tide-now .k { font-weight: 400; }
+  .tide-now span + span::before { content: "·"; color: var(--fg-muted); margin-right: 10px; font-weight: 400; }
+  .tide-now .k + span::before { content: none; }
+  /* Wide: title left, tide + best-right-now fill the right of the header. */
   @media (min-width: 1100px) {
     .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+    .aside { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+    .tide-now { margin-top: 0; justify-content: flex-end; }
     .best { margin-top: 0; justify-content: flex-end; }
   }
 
@@ -1052,7 +1069,10 @@
     </div>
     <div class="head">
       <h1>surf cams<span>.</span></h1>
-      <div class="best" id="best" hidden></div>
+      <div class="aside">
+        <div class="tide-now" id="tide-now" hidden></div>
+        <div class="best" id="best" hidden></div>
+      </div>
     </div>
   </header>
 
@@ -1467,6 +1487,7 @@
     { label: 'Evening', from: 15, to: 19 },
   ];
   const COND_TTL = 30 * 60 * 1000; // re-fetch conditions after 30 minutes
+  const COND_VER = 3;              // bump when the cached shape changes
   // Tiles keep a short buffer and start on the lowest rendition — they're
   // small, and ten of them at once adds up.
   const TILE_HLS = {
@@ -1792,7 +1813,7 @@
     const today = new Date().toDateString();
     try {
       const cached = JSON.parse(localStorage.getItem('surf-cond') || 'null');
-      if (cached && cached.ids === ids && cached.day === today && Date.now() - cached.t < COND_TTL) {
+      if (cached && cached.v === COND_VER && cached.ids === ids && cached.day === today && Date.now() - cached.t < COND_TTL) {
         conditions = cached.data;
         condNote = cached.note;
         return;
@@ -1837,7 +1858,7 @@
       });
       conditions = next;
       condNote = when ? `Scores from Open-Meteo swell, wind and tide at ${when} local, judged against each spot’s usual best.` : 'Conditions unavailable right now';
-      try { localStorage.setItem('surf-cond', JSON.stringify({ ids, day: today, t: Date.now(), data: conditions, note: condNote })); } catch {}
+      try { localStorage.setItem('surf-cond', JSON.stringify({ v: COND_VER, ids, day: today, t: Date.now(), data: conditions, note: condNote })); } catch {}
     } catch (e) {
       conditions = {};
       condNote = 'Conditions unavailable right now';
@@ -1932,6 +1953,19 @@
       sec.querySelector('.area-sum').innerHTML =
         (tide ? `<span class="tide-sum">${esc(tide)}</span>` : '') +
         (best ? `<span>Best now: <b>${esc(best.c.name)}</b> · ${fmt(best.r.total)}/10</span>` : '');
+    }
+    // One coast-wide tide line in the header (times differ by minutes at most).
+    const tideCam = CAMS.find((c) => conditions[c.id] && conditions[c.id].tides && conditions[c.id].tides.length);
+    const tideEl = $('tide-now');
+    if (tideCam) {
+      const cnd = conditions[tideCam.id];
+      const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+      const ahead = cnd.tides.filter((e) => e.mins >= nowMins);
+      const list = ahead.length ? ahead : cnd.tides;
+      tideEl.hidden = false;
+      tideEl.innerHTML = `<span class="k">${ahead.length ? 'Tide' : 'Tide today'}</span>` + list.map((e) => `<span>${e.kind} ${e.t}</span>`).join('');
+    } else {
+      tideEl.hidden = true;
     }
     const top = CAMS.map((c) => ({ c, r: scoreOf(c) })).filter((x) => x.r && x.r.total > 0)
       .sort((x, y) => y.r.total - x.r.total).slice(0, 3);
