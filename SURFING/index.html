@@ -2200,17 +2200,26 @@
     syncMarkers(true);
   }
 
+  // With no filter the map opens on the home stretch (Sintra → Caparica)
+  // rather than zoomed out to fit Nazaré and the Algarve too.
+  const HOME_AREAS = ['Sintra', 'Cascais', 'Caparica'];
+
   // Show only the markers that pass the current filter; optionally refit.
   function syncMarkers(fit) {
-    const shown = [];
+    const shown = [], home = [];
     for (const c of CAMS) {
       const m = markers[c.id];
-      if (matches(c)) { if (!map.hasLayer(m)) m.addTo(map); shown.push([c.lat, c.lng]); }
-      else if (map.hasLayer(m)) map.removeLayer(m);
+      if (matches(c)) {
+        if (!map.hasLayer(m)) m.addTo(map);
+        shown.push([c.lat, c.lng]);
+        if (HOME_AREAS.includes(c.area)) home.push([c.lat, c.lng]);
+      } else if (map.hasLayer(m)) map.removeLayer(m);
     }
     if (fit && shown.length) {
-      if (shown.length === 1) map.setView(shown[0], 14);
-      else map.fitBounds(shown, { padding: [40, 40], maxZoom: 14 });
+      const unfiltered = area === 'All' && !q.value.trim();
+      const target = unfiltered && home.length ? home : shown;
+      if (target.length === 1) map.setView(target[0], 14);
+      else map.fitBounds(target, { padding: [40, 40], maxZoom: 14 });
     }
   }
 
