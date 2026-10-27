@@ -313,7 +313,9 @@
       return { ...b, score: s == null ? null : half(s), level: s == null ? null : levelOf(half(s)) };
     });
     const best = blocks.filter((b) => b.score != null).sort((a, b) => b.score - a.score)[0];
-    const hs = scored.map((x) => x.k.h), ps = scored.map((x) => x.k.p), ws = scored.map((x) => x.k.ws);
+    // Face height at the beach, not offshore swell, so it reads like the apps.
+    const fr = scored.map((x) => faceRange(c, x.k));
+    const hs = [Math.min(...fr.map((f) => f[0])), Math.max(...fr.map((f) => f[1]))], ps = scored.map((x) => x.k.p), ws = scored.map((x) => x.k.ws);
     // Dominant wind relation and swell direction across the day
     const mode = (arr) => arr.slice().sort((a, b) => arr.filter((v) => v === a).length - arr.filter((v) => v === b).length).pop();
     const rel = mode(scored.map((x) => x.r.wind));

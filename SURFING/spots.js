@@ -231,7 +231,7 @@ const CAMS = [
     tags:    ['reef break', 'right', 'south facing', 'linha de cascais', 'sao pedro', 'bafureira', 'bico'],
     lat: 38.6930, lng: -9.3712, faces: 180,
     best: {
-      swell: [200, 300], size: [1.0, 2.4], period: 10, exposure: 0.6, wind: [340, 60], tide: { range: [0, 0.55], dir: 'falling', text: 'low to mid, on the drop' },
+      swell: [200, 300], size: [1.0, 2.4], period: 10, exposure: 0.4, wind: [340, 60], tide: { range: [0, 0.55], dir: 'falling', text: 'low to mid, on the drop' },
       notes: 'Reef and point setups, Bafureira’s right on the left of the bay, the Bico point next door. Needs at least a metre of SW–W swell to get going, with a N/NE wind; low to mid on a dropping tide is the usual call. Intermediate and up; less crowded than Bico.',
     },
     type:    'hls',
@@ -250,7 +250,7 @@ const CAMS = [
     tags:    ['beach break', 'south facing', 'linha de cascais'],
     lat: 38.6792, lng: -9.3352, faces: 190,   // OSM: Praia de Carcavelos
     best: {
-      swell: [200, 290], size: [0.8, 2.5], period: 10, exposure: 0.55, wind: [340, 60], tide: { range: [0.3, 0.8], dir: 'rising', text: 'mid, on the rise' },
+      swell: [200, 290], size: [0.8, 2.5], period: 10, exposure: 0.45, wind: [340, 60], tide: { range: [0.3, 0.8], dir: 'rising', text: 'mid, on the rise' },
       notes: 'Lisbon’s town beach. Faces south, so it needs a proper SW–W swell, or a big long-period NW to wrap round Cabo Raso. Sheltered from the nortada and best in a N/NE wind, it’s the call when Guincho is blown out. Works all tides, best mid and rising. Crowded; watch the rips.',
     },
     type:    'hls',
@@ -267,7 +267,7 @@ const CAMS = [
     town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'caparica', 'almada', 'sao joao', 'beginner'],
-    lat: 38.6569, lng: -9.2513, faces: 275,   // OSM: Praia de São João
+    lat: 38.6569, lng: -9.2513, faces: 260,   // OSM: Praia de São João; the Caparica front runs NNE–SSW, so it faces WSW
     best: { ...CAPARICA, notes: 'The northernmost Caparica beach and the roomiest. Waves are flatter and fatter than further south, a good hunting ground for learners and improvers, though an E wind in autumn can throw up glassy little wedges. ' + CAPARICA.notes },
     type:    'hls',
     embed:   'https://deliverys5.quanteec.com/contents/encodings/live/f829148a-5ae5-4a90-3735-3530-6d61-63-b215-b6a95fb68802d/master.m3u8',
@@ -284,7 +284,7 @@ const CAMS = [
     town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'caparica', 'almada'],
-    lat: 38.6449, lng: -9.2419, faces: 270,   // OSM: Praia do CDS
+    lat: 38.6449, lng: -9.2419, faces: 250,   // OSM: Praia do CDS, shore normal ~245° (EMODnet fit)
     best: { ...CAPARICA, notes: 'Right in front of town by the surf centre, between two jetties that groom the banks. ' + CAPARICA.notes },
     type:    'hls',
     embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/b969e298-ceb4-4132-3635-3530-6d61-63-82b6-c59507e55b39d/master.m3u8',
@@ -300,7 +300,7 @@ const CAMS = [
     town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'caparica', 'almada', 'barracuda'],
-    lat: 38.6408, lng: -9.2404, faces: 268,   // OSM: Nova Praia, the next cell south of CDS, cam at the Barracuda bar
+    lat: 38.6408, lng: -9.2404, faces: 250,   // OSM: Nova Praia, the next cell south of CDS, cam at the Barracuda bar
     best: { ...CAPARICA, notes: 'One jetty south of CDS, in front of the Barracuda bar. Same groomed beach-break banks as the rest of the town front, usually a touch less crowded than CDS. ' + CAPARICA.notes },
     type:    'hls',
     embed:   'https://video-auth1.iol.pt/auth-beachcam/bcbarracuda/playlist.m3u8',
@@ -314,7 +314,7 @@ const CAMS = [
     town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'caparica', 'almada'],
-    lat: 38.6197, lng: -9.2202, faces: 265,   // OSM: Praia da Riviera
+    lat: 38.6197, lng: -9.2202, faces: 250,   // OSM: Praia da Riviera, shore normal ~240° (EMODnet fit)
     best: { ...CAPARICA, notes: 'South of town, where the jetties thin out, so a touch more open and more push than CDS. ' + CAPARICA.notes },
     type:    'hls',
     embed:   'https://ds2-cache.quanteec.com/contents/encodings/live/033c1cda-143d-4a55-3835-3530-6d61-63-a933-f44c0821ad62d/master.m3u8',
@@ -330,7 +330,7 @@ const CAMS = [
     town:    'Fonte da Telha', area: 'Caparica', zone: 'South of the jetties',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'caparica', 'almada'],
-    lat: 38.5719, lng: -9.1961, faces: 260,   // OSM: Fonte da Telha beach
+    lat: 38.5719, lng: -9.1961, faces: 250,   // OSM: Fonte da Telha beach, shore normal ~245° (EMODnet fit)
     best: {
       swell: [230, 300], size: [0.6, 2.5], period: 9, wind: [30, 110], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
       notes: 'Open, exposed beach south of the Caparica jetties with more punch than town, picks up local windswell as well as groundswell, so it’s rarely flat. WSW swell and an ENE wind is the recipe; even a light onshore ruins it. Low to mid tide; often crowded.',

@@ -56,6 +56,37 @@ function geoArrive(geo, d, p) {
 // Wind direction is where it blows FROM. Offshore = inside the spot's
 // window (give or take 15°); onshore = roughly from the sea; the rest is
 // cross-shore, which is what a nortada does to the west-facing beaches.
+// How much of the offshore swell reaches this beach. geo.js (coastline
+// shadowing + Snell refraction from real bathymetry) is generated but its
+// shadow test is still too binary for the sheltered Cascais spots, so it
+// stays off until it's been checked against measured face heights; the
+// hand-set rule applies: whole within 45° of the facing, fading to the
+// spot's exposure floor by 110°, long period wrapping a little better.
+const USE_GEO = false;
+function arrival(c, k) {
+  const b = c.best, p = k.p || 0;
+  const bend = k.d != null ? angleDiff(k.d, c.faces) : 0;
+  const geo = USE_GEO && typeof GEO !== 'undefined' && GEO[c.id] && k.d != null;
+  let arrive;
+  if (geo) arrive = geoArrive(GEO[c.id], k.d, p);
+  else {
+    // Whole within 20° of the facing, then the cosine of the angle (a
+    // swell 50° off hits with ~65% of its height), never below the floor.
+    const floor = b.exposure == null ? 0.85 : b.exposure;
+    arrive = bend <= 20 ? 1 : Math.max(floor, Math.cos(bend * Math.PI / 180));
+    if (bend > 45 && p >= 12) arrive = Math.min(1, arrive * 1.15);
+  }
+  return { arrive: arrive * (b.gain || 1), geo: !!geo };
+}
+// Breaking face height at the beach, as a [low, high] range in metres,
+// the way forecast apps quote surf. Faces run a little under the arriving
+// significant height, more so when the period is short.
+function faceRange(c, k) {
+  const { arrive } = arrival(c, k);
+  const p = k.p || 0, face = (k.h || 0) * arrive * (p >= 12 ? 0.9 : p >= 9 ? 0.8 : 0.7);
+  return [+(face * 0.8).toFixed(1), +(face * 1.1).toFixed(1)];
+}
+
 function windRel(c, k) {
   const off = distToWindow(k.wd, c.best.wind) <= 15;
   const on = !off && angleDiff(k.wd, c.faces) < 45;
@@ -99,23 +130,10 @@ function score(c, k) {
   const [lo, hi] = b.size;
   const f = [];
 
-  // How much of the offshore swell reaches this beach. With geometry for
-  // the spot (geo.js: coastline shadowing + Snell refraction from real
-  // bathymetry) use its directional table; otherwise the hand-set rule:
-  // whole within 45° of the facing, fading to the exposure floor by 110°.
   const dd = k.d != null ? distToWindow(k.d, b.swell) : 0;
-  const bend = k.d != null ? angleDiff(k.d, c.faces) : 0;
-  const geo = typeof GEO !== 'undefined' && GEO[c.id];
-  let arrive;
-  if (geo && k.d != null) arrive = geoArrive(geo, k.d, p);
-  else {
-    const floor = b.exposure == null ? 0.85 : b.exposure;
-    arrive = lerp(bend, 45, 1, 110, floor);
-    if (bend > 45 && p >= 12) arrive = Math.min(1, arrive * 1.15);   // long period wraps in
-  }
-  arrive *= b.gain || 1;
+  const { arrive, geo } = arrival(c, k);
   const h = k.h * arrive;
-  const hNow = (Math.abs(arrive - 1) < 0.05 ? hgt(h) : `${hgt(h)} at the beach (${hgt(k.h)} offshore)`) + (geo && k.d != null ? ' · by geometry' : '');
+  const hNow = (Math.abs(arrive - 1) < 0.05 ? hgt(h) : `${hgt(h)} at the beach (${hgt(k.h)} offshore)`) + (geo ? ' · by geometry' : '');
 
   const sweet = lo + 0.4 * (hi - lo);
   const size = h <= sweet ? lerp(h, lo * 0.5, 0, sweet, 4) : h <= hi ? 4 : lerp(h, hi, 4, hi * 1.4, 0);
@@ -132,12 +150,14 @@ function score(c, k) {
   const dir = k.d != null ? lerp(dd, 0, 3, 60, 0) : 2;
   f.push({ label: 'Direction', pts: dir, max: 3, now: k.d != null ? `from ${dirName(k.d)}` : 'unknown', likes: windowText(b.swell) });
 
+  // Speeds are km/h. Under ~5 kt the direction hardly shows on the face;
+  // onshore only really wrecks it from ~12 kt, and wipes it out past 20.
   const rel = windRel(c, k), ws = k.ws;
   let wind;
-  if (ws < 8)             wind = 1;                                                   // glassy
-  else if (rel === 'offshore') wind = ws < 20 ? 1 : ws < 30 ? 0.9 : ws < 40 ? 0.75 : 0.6;
-  else if (rel === 'onshore')  wind = ws < 10 ? 0.6 : ws < 18 ? 0.4 : ws < 28 ? 0.2 : 0.1;
-  else                         wind = ws < 12 ? 0.85 : ws < 20 ? 0.6 : ws < 30 ? 0.4 : 0.2;
+  if (ws < 10)            wind = 1;                                                   // glassy
+  else if (rel === 'offshore') wind = ws < 25 ? 1 : ws < 35 ? 0.9 : ws < 45 ? 0.75 : 0.6;
+  else if (rel === 'onshore')  wind = ws < 15 ? 0.8 : ws < 22 ? 0.6 : ws < 30 ? 0.4 : ws < 40 ? 0.25 : 0.12;
+  else                         wind = ws < 18 ? 0.9 : ws < 28 ? 0.7 : ws < 40 ? 0.5 : 0.3;
   const gusty = k.wg != null && k.wg > 25 && k.wg > ws * 1.5;
   if (gusty) wind *= 0.85;
   f.push({ label: 'Wind', mult: wind, now: `${kts(ws)} kts ${dirName(k.wd)}, ${rel}${gusty ? `, gusting ${kts(k.wg)}` : ''}`, likes: `${windowText(b.wind)} offshore` });
@@ -169,7 +189,7 @@ function score(c, k) {
 
   let total = (size + per + dir) * wind * sea * tide * clean, cap = '', dark = false;
   if (k.day === 0) { total = 0; cap = 'After dark'; dark = true; }
-  else if (h < 0.4) { total = 0; cap = `Under ${hgt(0.4)}, flat`; }
+  else if (h < 0.3) { total = 0; cap = `Under ${hgt(0.3)}, flat`; }
   else if (h > hi * 1.4) { total = Math.min(total, 3); cap = `Capped: ${hgt(h)} is too big for this spot`; }
   else if (h < lo * 0.7) { total = Math.min(total, 4); cap = `Capped: ${hgt(h)} is too small for this spot`; }
   // Pooled "was it right?" verdicts for this spot (data/skill.json): a spot

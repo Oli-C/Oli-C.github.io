@@ -2260,15 +2260,18 @@
     const qLo = dayScores.length ? levelOf(Math.min(...dayScores)) : null, qHi = dayScores.length ? levelOf(Math.max(...dayScores)) : null;
     const qWord = qLo == null ? 'No light left' : qLo === qHi ? LEVELS[qHi] : `${LEVELS[qLo]} to ${LEVELS[qHi]}`;
 
-    // Surf: hourly swell height, headline is the daylight range.
-    const hMax = Math.max(...hs.map((k) => k.h || 0), 0.3);
-    const hDay = rows.map((k) => k.h).filter((v) => v != null);
+    // Surf: breaking face height at the beach, hour by hour; headline is
+    // the daylight range, the offshore swell sits on the right.
+    const faces = byHour.map((k) => (k && k.h != null ? faceRange(c, k) : null));
+    const fDay = rows.map((k) => faceRange(c, k));
+    const fLo = fDay.length ? Math.min(...fDay.map((f) => f[0])) : 0, fHi = fDay.length ? Math.max(...fDay.map((f) => f[1])) : 0;
+    const fMax = Math.max(...faces.filter(Boolean).map((f) => f[1]), 0.3);
     const surf = `
       <div class="sx-head">
-        <div><span class="k">Surf</span><span class="big">${hDay.length ? rng(+Math.min(...hDay).toFixed(1), +Math.max(...hDay).toFixed(1)) : '–'}</span><div class="sub">${esc(sizeWord(Math.max(...hDay, 0)))}</div></div>
-        <div class="side">now <b>${hgt(now.h)}</b> · <b>${Math.round(now.p)}s</b> · ${now.d != null ? `<b>${dirName(now.d)}</b> ${Math.round(now.d)}°` : ''}</div>
+        <div><span class="k">Surf</span><span class="big">${fDay.length ? rng(fLo, fHi) : '–'}</span><div class="sub">${esc(sizeWord(fHi))}</div></div>
+        <div class="side">swell <b>${hgt(now.h)}</b> · <b>${Math.round(now.p)}s</b> · ${now.d != null ? `<b>${dirName(now.d)}</b> ${Math.round(now.d)}°` : ''}</div>
       </div>
-      ${plot('surf', `<span class="bars">${byHour.map((k) => `<i style="height:${k ? Math.max(3, 100 * k.h / hMax) : 0}%" title="${k ? hgt(k.h) : ''}"></i>`).join('')}</span>`)}`;
+      ${plot('surf', `<span class="bars">${faces.map((f) => `<i style="height:${f ? Math.max(3, 100 * f[1] / fMax) : 0}%" title="${f ? rng(f[0], f[1]) : ''}"></i>`).join('')}</span>`)}`;
 
     // Wind: speed bars coloured by how the spot takes that direction.
     const wMax = Math.max(...hs.map((k) => k.ws || 0), 10);
