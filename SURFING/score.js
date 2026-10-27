@@ -156,7 +156,18 @@ function score(c, k) {
   else if (h < lo * 0.7) { total = Math.min(total, 4); cap = `Capped: ${hgt(h)} is too small for this spot`; }
   total = Math.round(total * 2) / 2;
   const level = total === 0 ? 0 : total <= 3.5 ? 1 : total <= 6 ? 2 : total <= 8 ? 3 : 4;
-  return { total, level, label: dark ? 'Dark' : LEVELS[level], wind: rel, factors: f, cap };
+
+  // Where the sources disagree, say so rather than pretend to be sure.
+  const notes = [];
+  if (k.src) {
+    if (k.src.windSpread >= 60) notes.push(`Models disagree on wind direction (${k.src.windSpread}° apart)`);
+    if (k.src.hSpread >= 0.6) notes.push(`Models disagree on swell size (${hgt(k.src.hMin)}–${hgt(k.src.hMax)})`);
+  }
+  if (k.obs && k.obs.wd != null && k.obs.ws != null) {
+    const dOff = angleDiff(k.obs.wd, k.wd), sOff = Math.abs(k.obs.ws - ws);
+    if (dOff >= 60 || sOff >= 18) notes.push(`${k.obs.station} measured ${kts(k.obs.ws)} kts ${dirName(k.obs.wd)} at ${k.obs.t}; models say ${kts(ws)} kts ${dirName(k.wd)}`);
+  }
+  return { total, level, label: dark ? 'Dark' : LEVELS[level], wind: rel, factors: f, cap, notes };
 }
 
 
@@ -178,6 +189,51 @@ const offshore = (c) => {
 
 const MARINE = ['swell_wave_height', 'swell_wave_period', 'swell_wave_direction', 'wave_height', 'wave_period', 'wave_direction', 'wind_wave_height', 'sea_level_height_msl', 'sea_surface_temperature'];
 const WIND = ['wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m', 'is_day', 'temperature_2m'];
+
+// Several models per metric, so one model's quirk doesn't decide a score.
+// Open-Meteo suffixes each model's hourly series with its id; we blend
+// them per hour (median for sizes and speeds, circular mean for directions)
+// and keep the individual values to show alongside. ECMWF's wave model is
+// left out: its 0.25° grid is blank at these coastal points.
+const WIND_MODELS = [
+  { key: 'best_match', name: 'Best match' },
+  { key: 'ecmwf_ifs025', name: 'ECMWF' },
+  { key: 'gfs_seamless', name: 'GFS' },
+  { key: 'icon_seamless', name: 'ICON' },
+  { key: 'meteofrance_seamless', name: 'Météo-France' },
+  { key: 'ukmo_seamless', name: 'UKMO' },
+];
+const MARINE_MODELS = [
+  { key: 'marine_best_match', id: 'best_match', name: 'Best match' },
+  { key: 'meteofrance_wave', name: 'Météo-France' },
+  { key: 'ncep_gfswave025', name: 'NCEP' },
+  { key: 'ewam', name: 'DWD EWAM' },
+  { key: 'gwam', name: 'DWD GWAM' },
+];
+const modelIds = (models) => models.map((m) => m.id || m.key).join();
+const median = (a) => { const s = a.slice().sort((x, y) => x - y), m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+// Mean of bearings that respects the wrap at north.
+const meanDir = (ds) => {
+  let x = 0, y = 0;
+  for (const d of ds) { x += Math.cos(d * Math.PI / 180); y += Math.sin(d * Math.PI / 180); }
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+};
+const dirSpread = (ds) => { if (ds.length < 2) return 0; const m = meanDir(ds); return Math.round(Math.max(...ds.map((d) => angleDiff(d, m)))); };
+// One model's values at hourly index i (nulls where it has none).
+const modelRow = (hourly, i, vars, m) => Object.fromEntries(vars.map((v) => { const s = hourly[`${v}_${m.key}`]; return [v, s ? s[i] : null]; }));
+// Blend several models' rows into one.
+function blend(rows, vars) {
+  const out = {};
+  for (const v of vars) {
+    const vals = rows.map((r) => r[v]).filter((x) => x != null && !Number.isNaN(x));
+    if (!vals.length) { out[v] = null; continue; }
+    out[v] = v.endsWith('_direction') ? Math.round(meanDir(vals)) : v === 'is_day' ? vals[0] : +median(vals).toFixed(2);
+  }
+  return out;
+}
+
+// IPMA (Portugal's met office) reports wind direction as a compass class.
+const IPMA_DIR = [null, 0, 45, 90, 135, 180, 225, 270, 315, 0];
 
 // Open-Meteo answers with an object for one location, an array for several.
 const asList = (r) => (Array.isArray(r) ? r : [r]);

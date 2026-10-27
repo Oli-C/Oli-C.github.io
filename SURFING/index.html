@@ -994,6 +994,11 @@
   }
   .score-total { display: flex; flex-direction: column; gap: 6px; }
   .score-cap { font-size: 12px; color: var(--fg-muted); max-width: 150px; }
+  .score-cap.note { color: var(--lvl-2); }
+  .src-row { display: flex; flex-wrap: wrap; gap: 3px 12px; margin-top: 6px; font-size: 12px; color: var(--fg-muted); }
+  .src-row b { color: var(--fg); font-weight: 600; }
+  .src-k { flex: 0 0 56px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .src-sum { color: var(--fg); }
   .factors { display: grid; gap: 8px; }
   .factor {
     display: grid;
@@ -1191,6 +1196,7 @@
     </div>
     <div class="frame" id="v-frame"></div>
     <div class="panel scorecard" id="v-score" hidden></div>
+    <div class="panel" id="v-src" hidden></div>
     <div class="panel" id="v-now" hidden></div>
     <div class="panel" id="v-today" hidden></div>
     <div class="panel" id="v-local"></div>
@@ -1217,7 +1223,7 @@
     leaflet: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js',
   };
   const COND_TTL = 30 * 60 * 1000; // re-fetch conditions after 30 minutes
-  const COND_VER = 3;              // bump when the cached shape changes
+  const COND_VER = 4;              // bump when the cached shape changes
   // Tiles keep a short buffer and start on the lowest rendition — they're
   // small, and ten of them at once adds up.
   const TILE_HLS = {
@@ -1361,6 +1367,35 @@
   // The tide line a spot should show: the coast-wide one unless its area strays.
   const tidesFor = (c) => { const ev = areaTides(c.area), coast = coastTides(); return tidesDiffer(ev, coast) ? ev : (coast || ev); };
 
+  // Measured wind from IPMA's station network (open data, hourly, about an
+  // hour behind): each cam gets its nearest station within 50 km.
+  async function loadObs() {
+    const base = 'https://api.ipma.pt/open-data/observation/meteorology/stations/';
+    const [stations, observations] = await Promise.all([
+      fetch(base + 'stations.json').then((r) => r.json()),
+      fetch(base + 'observations.json').then((r) => r.json()),
+    ]);
+    const hoursDesc = Object.keys(observations).sort().reverse().slice(0, 3);
+    const km = (a, b, c, d) => { const R = 6371, t = (x) => x * Math.PI / 180; const x = Math.sin(t(c - a) / 2) ** 2 + Math.cos(t(a)) * Math.cos(t(c)) * Math.sin(t(d - b) / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
+    const out = {};
+    for (const c of CAMS) {
+      let best = null;
+      for (const s of stations) {
+        const id = String(s.properties.idEstacao), [lon, lat] = s.geometry.coordinates;
+        const d = km(c.lat, c.lng, lat, lon);
+        if (d > 50 || (best && d >= best.km)) continue;
+        for (const h of hoursDesc) {
+          const o = observations[h] && observations[h][id];
+          if (!o || o.intensidadeVentoKM == null || o.intensidadeVentoKM < 0) continue;
+          best = { station: s.properties.localEstacao.replace(/\s*\(.*\)$/, ''), km: Math.round(d), t: h.slice(11, 16), ws: o.intensidadeVentoKM, wd: IPMA_DIR[o.idDireccVento] ?? null, temp: o.temperatura >= -50 ? o.temperatura : null };
+          break;
+        }
+      }
+      if (best) out[c.id] = best;
+    }
+    return out;
+  }
+
   async function loadConditions() {
     const ids = CAMS.map((c) => c.id).join();
     const today = new Date().toDateString();
@@ -1375,39 +1410,54 @@
 
     const pts = CAMS.map(offshore);
     const lat = pts.map((p) => p[0]).join(','), lng = pts.map((p) => p[1]).join(',');
-    const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&current=${MARINE.join()}&hourly=${MARINE.join()}&forecast_days=1&timezone=auto`;
-    const windUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=${WIND.join()}&hourly=${WIND.join()}&daily=sunrise,sunset&forecast_days=1&timezone=auto`;
+    // Every model's hourly series for today, blended per hour below.
+    const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&hourly=${MARINE.join()}&models=${modelIds(MARINE_MODELS)}&forecast_days=1&timezone=auto`;
+    const windUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=${WIND.join()}&models=${modelIds(WIND_MODELS)}&daily=sunrise,sunset&forecast_days=1&timezone=auto`;
 
     try {
-      const [marine, wind] = await Promise.all([
+      const [marine, wind, obs] = await Promise.all([
         fetch(marineUrl).then((r) => r.json()),
         fetch(windUrl).then((r) => r.json()),
+        loadObs().catch(() => ({})),
       ]);
       if (marine.error || wind.error) throw new Error(marine.reason || wind.reason);
       const M = asList(marine), W = asList(wind);
       const next = {};
       let when = '';
+      const nowMs = Date.now();
       CAMS.forEach((c, i) => {
         const m = M[i], w = W[i];
-        if (!m || !w) return;
-        const cur = pick(m), curW = pick(w);
-        const now = cur && curW ? toK(cur, curW) : null;
-        if (!now) return;
-        const hours = [];
-        const n = Math.min(m.hourly && m.hourly.time ? m.hourly.time.length : 0, w.hourly && w.hourly.time ? w.hourly.time.length : 0);
+        if (!m || !w || !m.hourly || !w.hourly) return;
+        const hours = [], srcAt = [];
+        const n = Math.min(m.hourly.time.length, w.hourly.time.length);
         for (let j = 0; j < n; j++) {
-          const k = toK(row(m.hourly, j), row(w.hourly, j));
-          if (k) hours.push({ t: m.hourly.time[j], ...k });
+          const mRows = MARINE_MODELS.map((mod) => modelRow(m.hourly, j, MARINE, mod));
+          const wRows = WIND_MODELS.map((mod) => modelRow(w.hourly, j, WIND, mod));
+          const k = toK(blend(mRows, MARINE), blend(wRows, WIND));
+          if (!k) continue;
+          hours.push({ t: m.hourly.time[j], ...k });
+          srcAt.push({ mRows, wRows });
         }
+        if (!hours.length) return;
         hours.forEach((k, j) => addTide(hours, k, j));
-        // "Now" sits between two hourly rows; use the nearer one for tide direction.
-        const nowMs = new Date(cur.time || Date.now()).getTime();
+        // "Now" is the hourly row nearest the clock, with the per-model
+        // values behind it kept for the Sources panel.
         let near = 0, nearD = Infinity;
         hours.forEach((k, j) => { const d = Math.abs(new Date(k.t) - nowMs); if (d < nearD) { nearD = d; near = j; } });
-        addTide(hours, now, near);
+        const now = { ...hours[near] };
+        const { mRows, wRows } = srcAt[near];
+        const windSrc = wRows.map((r, x) => ({ name: WIND_MODELS[x].name, ws: r.wind_speed_10m, wd: r.wind_direction_10m })).filter((r) => r.ws != null);
+        const swellSrc = mRows.map((r, x) => ({ name: MARINE_MODELS[x].name, h: r.swell_wave_height ?? r.wave_height, p: r.swell_wave_period ?? r.wave_period, d: r.swell_wave_direction ?? r.wave_direction })).filter((r) => r.h != null);
+        const hs = swellSrc.map((r) => r.h);
+        now.src = {
+          wind: windSrc, swell: swellSrc,
+          windSpread: dirSpread(windSrc.map((r) => r.wd).filter((v) => v != null)),
+          hMin: hs.length ? Math.min(...hs) : null, hMax: hs.length ? Math.max(...hs) : null, hSpread: hs.length ? Math.max(...hs) - Math.min(...hs) : 0,
+        };
+        if (obs[c.id]) now.obs = obs[c.id];
         const sun = w.daily && w.daily.sunrise ? { rise: (w.daily.sunrise[0] || '').slice(11, 16), set: (w.daily.sunset[0] || '').slice(11, 16) } : null;
-        next[c.id] = { now, hours, sun, tides: tideEvents(hours), t: cur.time };
-        when = when || (cur.time || '').slice(11, 16);
+        next[c.id] = { now, hours, sun, tides: tideEvents(hours), t: now.t };
+        when = when || (now.t || '').slice(11, 16);
       });
       conditions = next;
       condNote = when ? `Scores from Open-Meteo swell, wind and tide at ${when} local, judged against each spot’s usual best.` : 'Conditions unavailable right now';
@@ -2015,6 +2065,7 @@
         <span class="k">Score now</span>
         ${badge(c, true)}
         ${r.cap ? `<span class="score-cap">${esc(r.cap)}</span>` : ''}
+        ${(r.notes || []).map((n) => `<span class="score-cap note">${esc(n)}</span>`).join('')}
       </div>
       <div class="factors">
         ${r.factors.map((f) => {
@@ -2030,12 +2081,30 @@
       </div>`;
   }
 
+  // Every source behind the score: each model's wind and swell, plus the
+  // nearest station's measured wind.
+  function renderSrc(c) {
+    const k = conditions[c.id] && conditions[c.id].now;
+    const el = $('v-src');
+    if (!k || !k.src) { el.hidden = true; el.innerHTML = ''; return; }
+    const wind = k.src.wind.map((s) => `<span><b>${esc(s.name)}</b> ${kts(s.ws)} kts${s.wd != null ? ' ' + dirName(s.wd) : ''}</span>`).join('');
+    const swell = k.src.swell.map((s) => `<span><b>${esc(s.name)}</b> ${hgt(s.h)}${s.p != null ? ' ' + Math.round(s.p) + ' s' : ''}${s.d != null ? ' ' + dirName(s.d) : ''}</span>`).join('');
+    const obs = k.obs ? `<div class="src-row"><span class="src-k">Measured</span><span><b>${esc(k.obs.station)}</b> (${k.obs.km} km, ${k.obs.t}) ${kts(k.obs.ws)} kts${k.obs.wd != null ? ' ' + dirName(k.obs.wd) : ''}${k.obs.temp != null ? ` · ${Math.round(k.obs.temp)}°C` : ''}</span></div>` : '';
+    el.hidden = false;
+    el.innerHTML = `
+      <span class="k">Sources</span>
+      <div class="src-row"><span class="src-k">Wind</span>${wind}<span class="src-sum">→ ${kts(k.ws)} kts ${dirName(k.wd)}${k.src.windSpread ? `, ${k.src.windSpread}° spread` : ''}</span></div>
+      <div class="src-row"><span class="src-k">Swell</span>${swell}<span class="src-sum">→ ${hgt(k.h)} ${Math.round(k.p)} s ${k.d != null ? dirName(k.d) : ''}</span></div>
+      ${obs}`;
+  }
+
   function renderNow(c) {
     const cnd = conditions[c.id], k = cnd && cnd.now;
     const el = $('v-now');
     if (!k) { el.hidden = true; el.innerHTML = ''; return; }
     const stat = (kk, v, s) => `<div><span class="k">${kk}</span><span class="v">${v}${s ? ` <small>${s}</small>` : ''}</span></div>`;
     const items = [];
+    if (k.obs) items.push(stat('Observed', `${kts(k.obs.ws)} kts${k.obs.wd != null ? ' ' + dirName(k.obs.wd) : ''}`, `${esc(k.obs.station)}, ${k.obs.t}`));
     if (k.sst != null) items.push(stat('Water', `${Math.round(k.sst)}°C`, suit(k.sst)));
     if (k.air != null) items.push(stat('Air', `${Math.round(k.air)}°C`));
     if (k.tn != null) items.push(stat('Tide', `${tideWord(k.tn)}${k.tdir ? ', ' + k.tdir : ''}`, tideTimes(cnd)));
@@ -2088,6 +2157,7 @@
     $('v-open').href = c.link;
     $('v-foot').innerHTML = `Stream by ${esc(c.source)} · <a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">open original</a>`;
     renderScore(c);
+    renderSrc(c);
     renderNow(c);
     renderToday(c);
     renderLocal(c);
@@ -2169,7 +2239,7 @@
     if (map) map.closePopup();
     if (!viewer.hidden && location.hash) {
       const c = byId(location.hash.slice(1));
-      if (c) { renderScore(c); renderToday(c); renderLocal(c); }
+      if (c) { renderScore(c); renderSrc(c); renderToday(c); renderLocal(c); }
     }
   }
   $('units').addEventListener('click', (e) => { const b = e.target.closest('button[data-units]'); if (b) setUnits(b.dataset.units); });
@@ -2208,7 +2278,7 @@
     refreshPins();
     if (!viewer.hidden && location.hash) {
       const c = byId(location.hash.slice(1));
-      if (c) { renderScore(c); renderNow(c); renderToday(c); renderLocal(c); }
+      if (c) { renderScore(c); renderSrc(c); renderNow(c); renderToday(c); renderLocal(c); }
     }
   });
 </script>
