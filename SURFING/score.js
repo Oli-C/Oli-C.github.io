@@ -13,6 +13,8 @@ const BUCKETS = [
 // Wave heights in metres or feet, remembered on this device.
 let units = 'm';
 try { units = localStorage.getItem('surf-units') === 'ft' ? 'ft' : 'm'; } catch {}
+// Wind is scored in km/h (Open-Meteo default) but shown in knots.
+const kts = (kmh) => Math.round(kmh * 0.53996);
 const hgt = (m) => (units === 'ft' ? `${Math.round(m * 3.281 * 2) / 2} ft` : `${m.toFixed(1)} m`);
 
 const rng = (a, b) => (units === 'ft' ? `${Math.round(a * 3.281)}–${Math.round(b * 3.281)} ft` : `${a}–${b} m`);
@@ -120,7 +122,7 @@ function score(c, k) {
   else                         wind = ws < 12 ? 0.85 : ws < 20 ? 0.6 : ws < 30 ? 0.4 : 0.2;
   const gusty = k.wg != null && k.wg > 25 && k.wg > ws * 1.5;
   if (gusty) wind *= 0.85;
-  f.push({ label: 'Wind', mult: wind, now: `${Math.round(ws)} km/h ${dirName(k.wd)}, ${rel}${gusty ? `, gusting ${Math.round(k.wg)}` : ''}`, likes: `${windowText(b.wind)} offshore` });
+  f.push({ label: 'Wind', mult: wind, now: `${kts(ws)} kts ${dirName(k.wd)}, ${rel}${gusty ? `, gusting ${kts(k.wg)}` : ''}`, likes: `${windowText(b.wind)} offshore` });
 
   // Sea state: wind chop (sampled offshore, so an offshore wind grooms it
   // and it counts half) plus any secondary swell crossing the main one,

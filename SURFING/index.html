@@ -1281,7 +1281,7 @@
   const condText = (c) => {
     const k = conditions[c.id] && conditions[c.id].now, r = scoreOf(c);
     if (!r) return '';
-    return `<b>${hgt(k.h)}</b> · <b>${Math.round(k.p)} s</b> · <b>${Math.round(k.ws)} km/h</b> ${r.wind}`;
+    return `<b>${hgt(k.h)}</b> · <b>${Math.round(k.p)} s</b> · <b>${kts(k.ws)} kts</b> ${r.wind}`;
   };
 
   /* ---------- Today: four bars + a summary ---------- */
@@ -1325,8 +1325,8 @@
     const am = mode(rels.slice(0, half)), pm = mode(rels.slice(half));
     const speeds = day.map((k) => k.ws);
     const windTxt = am === pm
-      ? `${am} wind all day, ${Math.round(Math.min(...speeds))}–${Math.round(Math.max(...speeds))} km/h`
-      : `${am} early, turning ${pm} later and up to ${Math.round(Math.max(...speeds))} km/h`;
+      ? `${am} wind all day, ${kts(Math.min(...speeds))}–${kts(Math.max(...speeds))} kts`
+      : `${am} early, turning ${pm} later and up to ${kts(Math.max(...speeds))} kts`;
     const bars = (dayBars(c) || []).filter((b) => b.score != null);
     const best = bars.slice().sort((a, b) => b.score - a.score)[0];
     const bestTxt = best ? (best.past ? `Best was ${best.label.toLowerCase()} (${fmt(best.score)}).` : `Best window: ${best.label.toLowerCase()} (${fmt(best.score)}).`) : '';
@@ -1898,7 +1898,7 @@
     for (const c of CAMS) {
       const k = conditions[c.id] && conditions[c.id].now;
       if (!k) continue;
-      windLayer.addLayer(L.marker(seaward(c, 1.3), { icon: arrowIcon(k.wd + 180, `${Math.round(k.ws)} km/h`, windClass(k.ws)), interactive: false, keyboard: false }));
+      windLayer.addLayer(L.marker(seaward(c, 1.3), { icon: arrowIcon(k.wd + 180, `${kts(k.ws)} kts`, windClass(k.ws)), interactive: false, keyboard: false }));
       if (k.d != null) swellLayer.addLayer(L.marker(seaward(c, 2.6), { icon: arrowIcon(k.d + 180, `${hgt(k.h)} ${Math.round(k.p)}s`, 'swell'), interactive: false, keyboard: false }));
     }
     if (windField) { windLayer.addLayer(windField); swellLayer.addLayer(swellField); }
@@ -2033,7 +2033,7 @@
     if (k.air != null) items.push(stat('Air', `${Math.round(k.air)}°C`));
     if (k.tn != null) items.push(stat('Tide', `${tideWord(k.tn)}${k.tdir ? ', ' + k.tdir : ''}`, tideTimes(cnd)));
     if (cnd.sun && cnd.sun.rise) items.push(stat('Light', `${cnd.sun.rise}–${cnd.sun.set}`, 'sunrise to sunset'));
-    if (k.wg != null) items.push(stat('Gusts', `${Math.round(k.wg)} km/h`));
+    if (k.wg != null) items.push(stat('Gusts', `${kts(k.wg)} kts`));
     el.hidden = !items.length;
     el.innerHTML = `<span class="k">Right now</span><div class="now-row">${items.join('')}</div>`;
   }

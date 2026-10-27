@@ -311,7 +311,7 @@
     return {
       top, level: levelOf(top), label: LEVELS[levelOf(top)], best, blocks,
       hMin: Math.min(...hs), hMax: Math.max(...hs), p: Math.round(avg(ps)), dir,
-      wsMin: Math.round(Math.min(...ws)), wsMax: Math.round(Math.max(...ws)), rel,
+      wsMin: kts(Math.min(...ws)), wsMax: kts(Math.max(...ws)), rel,
       tides: day.tides, sun: day.sun,
     };
   }
@@ -344,7 +344,7 @@
     if (!d) return `<div class="detail">No forecast for this day.</div>`;
     const tide = d.tides && d.tides.length ? d.tides.map((e) => `${e.kind} ${fmtMins(e.mins)}`).join(' · ') : '';
     const size = Math.abs(d.hMax - d.hMin) < 0.25 ? hgt((d.hMin + d.hMax) / 2) : `${hgt(d.hMin)}–${hgt(d.hMax)}`;
-    const wind = d.wsMin === d.wsMax ? `${d.wsMin} km/h` : `${d.wsMin}–${d.wsMax} km/h`;
+    const wind = d.wsMin === d.wsMax ? `${d.wsMin} kts` : `${d.wsMin}–${d.wsMax} kts`;
     return `<div class="detail">
       <span class="win">${bars(d)}${d.best ? `Best <b>${d.best.label.toLowerCase()}</b> (${fmt(d.best.score)})` : ''}</span>
       <span>Swell <b>${size}</b> at <b>${d.p} s</b> from <b>${d.dir}</b></span>
