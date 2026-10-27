@@ -1242,6 +1242,7 @@
 </div>
 
 <script src="spots.js"></script>
+<script src="geo.js"></script>
 <script src="score.js"></script>
 <script>
   const LIBS = {
@@ -1250,7 +1251,7 @@
     leaflet: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js',
   };
   const COND_TTL = 30 * 60 * 1000; // re-fetch conditions after 30 minutes
-  const COND_VER = 5;              // bump when the cached shape changes
+  const COND_VER = 6;              // bump when the cached shape changes
   // Tiles keep a short buffer and start on the lowest rendition — they're
   // small, and ten of them at once adds up.
   const TILE_HLS = {
@@ -1456,7 +1457,7 @@
       let seen = [];
       try { seen = JSON.parse(localStorage.getItem('surf-skill-seen') || '[]'); } catch {}
       let learned = false;
-      const marineW = MARINE_MODELS.map((mod) => mod.w);
+      const marineW = MARINE_MODELS.map(waveWeight);
       CAMS.forEach((c, i) => {
         const m = M[i], w = W[i];
         if (!m || !w || !m.hourly || !w.hourly) return;
@@ -1502,7 +1503,7 @@
         const now = { ...hours[near] };
         const { mRows, wRows } = srcAt[near];
         const windSrc = wRows.map((r, x) => ({ name: WIND_MODELS[x].name, w: +srcAt[near].windW[x].toFixed(2), n: (skill[WIND_MODELS[x].key] || {}).n || 0, ws: r.wind_speed_10m, wd: r.wind_direction_10m })).filter((r) => r.ws != null);
-        const swellSrc = mRows.map((r, x) => ({ name: MARINE_MODELS[x].name, w: MARINE_MODELS[x].w, h: r.swell_wave_height ?? r.wave_height, p: r.swell_wave_period ?? r.wave_period, d: r.swell_wave_direction ?? r.wave_direction })).filter((r) => r.h != null && r.h > 0.05);
+        const swellSrc = mRows.map((r, x) => ({ name: MARINE_MODELS[x].name, w: +waveWeight(MARINE_MODELS[x]).toFixed(2), h: r.swell_wave_height ?? r.wave_height, p: r.swell_wave_period ?? r.wave_period, d: r.swell_wave_direction ?? r.wave_direction })).filter((r) => r.h != null && r.h > 0.05);
         // Flag the ones the blend set aside, so the Sources panel can say so.
         const wdOut = outliers(windSrc.map((r) => r.wd), true), wsOut = outliers(windSrc.map((r) => r.ws), false);
         windSrc.forEach((r, x) => { r.out = wdOut.has(x) || wsOut.has(x); });
@@ -2162,7 +2163,7 @@
       <div class="src-row"><span class="src-k">Wind</span>${wind}<span class="src-sum">→ ${kts(k.model ? k.model.ws : k.ws)} kts ${dirName(k.model ? k.model.wd : k.wd)} from the models${k.obsW ? `, ${kts(k.ws)} kts ${dirName(k.wd)} with the station` : ''}${k.src.windSpread ? ` · ${k.src.windSpread}° spread` : ''}</span></div>
       <div class="src-row"><span class="src-k">Swell</span>${swell}<span class="src-sum">→ ${hgt(k.h)} ${Math.round(k.p)} s ${k.d != null ? dirName(k.d) : ''}</span></div>
       ${obs}
-      <div class="src-note">Outliers are set aside, then models are blended by weight: grid resolution, and for wind how well each has matched the nearby station${checks ? ` (${checks} checks so far on this device)` : ''}. A fresh, close station reading is folded into the current wind.</div>`;
+      <div class="src-note">Outliers are set aside, then models are blended by weight: grid resolution, and how well each has matched measurements${sharedSkill && sharedSkill.updated ? ` — IPMA stations and IH buoys, verified every few hours (last ${sharedSkill.updated.slice(0, 16).replace('T', ' ')} UTC)` : ''}${checks ? `, plus ${checks} station checks on this device` : ''}. A fresh, close station reading is folded into the current wind.</div>`;
   }
 
   function renderNow(c) {
@@ -2450,8 +2451,9 @@
   // Tiles start streaming as soon as hls.js is in (Safari needs nothing).
   (nativeHls ? Promise.resolve() : loadScript(LIBS.hls)).then(setupTiles, setupTiles);
 
-  // Conditions arrive after first paint; patch what depends on them.
-  loadConditions().then(() => {
+  // Shared model skill first (so the blend is weighted), then conditions;
+  // both arrive after first paint and patch what depends on them.
+  loadSharedSkill().then(loadConditions).then(() => {
     patchConditions();
     refreshPins();
     if (!viewer.hidden && location.hash) {

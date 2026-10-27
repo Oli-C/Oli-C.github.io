@@ -1,0 +1,119 @@
+{
+ "updated": "2026-10-27T11:55:55.073Z",
+ "wind": {
+  "best_match": {
+   "n": 477,
+   "dir": 33.639,
+   "spd": 2.018
+  },
+  "ecmwf_ifs025": {
+   "n": 477,
+   "dir": 39.38,
+   "spd": 3.528
+  },
+  "gfs_seamless": {
+   "n": 477,
+   "dir": 36.307,
+   "spd": 3.442
+  },
+  "icon_seamless": {
+   "n": 477,
+   "dir": 34.706,
+   "spd": 1.953
+  },
+  "meteofrance_seamless": {
+   "n": 477,
+   "dir": 39.592,
+   "spd": 2.699
+  },
+  "ukmo_seamless": {
+   "n": 477,
+   "dir": 40.272,
+   "spd": 2.705
+  }
+ },
+ "wave": {
+  "best_match": {
+   "n": 147,
+   "hRel": 0.086,
+   "p": 1.143,
+   "dir": null
+  },
+  "meteofrance_wave": {
+   "n": 147,
+   "hRel": 0.086,
+   "p": null,
+   "dir": null
+  },
+  "ncep_gfswave025": {
+   "n": 147,
+   "hRel": 0.244,
+   "p": null,
+   "dir": null
+  },
+  "ewam": {
+   "n": 147,
+   "hRel": 0.136,
+   "p": 1.143,
+   "dir": null
+  },
+  "gwam": {
+   "n": 147,
+   "hRel": 0.113,
+   "p": 1.249,
+   "dir": null
+  }
+ },
+ "lastWindObs": "2026-10-27T11:00",
+ "lastWaveObs": "2026-10-23T14:00:00Z",
+ "runs": 1,
+ "stations": [
+  "Setúbal, Areias",
+  "Alcochete / Campo Tiro",
+  "Oeiras / Vila Fria",
+  "Odemira, S.Teotónio",
+  "Sintra/Tapada do Mouco",
+  "Lisboa, Relógio",
+  "Lisboa, Amoreiras",
+  "Lisboa, Carnide",
+  "Lisboa, Tapada da Ajuda",
+  "Almada, P.Rainha",
+  "Leiria",
+  "Leiria",
+  "São Pedro de Moel",
+  "Ourém / Fátima",
+  "Alcobaça",
+  "Amadora",
+  "Rio Maior",
+  "Torres Vedras, Dois Portos",
+  "Santa Cruz",
+  "Sintra, Colares",
+  "Cabo da Roca",
+  "Cabo Raso",
+  "Barreiro, Lavradio",
+  "Pegões",
+  "Portimão",
+  "Setúbal",
+  "Cabo Carvoeiro",
+  "Sagres",
+  "Lisboa",
+  "Odemira - Vila Nova de Milfontes",
+  "Odemira - Sabóia",
+  "Aljezur",
+  "Fóia",
+  "Silves - São Marcos da Serra",
+  "Zambujeira",
+  "Aljezur - Rogil",
+  "Portimão"
+ ],
+ "buoys": [
+  {
+   "id": "nazare",
+   "name": "Nazaré / Pedrógão coastal buoy (IH)",
+   "lat": 39.56,
+   "lng": -9.21,
+   "hours": 147,
+   "latest": "2026-10-23T14:00:00Z"
+  }
+ ]
+}

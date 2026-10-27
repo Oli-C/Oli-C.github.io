@@ -41,6 +41,16 @@ const tideWord = (tn) => (tn < 0.33 ? 'low' : tn < 0.66 ? 'mid' : 'high');
 // Wetsuit by water temperature — a rule of thumb, not gospel.
 const suit = (t) => (t >= 22 ? 'boardies' : t >= 19 ? '2 mm spring' : t >= 16 ? '3/2 mm' : t >= 13 ? '4/3 mm' : '5/4 mm + boots');
 
+// Arrival factor from a spot's geometry table (geo.js): resp[dir] holds
+// [8 s, 11 s, 14 s] factors for deep-water swell FROM each 15° direction;
+// interpolate in direction and period.
+function geoArrive(geo, d, p) {
+  const dn = ((d % 360) + 360) % 360, d0 = Math.floor(dn / 15) * 15, d1 = (d0 + 15) % 360, f = (dn - d0) / 15;
+  const pi = p <= 8 ? 0 : p >= 14 ? 2 : (p - 8) / 3;
+  const at = (dir) => { const r = geo.resp[dir] || [1, 1, 1], i = Math.min(1, Math.floor(pi)), t = pi - i; return r[i] + (r[i + 1] - r[i]) * t; };
+  return at(d0) * (1 - f) + at(d1) * f;
+}
+
 // Wind direction is where it blows FROM. Offshore = inside the spot's
 // window (give or take 15°); onshore = roughly from the sea; the rest is
 // cross-shore, which is what a nortada does to the west-facing beaches.
@@ -87,14 +97,20 @@ function score(c, k) {
   const [lo, hi] = b.size;
   const f = [];
 
-  // How much of the offshore swell reaches this beach: whole when it's
-  // coming at the beach (within 45° of the way it faces), fading to the
-  // spot's exposure floor once it has to bend 110° round a headland.
+  // How much of the offshore swell reaches this beach. With geometry for
+  // the spot (geo.js: coastline shadowing + Snell refraction from real
+  // bathymetry) use its directional table; otherwise the hand-set rule:
+  // whole within 45° of the facing, fading to the exposure floor by 110°.
   const dd = k.d != null ? distToWindow(k.d, b.swell) : 0;
   const bend = k.d != null ? angleDiff(k.d, c.faces) : 0;
-  const floor = b.exposure == null ? 0.85 : b.exposure;
-  let arrive = lerp(bend, 45, 1, 110, floor);
-  if (bend > 45 && p >= 12) arrive = Math.min(1, arrive * 1.15);   // long period wraps in
+  const geo = typeof GEO !== 'undefined' && GEO[c.id];
+  let arrive;
+  if (geo && k.d != null) arrive = geoArrive(geo, k.d, p);
+  else {
+    const floor = b.exposure == null ? 0.85 : b.exposure;
+    arrive = lerp(bend, 45, 1, 110, floor);
+    if (bend > 45 && p >= 12) arrive = Math.min(1, arrive * 1.15);   // long period wraps in
+  }
   arrive *= b.gain || 1;
   const h = k.h * arrive;
   const hNow = Math.abs(arrive - 1) < 0.05 ? hgt(h) : `${hgt(h)} at the beach (${hgt(k.h)} offshore)`;
@@ -276,10 +292,30 @@ function blend(rows, vars, weights) {
 const SKILL_KEY = 'surf-skill';
 let skill = {};
 try { skill = JSON.parse(localStorage.getItem(SKILL_KEY) || '{}') || {}; } catch {}
+// Shared skill, published by the scheduled Action (data/skill.json): every
+// model's running miss against IPMA stations (wind) and IH buoys (waves),
+// measured continuously for everyone. Device-local learning nudges it.
+let sharedSkill = null;
+async function loadSharedSkill(url = 'data/skill.json') {
+  try { const r = await fetch(url, { cache: 'no-cache' }); if (r.ok) sharedSkill = await r.json(); } catch {}
+  return sharedSkill;
+}
 function modelWeight(m) {
-  const s = skill[m.key];
-  if (!s || s.n < 3) return m.w;
-  return m.w / (1 + s.dir / 90 + s.spd / 20);    // a 90° or 20 km/h average miss halves the weight
+  const sh = sharedSkill && sharedSkill.wind && sharedSkill.wind[m.key];
+  const lo = skill[m.key];
+  let dir = null, spd = null;
+  if (sh && sh.n >= 10 && sh.spd != null) {
+    dir = sh.dir == null ? 45 : sh.dir; spd = sh.spd;
+    if (lo && lo.n >= 3) { dir = (dir * 3 + lo.dir) / 4; spd = (spd * 3 + lo.spd) / 4; }   // local nudge
+  } else if (lo && lo.n >= 3) { dir = lo.dir; spd = lo.spd; }
+  if (dir == null) return m.w;
+  return m.w / (1 + dir / 90 + spd / 20);    // a 90° or 20 km/h average miss halves the weight
+}
+// Wave models have no local ground truth; only the shared buoy record counts.
+function waveWeight(m) {
+  const sh = sharedSkill && sharedSkill.wave && sharedSkill.wave[m.id || m.key];
+  if (!sh || sh.n < 10 || sh.hRel == null) return m.w;
+  return m.w / (1 + sh.hRel / 0.3 + (sh.p == null ? 0 : sh.p / 4));   // 30% height or 4 s period miss halves it
 }
 // dirErr may be null (light air, direction meaningless); then only speed counts.
 function learn(key, dirErr, spdErr) {

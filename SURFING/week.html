@@ -225,6 +225,7 @@
 </main>
 
 <script src="spots.js"></script>
+<script src="geo.js"></script>
 <script src="score.js"></script>
 <script>
   /* Seven days for every spot. For each day we score every daylight hour
@@ -234,7 +235,7 @@
      wind in two calls. */
   const DAYS = 7;
   const TTL = 60 * 60 * 1000;   // an hour; forecasts don't change faster than that
-  const VER = 2;
+  const VER = 3;
 
   const $ = (id) => document.getElementById(id);
   const list = $('list'), daysEl = $('days'), chips = $('chips'), empty = $('empty'), status = $('status');
@@ -253,10 +254,12 @@
 
   /* ---------- Fetch ---------- */
   async function load() {
+    await loadSharedSkill();
     const ids = CAMS.map((c) => c.id).join(), today = new Date().toDateString();
+    const skillStamp = sharedSkill && sharedSkill.updated || '';
     try {
       const c = JSON.parse(localStorage.getItem('surf-week') || 'null');
-      if (c && c.v === VER && c.ids === ids && c.day === today && Date.now() - c.t < TTL) { data = c.data; return; }
+      if (c && c.v === VER && c.ids === ids && c.day === today && c.skill === skillStamp && Date.now() - c.t < TTL) { data = c.data; return; }
     } catch {}
     const pts = CAMS.map(offshore);
     const lat = pts.map((p) => p[0]).join(','), lng = pts.map((p) => p[1]).join(',');
@@ -269,7 +272,7 @@
     ]);
     if (marine.error || wind.error) throw new Error(marine.reason || wind.reason);
     const M = asList(marine), W = asList(wind);
-    const windW = WIND_MODELS.map(modelWeight), marineW = MARINE_MODELS.map((mod) => mod.w);
+    const windW = WIND_MODELS.map(modelWeight), marineW = MARINE_MODELS.map(waveWeight);
     const next = {};
     CAMS.forEach((c, i) => {
       const m = M[i], w = W[i];
@@ -291,7 +294,7 @@
       next[c.id] = { days };
     });
     data = next;
-    try { localStorage.setItem('surf-week', JSON.stringify({ v: VER, ids, day: today, t: Date.now(), data })); } catch {}
+    try { localStorage.setItem('surf-week', JSON.stringify({ v: VER, ids, day: today, skill: skillStamp, t: Date.now(), data })); } catch {}
   }
 
   /* ---------- Per-day digest ---------- */
