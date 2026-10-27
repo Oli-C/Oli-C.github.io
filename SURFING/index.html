@@ -1,0 +1,2428 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="charcoal">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>allfield · surf cams</title>
+<meta name="description" content="Live surf webcams, scored out of 10 against what each spot likes.">
+<link rel="icon" type="image/jpeg" href="../assets/favicon.jpg">
+<meta name="theme-color" content="#101820">
+<link rel="preload" href="../assets/fonts/anek-kannada-latin.woff2" as="font" type="font/woff2" crossorigin>
+<script>
+  // Stamp the theme before first paint, same as the home page, so light-mode
+  // visitors don't see the charcoal ground flash.
+  document.documentElement.setAttribute('data-theme',
+    matchMedia('(prefers-color-scheme: dark)').matches ? 'charcoal' : 'light');
+</script>
+<!-- Player + map styles. hls.js loads at once (the tiles need it); Plyr and
+     Leaflet are fetched the first time a cam is opened or the map is shown. -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/plyr@3.7.8/dist/plyr.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  /* Anek Kannada, self-hosted — latin + latin-ext only, shared with the home page. */
+  @font-face {
+    font-family: 'Anek Kannada';
+    font-style: normal;
+    font-weight: 400 700;
+    font-stretch: 125%;
+    font-display: swap;
+    src: url('../assets/fonts/anek-kannada-latin-ext.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  }
+  @font-face {
+    font-family: 'Anek Kannada';
+    font-style: normal;
+    font-weight: 400 700;
+    font-stretch: 125%;
+    font-display: swap;
+    src: url('../assets/fonts/anek-kannada-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* Palette mirrors style.css — "low light" Pantone scheme. */
+  :root {
+    --accent:  #ff8200;
+    --sea:     #15616d;
+    --live:    #e5484d;
+    /* Score colours: flat-or-dark / poor / fair / good / epic */
+    --lvl-0:   #5c6166;
+    --lvl-1:   #8b2f45;
+    --lvl-2:   #e3a23a;
+    --lvl-3:   #9eb05c;
+    --lvl-4:   #ff8200;
+    --radius-sm: 4px;
+    --radius:    10px;
+    --radius-lg: 14px;
+    --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+    --controls-h: 150px; /* measured at runtime */
+  }
+  [data-theme="charcoal"] {
+    --bg:       #101820;
+    --bg-2:     #373a36;
+    --bg-3:     #1a232c;
+    --fg:       #d6d2c4;
+    --fg-muted: #968c83;
+    --accent-ink: var(--accent);
+    --border:   rgba(214, 210, 196, 0.12);
+    --border-2: rgba(214, 210, 196, 0.22);
+    --border-3: rgba(214, 210, 196, 0.38);
+    --shade:    rgba(5, 9, 13, 0.82);
+  }
+  [data-theme="light"] {
+    --accent:   #ff6900;
+    --lvl-4:    #ff6900;
+    --bg:       #d7d2cb;
+    --bg-2:     #bfb8af;
+    --bg-3:     #eae6e0;
+    --fg:       #101820;
+    --fg-muted: #6e6259;
+    --accent-ink: color-mix(in srgb, var(--accent) 58%, var(--fg));
+    --border:   rgba(16, 24, 32, 0.12);
+    --border-2: rgba(16, 24, 32, 0.22);
+    --border-3: rgba(16, 24, 32, 0.40);
+    --shade:    rgba(16, 24, 32, 0.72);
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Anek Kannada', system-ui, sans-serif;
+    font-stretch: 125%;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    letter-spacing: -0.005em;
+  }
+  body.locked { overflow: hidden; }
+
+  .page {
+    max-width: 1800px;
+    margin: 0 auto;
+    padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 64px max(16px, env(safe-area-inset-left));
+  }
+
+  /* ---------- Header ---------- */
+  .top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .back {
+    color: var(--fg-muted);
+    text-decoration: none;
+    font-size: 14px;
+    letter-spacing: 0.04em;
+  }
+  .back:hover, .back:focus-visible { color: var(--accent-ink); }
+  h1 {
+    font-size: clamp(34px, 7vw, 52px);
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  h1 span { color: var(--accent-ink); }
+  .lede {
+    color: var(--fg-muted);
+    font-size: 15px;
+    margin-top: 6px;
+  }
+
+  /* "Best right now" — the three top-scoring cams, one tap away. */
+  .best {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+  }
+  .best[hidden] { display: none; }
+  .best-label {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+    margin-right: 4px;
+  }
+  .best-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font: inherit;
+    font-size: 14px;
+    color: var(--fg);
+    background: var(--bg-3);
+    border: 1px solid var(--border-2);
+    border-radius: 999px;
+    padding: 4px 12px 4px 4px;
+    cursor: pointer;
+    transition: border-color .2s var(--ease), transform .2s var(--ease);
+  }
+  .best-chip:hover, .best-chip:focus-visible { border-color: var(--accent); transform: translateY(-1px); outline: none; }
+  /* Wide: title left, best-right-now chips fill the right of the header. */
+  @media (min-width: 1100px) {
+    .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+    .best { margin-top: 0; justify-content: flex-end; }
+  }
+
+  /* ---------- Search + filters (sticky) ---------- */
+  /* Compact: two short rows on phones, one row on wide screens. */
+  .controls {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin: 12px -16px 14px;
+    padding: 8px 16px;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .r2 { margin-top: 6px; }
+  .search { position: relative; flex: 1; min-width: 0; }
+  .search svg {
+    position: absolute;
+    left: 11px;
+    top: 50%;
+    width: 15px;
+    height: 15px;
+    transform: translateY(-50%);
+    color: var(--fg-muted);
+    pointer-events: none;
+  }
+  .search input {
+    width: 100%;
+    font: inherit;
+    font-size: 14px;
+    color: var(--fg);
+    background: var(--bg-3);
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    padding: 7px 10px 5px 32px;
+    outline: none;
+    transition: border-color .2s var(--ease);
+  }
+  .search input::placeholder { color: var(--fg-muted); }
+  .search input:focus { border-color: var(--accent); }
+
+  .seg {
+    flex: none;
+    display: inline-flex;
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    padding: 2px;
+    background: var(--bg-3);
+  }
+  .seg button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font: inherit;
+    font-size: 12px;
+    letter-spacing: 0.03em;
+    color: var(--fg-muted);
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    padding: 5px 9px 3px;
+    cursor: pointer;
+    transition: color .2s var(--ease), background .2s var(--ease);
+  }
+  .seg button[aria-pressed="true"] {
+    color: #101820;
+    background: var(--accent);
+  }
+  .seg svg { width: 13px; height: 13px; }
+
+  .chips {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: none;
+    font: inherit;
+    font-size: 12px;
+    letter-spacing: 0.03em;
+    color: var(--fg-muted);
+    background: transparent;
+    border: 1px solid var(--border-2);
+    border-radius: 999px;
+    padding: 4px 10px 2px;
+    cursor: pointer;
+    transition: color .2s var(--ease), border-color .2s var(--ease), background .2s var(--ease);
+  }
+  .chip:hover { color: var(--fg); border-color: var(--border-3); }
+  .chip[aria-pressed="true"] {
+    color: var(--fg);
+    background: var(--bg-2);
+    border-color: var(--border-3);
+  }
+  /* Data saver: tiles stay on their snapshot; only the cam you open streams. */
+  .switch {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: inherit;
+    font-size: 11px;
+    letter-spacing: 0.03em;
+    color: var(--fg-muted);
+    background: transparent;
+    border: 0;
+    padding: 2px 0;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .switch i {
+    position: relative;
+    width: 26px;
+    height: 16px;
+    border-radius: 999px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    transition: background .2s var(--ease);
+  }
+  .switch i::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--fg-muted);
+    transition: transform .2s var(--ease), background .2s var(--ease);
+  }
+  .switch[aria-checked="true"] { color: var(--fg); }
+  .switch[aria-checked="true"] i { background: var(--accent); border-color: var(--accent); }
+  .switch[aria-checked="true"] i::after { background: #101820; transform: translateX(10px); }
+
+  /* Wide: search · areas · view · saver on one line */
+  @media (min-width: 1100px) {
+    .controls { display: flex; align-items: center; gap: 10px; }
+    .row { display: contents; }
+    .search { flex: 0 1 340px; order: 1; }
+    .chips { order: 2; }
+    .seg { order: 3; }
+    .switch { order: 4; }
+  }
+  /* Phones: 16px input stops iOS zooming on focus */
+  @media (max-width: 640px) {
+    .search input { font-size: 16px; padding: 8px 10px 6px 32px; }
+  }
+
+  /* ---------- Score badge (shared by tiles, pins, popups, viewer) ---------- */
+  .lvl-0 { --pin: var(--lvl-0); --ink: #fff; }
+  .lvl-1 { --pin: var(--lvl-1); --ink: #fff; }
+  .lvl-2 { --pin: var(--lvl-2); --ink: #101820; }
+  .lvl-3 { --pin: var(--lvl-3); --ink: #101820; }
+  .lvl-4 { --pin: var(--lvl-4); --ink: #101820; }
+  .lvl-x { --pin: var(--bg-2); --ink: var(--fg-muted); }
+  .score {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    color: var(--ink);
+    background: var(--pin);
+    border-radius: 8px;
+    padding: 4px 8px 2px;
+    white-space: nowrap;
+    line-height: 1;
+  }
+  .score b { font-size: 15px; font-weight: 700; }
+  .score small { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+  .score.lg b { font-size: 26px; }
+  .score.lg small { font-size: 12px; }
+
+  /* Four-bar "today" strip — mini on tiles, full-size in the viewer. */
+  .mini {
+    display: inline-flex;
+    gap: 2px;
+    align-items: flex-end;
+    height: 14px;
+    flex: none;
+  }
+  .mini i {
+    display: block;
+    width: 5px;
+    min-height: 2px;
+    border-radius: 1px;
+    background: var(--pin, var(--bg-2));
+  }
+  .mini i.past { opacity: .35; }
+  .mini i.now { outline: 1px solid #fff; outline-offset: 1px; }
+
+  /* ---------- Layout: cams + map ---------- */
+  .layout {
+    display: grid;
+    gap: 16px;
+    align-items: start;
+  }
+  .layout[data-view="split"] { grid-template-columns: minmax(0, 1fr) minmax(340px, 38%); }
+  .layout[data-view="grid"] .map-pane { display: none; }
+  .layout[data-view="map"] .list { display: none; }
+  .map-pane {
+    position: sticky;
+    top: calc(var(--controls-h) + 12px);
+  }
+  #map {
+    height: calc(100vh - var(--controls-h) - 44px);
+    min-height: 380px;
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius-lg);
+    background: var(--bg-3);
+    overflow: hidden;
+    z-index: 0;
+  }
+  .layout[data-view="map"] .map-pane { position: static; }
+  .layout[data-view="map"] #map { height: clamp(420px, 72vh, 860px); }
+  @media (max-width: 999px) {
+    .layout[data-view="split"] { grid-template-columns: 1fr; }
+    .layout[data-view="split"] .map-pane { display: none; }
+    #seg-split { display: none; }
+  }
+
+  /* ---------- Areas and tiles ---------- */
+  .area { margin-bottom: 24px; }
+  .area[hidden] { display: none; }
+  .area-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .area-head h2 {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .area-head h2 small {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--fg-muted);
+    margin-left: 8px;
+    letter-spacing: 0;
+  }
+  .area-sum {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 2px 14px;
+    color: var(--fg-muted);
+    font-size: 13px;
+    text-align: right;
+  }
+  .area-sum b { color: var(--fg); font-weight: 600; }
+  .tide-sum { color: var(--fg); font-weight: 600; letter-spacing: 0.02em; }
+  /* Tiles are the preview; everything else sits on top of the picture.
+     Beside the map they stay modest; in Cams mode they fill the width. */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+  }
+  .layout[data-view="grid"] .cards {
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 14px;
+  }
+  @media (max-width: 640px) {
+    .cards, .layout[data-view="grid"] .cards { grid-template-columns: 1fr; gap: 12px; }
+  }
+
+  .cam {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    font: inherit;
+    color: #fff;
+    background:
+      radial-gradient(120% 90% at 20% 110%, color-mix(in srgb, var(--sea) 70%, transparent), transparent 60%),
+      linear-gradient(160deg, var(--bg-2), var(--bg));
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform .25s var(--ease), border-color .25s var(--ease), box-shadow .25s var(--ease);
+  }
+  .cam:hover, .cam:focus-visible {
+    transform: translateY(-2px);
+    border-color: var(--border-3);
+    outline: none;
+  }
+  .cam:focus-visible { border-color: var(--accent); }
+  .cam.flash { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
+
+  /* Snapshot underneath, live video on top once it's actually playing. */
+  .cam img, .cam video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity .4s var(--ease);
+  }
+  .cam img.ready, .cam video.ready { opacity: 1; }
+  .cam .score {
+    position: absolute;
+    z-index: 2;
+    right: 8px;
+    top: 8px;
+    padding: 3px 6px 2px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+  }
+  .cam .score b { font-size: 12px; }
+  .cam .score small { font-size: 9px; }
+  .live {
+    position: absolute;
+    z-index: 2;
+    left: 8px;
+    top: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #fff;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    padding: 3px 7px 2px;
+    border-radius: 999px;
+  }
+  .live i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--fg-muted);
+  }
+  /* The dot only goes red once the tile is really streaming. */
+  .cam.streaming .live i { background: var(--live); animation: pulse 2s infinite; }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(229, 72, 77, .6); }
+    70%  { box-shadow: 0 0 0 6px rgba(229, 72, 77, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(229, 72, 77, 0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .live i, .pin.lvl-4::after { animation: none; }
+    .cam, .cam img, .cam video { transition: none; }
+  }
+
+  /* Small text overlay along the bottom of the picture */
+  /* Kept to a thin strip so the picture stays the point. */
+  .overlay {
+    position: absolute;
+    z-index: 1;
+    left: 0; right: 0; bottom: 0;
+    padding: 14px 8px 6px;
+    text-align: left;
+    background: linear-gradient(to top, rgba(0,0,0,0.72), rgba(0,0,0,0));
+  }
+  .overlay .name {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  }
+  .overlay .sub {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 6px;
+    margin-top: 1px;
+  }
+  .overlay .where, .overlay .cond-line {
+    font-size: 10px;
+    letter-spacing: 0.02em;
+    color: rgba(255,255,255,0.75);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .overlay .cond-line b { color: #fff; font-weight: 600; }
+  .overlay .sub .mini-slot { flex: none; }
+  .overlay .mini { height: 10px; }
+  .overlay .mini i { width: 4px; }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .tag {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 3px 7px 1px;
+  }
+
+  .empty {
+    display: none;
+    text-align: center;
+    color: var(--fg-muted);
+    padding: 60px 16px;
+  }
+  .empty.show { display: block; }
+
+  /* ---------- Map ---------- */
+  .legend {
+    position: absolute;
+    z-index: 1;
+    left: 12px;
+    bottom: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--fg);
+    background: color-mix(in srgb, var(--bg) 85%, transparent);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 7px 10px 5px;
+    pointer-events: none;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend i { width: 9px; height: 9px; border-radius: 50%; background: var(--pin); }
+  .map-hint {
+    color: var(--fg-muted);
+    font-size: 12px;
+    margin-top: 8px;
+    letter-spacing: 0.02em;
+  }
+
+  /* OSM's street tiles are light; in the charcoal theme we invert them.
+     Satellite imagery is left alone. */
+  [data-theme="charcoal"] .osm-tiles {
+    filter: invert(1) hue-rotate(180deg) brightness(0.82) contrast(0.9) saturate(0.55);
+  }
+
+  /* Pins: a divIcon carrying the score, coloured by level. */
+  .pin-wrap { background: none; border: 0; }
+  .pin {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    padding-top: 1px;
+    color: var(--ink);
+    background: var(--pin);
+    border: 2px solid #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+    transition: transform .2s var(--ease);
+  }
+  .pin.lvl-x { border-style: dashed; border-color: var(--fg-muted); }
+  .pin.lvl-4::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    animation: pulse-pin 2s infinite;
+  }
+  @keyframes pulse-pin {
+    0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--lvl-4) 60%, transparent); }
+    70%  { box-shadow: 0 0 0 10px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
+  .leaflet-marker-icon:hover .pin, .leaflet-marker-icon.hot .pin { transform: scale(1.18); }
+  .leaflet-marker-icon.hot { z-index: 1000 !important; }
+
+  /* Leaflet chrome in our palette */
+  .leaflet-container { font-family: inherit; background: var(--bg-3); }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+    background: var(--bg-3);
+    color: var(--fg);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  }
+  .leaflet-popup-content-wrapper { border-radius: var(--radius); border: 1px solid var(--border-2); }
+  .leaflet-popup-content { margin: 12px 14px; font-size: 14px; line-height: 1.35; }
+  .leaflet-bar a {
+    background: var(--bg-3);
+    color: var(--fg);
+    border-bottom-color: var(--border-2);
+  }
+  .leaflet-bar a:hover { background: var(--bg-2); color: var(--fg); }
+  .leaflet-control-layers {
+    background: var(--bg-3);
+    color: var(--fg);
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+  }
+  .leaflet-control-layers-expanded { padding: 6px 10px 4px; font-size: 12px; letter-spacing: 0.03em; }
+  .leaflet-control-layers label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .leaflet-control-layers input { accent-color: var(--accent); }
+  .leaflet-control-attribution {
+    background: color-mix(in srgb, var(--bg) 80%, transparent);
+    color: var(--fg-muted);
+    font-size: 10px;
+  }
+  .leaflet-control-attribution a { color: var(--fg); }
+  .leaflet-tooltip {
+    background: var(--bg-3);
+    color: var(--fg);
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    padding: 3px 7px 1px;
+  }
+  .leaflet-tooltip-top::before { border-top-color: var(--border-2); }
+
+  .pop-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .pop-name { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+  .pop-where { color: var(--fg-muted); font-size: 13px; }
+  .pop-cond { margin-top: 8px; font-size: 13px; color: var(--fg-muted); }
+  .pop-cond b { color: var(--fg); font-weight: 600; }
+  .pop-cond .mini i.now { outline-color: var(--fg); }
+  .pop-sum { margin-top: 4px; font-size: 12px; color: var(--fg-muted); }
+  .pop-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .pop-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: #101820;
+    background: var(--accent);
+    border: 0;
+    border-radius: 999px;
+    padding: 8px 14px 6px;
+    cursor: pointer;
+  }
+  .pop-btn svg { width: 12px; height: 12px; }
+
+  /* Secondary pill button (Directions) */
+  .nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: inherit;
+    font-size: 13px;
+    letter-spacing: 0.03em;
+    color: var(--fg);
+    text-decoration: none;
+    background: transparent;
+    border: 1px solid var(--border-2);
+    border-radius: 999px;
+    padding: 8px 13px 6px;
+    cursor: pointer;
+    transition: border-color .2s var(--ease), color .2s var(--ease);
+  }
+  .nav:hover, .nav:focus-visible { border-color: var(--accent); color: var(--accent-ink); outline: none; }
+  .nav svg { width: 13px; height: 13px; }
+
+  /* "Open in…" chooser for directions */
+  .go {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: grid;
+    place-items: end center;
+    padding: 16px;
+    background: var(--shade);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s var(--ease);
+  }
+  .go.open { opacity: 1; pointer-events: auto; }
+  .go-card {
+    width: min(420px, 100%);
+    background: var(--bg);
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius-lg);
+    padding: 16px 16px calc(14px + env(safe-area-inset-bottom));
+    transform: translateY(16px);
+    transition: transform .25s var(--ease);
+  }
+  .go.open .go-card { transform: none; }
+  .go-title { font-size: 16px; font-weight: 600; }
+  .go-sub { color: var(--fg-muted); font-size: 13px; margin-top: 2px; }
+  .go-list { display: grid; gap: 8px; margin-top: 14px; }
+  .go-opt {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font: inherit;
+    font-size: 15px;
+    color: var(--fg);
+    text-decoration: none;
+    background: var(--bg-3);
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius);
+    padding: 12px 14px 10px;
+    transition: border-color .2s var(--ease);
+  }
+  .go-opt:hover, .go-opt:focus-visible { border-color: var(--accent); outline: none; }
+  .go-opt i {
+    width: 10px; height: 10px; border-radius: 50%; flex: none;
+  }
+  .go-opt small { margin-left: auto; color: var(--fg-muted); font-size: 12px; }
+  .go-cancel {
+    width: 100%;
+    margin-top: 10px;
+    font: inherit;
+    font-size: 14px;
+    color: var(--fg-muted);
+    background: transparent;
+    border: 0;
+    padding: 10px;
+    cursor: pointer;
+  }
+  .go-cancel:hover { color: var(--fg); }
+  @media (min-width: 641px) { .go { place-items: center; } }
+
+  /* ---------- Viewer ---------- */
+  .viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: var(--shade);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s var(--ease);
+  }
+  .viewer.open { opacity: 1; pointer-events: auto; }
+  .sheet {
+    width: min(1100px, 100%);
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius-lg);
+    overflow: hidden auto;
+    transform: translateY(12px);
+    transition: transform .3s var(--ease);
+  }
+  .viewer.open .sheet { transform: none; }
+  /* The header (and its close button) stays put while the sheet scrolls. */
+  .sheet-head {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 12px 12px 18px;
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .sheet-title { flex: 1; min-width: 0; }
+  .sheet-title .name {
+    font-size: 19px;
+    font-weight: 600;
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sheet-title .where { font-size: 14px; color: var(--fg-muted); margin-top: 2px; }
+  .icon-btn {
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    color: var(--fg);
+    background: var(--bg-3);
+    border: 1px solid var(--border-2);
+    border-radius: 50%;
+    cursor: pointer;
+    text-decoration: none;
+    transition: border-color .2s var(--ease), color .2s var(--ease);
+  }
+  .icon-btn:hover, .icon-btn:focus-visible { border-color: var(--accent); color: var(--accent-ink); outline: none; }
+  #v-close { background: var(--accent); color: #101820; border-color: var(--accent); }
+  #v-close:hover, #v-close:focus-visible { color: #101820; filter: brightness(1.08); }
+
+  .frame {
+    position: relative;
+    flex: none;
+    background: #000;
+  }
+  .frame.video { aspect-ratio: 16 / 9; }
+  .frame.page  { height: min(70vh, 900px); }
+  .frame iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+  .frame-msg {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    text-align: center;
+    color: #d6d2c4;
+    font-size: 15px;
+  }
+  /* Plyr in our palette. Plyr is given ratio 16:9 so it fills .frame.video exactly. */
+  .plyr {
+    --plyr-color-main: var(--accent);
+    --plyr-video-background: #000;
+    --plyr-font-family: inherit;
+    --plyr-control-radius: 6px;
+  }
+
+  .panel { padding: 14px 18px; border-top: 1px solid var(--border); }
+  .panel[hidden] { display: none; }
+  .k {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+  }
+
+  /* Score breakdown: one row per factor */
+  .scorecard {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 14px 20px;
+    align-items: start;
+  }
+  .score-total { display: flex; flex-direction: column; gap: 6px; }
+  .score-cap { font-size: 12px; color: var(--fg-muted); max-width: 150px; }
+  .factors { display: grid; gap: 8px; }
+  .factor {
+    display: grid;
+    grid-template-columns: 76px 1fr 44px;
+    gap: 4px 10px;
+    align-items: center;
+  }
+  .factor .k { padding-top: 2px; }
+  .f-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--bg-2);
+    overflow: hidden;
+  }
+  .f-bar i { display: block; height: 100%; background: var(--pin, var(--accent)); border-radius: 3px; }
+  .f-pts { font-size: 13px; font-weight: 600; text-align: right; white-space: nowrap; }
+  .f-detail {
+    grid-column: 2 / -1;
+    font-size: 12px;
+    color: var(--fg-muted);
+    line-height: 1.3;
+  }
+  .f-detail b { color: var(--fg); font-weight: 600; }
+
+  /* Today: four bars, dawn → evening */
+  .today-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .today-bars {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .tbar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .tbar .col {
+    position: relative;
+    width: 100%;
+    height: 64px;
+    border-radius: 6px;
+    background: var(--bg-3);
+    overflow: hidden;
+  }
+  .tbar .col i {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    background: var(--pin, var(--bg-2));
+    border-radius: 6px 6px 0 0;
+    min-height: 3px;
+  }
+  .tbar b { font-size: 14px; }
+  .tbar span { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-muted); white-space: nowrap; }
+  .tbar.past { opacity: .45; }
+  .tbar.now .col { outline: 2px solid var(--fg); outline-offset: 1px; }
+  .today-sum { margin-top: 12px; font-size: 14px; line-height: 1.45; }
+
+  /* "Right now": water, air, light, tide, suit */
+  .now-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px 16px;
+    margin-top: 8px;
+  }
+  .now-row .v { display: block; font-size: 16px; font-weight: 600; margin-top: 2px; white-space: nowrap; }
+  .now-row .v small { font-size: 12px; font-weight: 400; color: var(--fg-muted); }
+
+  .local-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin-top: 6px;
+    font-size: 14px;
+    color: var(--fg-muted);
+  }
+  .local-row b { color: var(--fg); font-weight: 600; }
+  .local-notes {
+    margin-top: 8px;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .panel .tags { margin-top: 10px; }
+
+  .sheet-foot {
+    padding: 10px 18px 12px;
+    color: var(--fg-muted);
+    font-size: 13px;
+    letter-spacing: 0.02em;
+  }
+  .sheet-foot a { color: var(--accent-ink); }
+
+  /* Phones: the viewer becomes a full-screen sheet */
+  @media (max-width: 640px) {
+    .viewer { padding: 0; place-items: stretch; }
+    .sheet {
+      width: 100%;
+      height: 100%;
+      border-radius: 0;
+      border: 0;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .sheet-head { padding-top: max(12px, env(safe-area-inset-top)); }
+    .frame.page { flex: 1; height: auto; min-height: 60vh; }
+    .scorecard { grid-template-columns: 1fr; }
+    .seg button span { display: none; }
+    .seg button { padding: 8px 10px 6px; }
+    .tbar span { font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<main class="page">
+  <header>
+    <div class="top">
+      <a class="back" href="../">← allfield</a>
+    </div>
+    <div class="head">
+      <h1>surf cams<span>.</span></h1>
+      <div class="best" id="best" hidden></div>
+    </div>
+  </header>
+
+  <div class="controls" id="controls">
+    <div class="row">
+      <label class="search">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        <input id="q" type="search" placeholder="Search spots, towns, areas…" autocomplete="off" aria-label="Search cams">
+      </label>
+      <div class="seg" role="group" aria-label="View">
+        <button type="button" id="seg-grid" data-view="grid" aria-pressed="false" title="Cams only">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+          <span>Cams</span>
+        </button>
+        <button type="button" id="seg-split" data-view="split" aria-pressed="false" title="Cams beside the map">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></svg>
+          <span>Split</span>
+        </button>
+        <button type="button" id="seg-map" data-view="map" aria-pressed="false" title="Map only">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg>
+          <span>Map</span>
+        </button>
+      </div>
+    </div>
+    <div class="row r2">
+      <div class="chips" id="chips" role="group" aria-label="Filter by area"></div>
+      <button class="switch" id="saver" type="button" role="switch" aria-checked="false" title="Don’t auto-play the tiles; only stream the cam you open">
+        <i aria-hidden="true"></i>Data saver
+      </button>
+    </div>
+  </div>
+
+  <div class="layout" id="layout" data-view="split">
+    <div class="list" id="grid"></div>
+    <aside class="map-pane" id="map-wrap">
+      <div style="position: relative">
+        <div id="map" role="region" aria-label="Map of surf cams"></div>
+        <div class="legend" aria-hidden="true">
+          <span class="lvl-0"><i></i>Flat</span>
+          <span class="lvl-1"><i></i>Poor</span>
+          <span class="lvl-2"><i></i>Fair</span>
+          <span class="lvl-3"><i></i>Good</span>
+          <span class="lvl-4"><i></i>Epic</span>
+        </div>
+      </div>
+      <p class="map-hint" id="map-hint">Pins show each spot’s score. Tap one for details, directions and the cam.</p>
+    </aside>
+  </div>
+  <p class="empty" id="empty">No cams match that. Try another spot or clear the filter.</p>
+</main>
+
+<div class="viewer" id="viewer" role="dialog" aria-modal="true" aria-labelledby="v-name" hidden>
+  <div class="sheet">
+    <div class="sheet-head">
+      <div class="sheet-title">
+        <div class="name" id="v-name"></div>
+        <div class="where" id="v-where"></div>
+      </div>
+      <a class="icon-btn" id="v-open" target="_blank" rel="noopener noreferrer" aria-label="Open on source site" title="Open on source site">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
+      </a>
+      <button class="icon-btn" id="v-close" type="button" aria-label="Close" title="Close (Esc)">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="frame" id="v-frame"></div>
+    <div class="panel scorecard" id="v-score" hidden></div>
+    <div class="panel" id="v-now" hidden></div>
+    <div class="panel" id="v-today" hidden></div>
+    <div class="panel" id="v-local"></div>
+    <div class="sheet-foot" id="v-foot"></div>
+  </div>
+</div>
+
+<!-- Directions: one button everywhere, then pick the app -->
+<div class="go" id="go" role="dialog" aria-modal="true" aria-labelledby="go-title" hidden>
+  <div class="go-card">
+    <div class="go-title" id="go-title">Directions</div>
+    <div class="go-sub" id="go-sub"></div>
+    <div class="go-list" id="go-list"></div>
+    <button class="go-cancel" id="go-cancel" type="button">Cancel</button>
+  </div>
+</div>
+
+<script>
+  /* ---------------------------------------------------------------------------
+     CAMS — add a new webcam by appending an entry.
+
+       id      url-safe slug, used for deep links (surfing/#guincho-norte)
+       name    spot name shown on the card
+       town    nearest town / area
+       area    the group it's listed under and the filter chip it sits in
+       zone    finer locality shown on the card (e.g. "Baleal")
+       country
+       tags    extra search words (break type, orientation, nicknames…)
+       lat/lng the camera's beach — where the pin goes and where directions
+               lead. Checked against OpenStreetMap where it names the beach.
+       faces   compass bearing the beach looks out to sea (270 = west). Used
+               to spot onshore wind and to fetch conditions from a point just
+               offshore rather than on the sand.
+       best    local knowledge, used by the score:
+                 swell   [from, to] compass window the spot likes swell from
+                 size    [min, max] metres of swell it works in
+                 period  seconds — the period it starts to get good at
+                 exposure 0–1: how much of a swell from OUTSIDE the window
+                           still reaches the beach (open beach ~0.85,
+                           tucked-away south-facer ~0.45). Default 0.85.
+                 gain    multiplier on swell height at the beach (Nazaré's
+                           canyon: 1.4). Default 1.
+                 wind    [from, to] compass window of offshore wind
+                 tide    { range: [lo, hi] of the tide the spot likes, where
+                           0 = today's low water and 1 = high water;
+                           dir: 'rising' | 'falling' | null; text: shown }
+                 notes   a sentence or two for the viewer
+       type    'hls'   — a raw HLS stream (.m3u8) played in our own player
+                         (Plyr; Safari plays HLS natively, other browsers load
+                         hls.js), shown 16:9. Tiles in the grid also play it.
+               'video' — a player-only embed (YouTube live, official cam embed),
+                         shown 16:9
+               'page'  — a full web page in a frame (no player-only embed
+                         available), shown tall
+       embed   the .m3u8 URL for 'hls', otherwise the URL loaded in the iframe
+       poster  optional still shown before an 'hls' stream starts
+       fallback optional page URL framed instead if an 'hls' stream won't play
+       link    the cam's own page, for the "open on source" button
+       source  who runs / hosts the cam
+       thumb   optional preview image (also the tile's backdrop until it plays)
+
+     Areas are listed in the order they first appear here, so keep the array
+     roughly north → south.
+  --------------------------------------------------------------------------- */
+
+  // Shared local knowledge for the Caparica jetty beaches.
+  const CAPARICA = {
+    swell: [240, 320], size: [0.6, 2.0], period: 9, exposure: 0.8, wind: [30, 120], tide: { range: [0, 1], dir: 'rising', text: 'all tides, best on the push' },
+    notes: 'Jetty-sheltered beach breaks with gentle banks, the surf-school stretch south of Lisbon. Takes most W/NW swell and works on every tide, best as it rises; above ~2 m it starts to wall up. E/NE wind cleans it; the summer nortada blows it side-on.',
+  };
+
+  const CAMS = [
+    {
+      id:      'nazare-norte',
+      name:    'Praia do Norte',
+      town:    'Nazaré', area: 'Nazaré', zone: 'Praia do Norte',
+      country: 'Portugal',
+      tags:    ['beach break', 'big wave', 'canyon', 'heavy'],
+      lat: 39.6080, lng: -9.0850, faces: 290,   // the beach north of the fort / lighthouse
+      best: {
+        swell: [260, 330], size: [0.6, 2.5], period: 9, exposure: 0.9, gain: 1.4, wind: [60, 150], tide: { range: [0.2, 0.8], dir: null, text: 'mid' },
+        notes: 'The big-wave beach, the Nazaré Canyon focuses any W–NW swell into something far heavier than the numbers suggest. For paddling it’s a powerful, shifty beach break that’s best small (under ~2 m), mid tide, with an E/SE wind; above that it’s tow-in country and the rips are serious. Experienced surfers only. Praia da Vila, round the headland, is the gentler option.',
+      },
+      type:    'hls',
+      embed:   'https://deliverys5.quanteec.com/contents/encodings/live/528309e0-caee-4b99-3933-3530-6d61-63-b69a-caa00a3177f6d/master.m3u8',
+      poster:  'https://deliverys5.quanteec.com/contents/encodings/live/528309e0-caee-4b99-3933-3530-6d61-63-b69a-caa00a3177f6d/poster.jpg',
+      fallback: 'https://gosurf.fr/webcam/fr/100/Nazare-Praia-do-Norte',
+      link:    'https://gosurf.fr/webcam/fr/100/Nazare-Praia-do-Norte',
+      source:  'MEO Beachcam via viewsurf',
+      thumb:   'https://films.viewsurf.com/BCnazareparadonorte_1_1.stream/media.jpg',
+    },
+    {
+      id:      'peniche-lagide',
+      name:    'Praia do Lagide',
+      town:    'Peniche', area: 'Peniche', zone: 'Baleal',
+      country: 'Portugal',
+      tags:    ['reef break', 'left', 'baleal'],
+      lat: 39.3728, lng: -9.3370, faces: 320,   // reef on the north side of the Baleal isthmus
+      best: {
+        swell: [270, 350], size: [0.6, 3.0], period: 9, exposure: 0.6, wind: [120, 200], tide: { range: [0.3, 0.8], dir: 'rising', text: 'mid, on the rise' },
+        notes: 'Long, mellow left over flat reef on the north side of Baleal. Likes W–NW swell with a S/SE wind; rocks and urchins show at low tide, so mid tide on the push is the call. Handles size when the beaches max out. Busy, and the bodyboarders have priority on the inside.',
+      },
+      type:    'hls',
+      embed:   'https://deliverys5.quanteec.com/contents/encodings/live/d2d6a6b5-eeee-4850-3134-3530-6d61-63-8b84-8bfc9f91f211d/master.m3u8',
+      poster:  'https://deliverys5.quanteec.com/contents/encodings/live/d2d6a6b5-eeee-4850-3134-3530-6d61-63-8b84-8bfc9f91f211d/poster.jpg',
+      fallback: 'https://gosurf.fr/webcam/fr/102/Peniche-Praia-do-Lagide',
+      link:    'https://gosurf.fr/webcam/fr/102/Peniche-Praia-do-Lagide',
+      source:  'MEO Beachcam via viewsurf',
+      thumb:   'https://films.viewsurf.com/BClagide_1_1.stream/media.jpg',
+    },
+    {
+      id:      'peniche-supertubos',
+      name:    'Supertubos',
+      town:    'Peniche', area: 'Peniche', zone: 'Peniche south',
+      country: 'Portugal',
+      tags:    ['beach break', 'barrels', 'wsl'],
+      lat: 39.3475, lng: -9.3660, faces: 250,   // beach at the end of Estrada da Supertubos
+      best: {
+        swell: [210, 290], size: [1.0, 3.0], period: 10, exposure: 0.7, wind: [20, 100], tide: { range: [0.4, 1], dir: null, text: 'mid to high' },
+        notes: 'Heavy, hollow beach break, the "European Pipeline" and the WSL contest site. Wants SW–W swell from head high to double overhead with a NE/E wind, mid to high tide; bigger than that it closes out. Advanced only, and crowded. Sept–Nov is prime.',
+      },
+      type:    'hls',
+      embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/d0b0b725-f0cd-4ac6-3234-3530-6d61-63-9da6-3f3819b83f9ad/master.m3u8',
+      poster:  'https://ds1-cache.quanteec.com/contents/encodings/live/d0b0b725-f0cd-4ac6-3234-3530-6d61-63-9da6-3f3819b83f9ad/poster.jpg',
+      fallback: 'https://gosurf.fr/webcam/fr/103/Peniche-Praia-do-Supertubos',
+      link:    'https://gosurf.fr/webcam/fr/103/Peniche-Praia-do-Supertubos',
+      source:  'MEO Beachcam via viewsurf',
+      thumb:   'https://films.viewsurf.com/BCsupertubos_1_1.stream/media.jpg',
+    },
+    {
+      id:      'praia-grande-norte',
+      name:    'Praia Grande Norte',
+      town:    'Sintra', area: 'Sintra', zone: 'Praia Grande',
+      country: 'Portugal',
+      tags:    ['beach break', 'west facing', 'bodyboard', 'colares'],
+      lat: 38.8175, lng: -9.4730, faces: 260,   // north end, below the cliff path to Praia Pequena
+      best: {
+        swell: [260, 330], size: [0.6, 2.5], period: 9, wind: [40, 130], tide: { range: [0.4, 1], dir: 'rising', text: 'mid to high' },
+        notes: 'The open northern half of Praia Grande, wider, sandier banks and a bit more exposed than the south end, so it picks up the most swell and is first to blow out in a nortada. Same recipe: W–NW swell, E/NE wind, mid to high tide as the shorebreak at low is heavy. Lots of room when the south end is crowded; strong rips when it’s big.',
+      },
+      type:    'hls',
+      embed:   'https://ds2-cache.quanteec.com/contents/encodings/live/97f4c14c-c861-44cf-3634-3530-6d61-63-8d1d-f07b2cd93deed/master.m3u8',
+      poster:  'https://ds2-cache.quanteec.com/contents/encodings/live/97f4c14c-c861-44cf-3634-3530-6d61-63-8d1d-f07b2cd93deed/poster.jpg',
+      fallback: 'https://gosurf.fr/webcam/fr/113/Sintra-Praia-Grande-Norte',
+      link:    'https://gosurf.fr/webcam/fr/113/Sintra-Praia-Grande-Norte',
+      source:  'MEO Beachcam via viewsurf',
+      thumb:   'https://films.viewsurf.com/BCpraiagrande_1_1.stream/media.jpg',
+    },
+    {
+      id:      'praia-grande-sul',
+      name:    'Praia Grande Sul',
+      town:    'Sintra', area: 'Sintra', zone: 'Praia Grande',
+      country: 'Portugal',
+      tags:    ['beach break', 'west facing', 'bodyboard', 'colares'],
+      lat: 38.8105, lng: -9.4725, faces: 255,   // south end of Praia Grande, by the rocks
+      best: {
+        swell: [260, 330], size: [0.6, 2.5], period: 9, wind: [40, 130], tide: { range: [0.4, 1], dir: 'rising', text: 'mid to high' },
+        notes: 'Sintra’s long, open beach break, consistent, punchy and a bodyboarding stronghold. The south end has the best-shaped banks and a rock ledge for shelter. Takes W–NW swell with an E/NE wind; low tide is a heavy shorebreak, so mid to high on the push is the call. Rips when it’s big; the nortada blows it out in summer afternoons.',
+      },
+      type:    'hls',
+      embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/f05e1d93-57cf-4e07-3734-3530-6d61-63-8b8c-a57a96c1fc1ed/master.m3u8',
+      poster:  'https://ds1-cache.quanteec.com/contents/encodings/live/f05e1d93-57cf-4e07-3734-3530-6d61-63-8b8c-a57a96c1fc1ed/poster.jpg',
+      fallback: 'https://gosurf.fr/webcam/fr/114/Sintra-Praya-Grande-Sul',
+      link:    'https://gosurf.fr/webcam/fr/114/Sintra-Praya-Grande-Sul',
+      source:  'MEO Beachcam via viewsurf',
+      thumb:   'https://films.viewsurf.com/BCpraiagrande2_1_1.stream/media.jpg',
+    },
+    {
+      id:      'guincho-norte',
+      name:    'Guincho Norte',
+      town:    'Cascais', area: 'Cascais', zone: 'Guincho',
+      country: 'Portugal',
+      tags:    ['beach break', 'west facing', 'sintra-cascais'],
+      lat: 38.7365, lng: -9.4738, faces: 270,   // north end of the beach (OSM beach centre 38.7332, -9.4728)
+      best: {
+        swell: [270, 340], size: [0.6, 2.4], period: 9, wind: [60, 130], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
+        notes: 'Exposed beach break that catches every swell going, NW is best, with an E wind. The summer nortada (N wind) blows it side-shore by late morning, so go early. Low to mid tide works best; strong currents when it gets big. The north end is the more open, punchier bank.',
+      },
+      type:    'hls',
+      embed:   'https://ds2-cache.quanteec.com/contents/encodings/live/61f5d898-0c04-4515-3934-3530-6d61-63-87e5-3432badee226d/master.m3u8',
+      poster:  'https://ds2-cache.quanteec.com/contents/encodings/live/61f5d898-0c04-4515-3934-3530-6d61-63-87e5-3432badee226d/poster.jpg',
+      fallback: 'https://gosurf.fr/webcam/fr/116/Cascais-Praia-Do-Guincho-Norte',
+      link:    'https://gosurf.fr/webcam/fr/116/Cascais-Praia-Do-Guincho-Norte',
+      source:  'MEO Beachcam via viewsurf',
+      thumb:   'https://films.viewsurf.com/BCpraiaguinchosul_1_1.stream/media.jpg',
+    },
+    {
+      // GoSurf's Sul page plays the stream viewsurf names "guinchonorte" (and
+      // the Norte page plays "guinchosul") — check which way round is right.
+      id:      'guincho-sul',
+      name:    'Guincho Sul',
+      town:    'Cascais', area: 'Cascais', zone: 'Guincho',
+      country: 'Portugal',
+      tags:    ['beach break', 'west facing', 'sintra-cascais'],
+      lat: 38.7300, lng: -9.4718, faces: 265,   // south end, by the Muchaxo
+      best: {
+        swell: [270, 340], size: [0.6, 2.4], period: 9, wind: [60, 130], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
+        notes: 'The southern end of Guincho, tucked in a touch under the headland so it holds a little longer when the nortada picks up. Same recipe as the north end: NW swell, E wind, low to mid tide, and early. Rips run hard along the rocks when it’s big.',
+      },
+      type:    'hls',
+      embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/8d2e5d1c-5771-49c8-3834-3530-6d61-63-a417-988a6df6a2f2d/master.m3u8',
+      poster:  'https://ds1-cache.quanteec.com/contents/encodings/live/8d2e5d1c-5771-49c8-3834-3530-6d61-63-a417-988a6df6a2f2d/poster.jpg',
+      fallback: 'https://gosurf.fr/webcam/fr/115/Cascais-Praia-Do-Guincho-Sul',
+      link:    'https://gosurf.fr/webcam/fr/115/Cascais-Praia-Do-Guincho-Sul',
+      source:  'MEO Beachcam via viewsurf',
+      thumb:   'https://films.viewsurf.com/BCpraiaguinchonorte_1_1.stream/media.jpg',
+    },
+    {
+      id:      'sao-pedro-estoril',
+      name:    'São Pedro do Estoril',
+      town:    'Estoril', area: 'Cascais', zone: 'Linha de Cascais',
+      country: 'Portugal',
+      tags:    ['reef break', 'right', 'south facing', 'linha de cascais', 'sao pedro', 'bafureira', 'bico'],
+      lat: 38.6930, lng: -9.3712, faces: 180,
+      best: {
+        swell: [200, 300], size: [1.0, 2.4], period: 10, exposure: 0.6, wind: [340, 60], tide: { range: [0, 0.55], dir: 'falling', text: 'low to mid, on the drop' },
+        notes: 'Reef and point setups, Bafureira’s right on the left of the bay, the Bico point next door. Needs at least a metre of SW–W swell to get going, with a N/NE wind; low to mid on a dropping tide is the usual call. Intermediate and up; less crowded than Bico.',
+      },
+      type:    'hls',
+      embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/5fcf6d21-f52c-422a-3035-3530-6d61-63-98fa-626cced74f41d/master.m3u8',
+      poster:  'https://ds1-cache.quanteec.com/contents/encodings/live/5fcf6d21-f52c-422a-3035-3530-6d61-63-98fa-626cced74f41d/poster.jpg',
+      fallback: 'https://gosurf.fr/webcam/fr/117/Estoril-Praia-de-Sao-Pedro-do-Estoril',
+      link:    'https://gosurf.fr/webcam/fr/117/Estoril-Praia-de-Sao-Pedro-do-Estoril',
+      source:  'MEO Beachcam via viewsurf',
+      thumb:   'https://films.viewsurf.com/BCsaopedroestoria_1_1.stream/media.jpg',
+    },
+    {
+      id:      'carcavelos',
+      name:    'Carcavelos',
+      town:    'Carcavelos', area: 'Cascais', zone: 'Linha de Cascais',
+      country: 'Portugal',
+      tags:    ['beach break', 'south facing', 'linha de cascais'],
+      lat: 38.6792, lng: -9.3352, faces: 190,   // OSM: Praia de Carcavelos
+      best: {
+        swell: [200, 290], size: [0.8, 2.5], period: 10, exposure: 0.55, wind: [340, 60], tide: { range: [0.3, 0.8], dir: 'rising', text: 'mid, on the rise' },
+        notes: 'Lisbon’s town beach. Faces south, so it needs a proper SW–W swell, or a big long-period NW to wrap round Cabo Raso. Sheltered from the nortada and best in a N/NE wind, it’s the call when Guincho is blown out. Works all tides, best mid and rising. Crowded; watch the rips.',
+      },
+      type:    'hls',
+      embed:   'https://ds2-cache.quanteec.com/contents/encodings/live/7dbfbd58-2c72-4c87-3135-3530-6d61-63-a1b9-8dc2ff272a5cd/master.m3u8',
+      poster:  'https://ds2-cache.quanteec.com/contents/encodings/live/7dbfbd58-2c72-4c87-3135-3530-6d61-63-a1b9-8dc2ff272a5cd/poster.jpg',
+      fallback: 'https://gosurf.fr/webcam/fr/118/Carcavelos-Praia-de-Carcavelos',
+      link:    'https://gosurf.fr/webcam/fr/118/Carcavelos-Praia-de-Carcavelos',
+      source:  'MEO Beachcam via viewsurf',
+      thumb:   'https://films.viewsurf.com/BCcarcavelos_1_1.stream/media.jpg',
+    },
+    {
+      id:      'caparica-sao-joao',
+      name:    'São João',
+      town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
+      country: 'Portugal',
+      tags:    ['beach break', 'west facing', 'caparica', 'almada', 'sao joao', 'beginner'],
+      lat: 38.6575, lng: -9.2395, faces: 275,   // next beach north of CDS along the coast road
+      best: { ...CAPARICA, notes: 'The northernmost Caparica beach and the roomiest. Waves are flatter and fatter than further south, a good hunting ground for learners and improvers, though an E wind in autumn can throw up glassy little wedges. ' + CAPARICA.notes },
+      type:    'hls',
+      embed:   'https://deliverys5.quanteec.com/contents/encodings/live/f829148a-5ae5-4a90-3735-3530-6d61-63-b215-b6a95fb68802d/master.m3u8',
+      poster:  'https://deliverys5.quanteec.com/contents/encodings/live/f829148a-5ae5-4a90-3735-3530-6d61-63-b215-b6a95fb68802d/poster.jpg',
+      fallback: 'https://gosurf.fr/webcam/fr/124/Costa-Caparica-Praia-do-Sao-Joao',
+      link:    'https://gosurf.fr/webcam/fr/124/Costa-Caparica-Praia-do-Sao-Joao',
+      source:  'MEO Beachcam via viewsurf',
+      thumb:   'https://films.viewsurf.com/BCcostacaparicasaojoao_1_1.stream/media.jpg',
+    },
+    {
+      id:      'caparica-cds',
+      name:    'CDS',
+      town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
+      country: 'Portugal',
+      tags:    ['beach break', 'west facing', 'caparica', 'almada'],
+      lat: 38.6449, lng: -9.2419, faces: 270,   // OSM: Praia do CDS
+      best: { ...CAPARICA, notes: 'Right in front of town by the surf centre, between two jetties that groom the banks. ' + CAPARICA.notes },
+      type:    'hls',
+      embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/b969e298-ceb4-4132-3635-3530-6d61-63-82b6-c59507e55b39d/master.m3u8',
+      poster:  'https://ds1-cache.quanteec.com/contents/encodings/live/b969e298-ceb4-4132-3635-3530-6d61-63-82b6-c59507e55b39d/poster.jpg',
+      fallback: 'https://gosurf.fr/webcam/fr/123/Costa-Caparica-Praia-do-CDS',
+      link:    'https://gosurf.fr/webcam/fr/123/Costa-Caparica-Praia-do-CDS',
+      source:  'MEO Beachcam via viewsurf',
+      thumb:   'https://films.viewsurf.com/BCcostacaparicacds_1_1.stream/media.jpg',
+    },
+    {
+      id:      'caparica-riviera',
+      name:    'Riviera',
+      town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
+      country: 'Portugal',
+      tags:    ['beach break', 'west facing', 'caparica', 'almada'],
+      lat: 38.6200, lng: -9.2209, faces: 265,   // OSM: Praia da Riviera
+      best: { ...CAPARICA, notes: 'South of town, where the jetties thin out, so a touch more open and more push than CDS. ' + CAPARICA.notes },
+      type:    'hls',
+      embed:   'https://ds2-cache.quanteec.com/contents/encodings/live/033c1cda-143d-4a55-3835-3530-6d61-63-a933-f44c0821ad62d/master.m3u8',
+      poster:  'https://ds2-cache.quanteec.com/contents/encodings/live/033c1cda-143d-4a55-3835-3530-6d61-63-a933-f44c0821ad62d/poster.jpg',
+      fallback: 'https://gosurf.fr/webcam/fr/125/Costa-Caparica-Praia-do-Riviera',
+      link:    'https://gosurf.fr/webcam/fr/125/Costa-Caparica-Praia-do-Riviera',
+      source:  'MEO Beachcam via viewsurf',
+      thumb:   'https://films.viewsurf.com/BCriviera_1_1.stream/media.jpg',
+    },
+    {
+      id:      'fonte-da-telha',
+      name:    'Fonte da Telha',
+      town:    'Fonte da Telha', area: 'Caparica', zone: 'South of the jetties',
+      country: 'Portugal',
+      tags:    ['beach break', 'west facing', 'caparica', 'almada'],
+      lat: 38.5719, lng: -9.1961, faces: 260,   // OSM: Fonte da Telha beach
+      best: {
+        swell: [230, 300], size: [0.6, 2.5], period: 9, wind: [30, 110], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
+        notes: 'Open, exposed beach south of the Caparica jetties with more punch than town, picks up local windswell as well as groundswell, so it’s rarely flat. WSW swell and an ENE wind is the recipe; even a light onshore ruins it. Low to mid tide; often crowded.',
+      },
+      type:    'hls',
+      embed:   'https://ds2-cache.quanteec.com/contents/encodings/live/a31a9026-5ced-4668-3935-3530-6d61-63-aa32-b07694268059d/master.m3u8',
+      poster:  'https://ds2-cache.quanteec.com/contents/encodings/live/a31a9026-5ced-4668-3935-3530-6d61-63-aa32-b07694268059d/poster.jpg',
+      fallback: 'https://gosurf.fr/webcam/fr/126/Fonte-da-Telha-Praia-da-Fonte-Telha',
+      link:    'https://gosurf.fr/webcam/fr/126/Fonte-da-Telha-Praia-da-Fonte-Telha',
+      source:  'MEO Beachcam via viewsurf',
+      thumb:   'https://films.viewsurf.com/BCfontedatelha_1_1.stream/media.jpg',
+    },
+    {
+      id:      'arrifana',
+      name:    'Praia da Arrifana',
+      town:    'Aljezur', area: 'Algarve', zone: 'Costa Vicentina',
+      country: 'Portugal',
+      tags:    ['beach break', 'right', 'point', 'aljezur', 'vicentina'],
+      lat: 37.2920, lng: -8.8670, faces: 250,   // the bay below the village, point at the north end
+      best: {
+        swell: [250, 320], size: [0.8, 2.5], period: 9, exposure: 0.5, wind: [340, 110], tide: { range: [0.3, 0.8], dir: 'rising', text: 'mid, on the rise' },
+        notes: 'Horseshoe bay under high cliffs on the Costa Vicentina, with a beach break through the middle and a long right-hand point over rocks at the north end when a solid W/NW swell runs. The cliffs shelter it from the nortada, so it’s often the call when the open beaches are blown out. Mid tide on the push; N/NE wind. Point is for experienced surfers; the beach suits everyone and gets crowded.',
+      },
+      type:    'hls',
+      embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/a91257ec-cafd-4eeb-3436-3530-6d61-63-b7ab-31c6e7bb583bd/master.m3u8',
+      poster:  'https://ds1-cache.quanteec.com/contents/encodings/live/a91257ec-cafd-4eeb-3436-3530-6d61-63-b7ab-31c6e7bb583bd/poster.jpg',
+      fallback: 'https://gosurf.fr/webcam/fr/131/Arrifana-Praia-da-Arrifana',
+      link:    'https://gosurf.fr/webcam/fr/131/Arrifana-Praia-da-Arrifana',
+      source:  'MEO Beachcam via viewsurf',
+      thumb:   'https://films.viewsurf.com/BCarrifana_1_1.stream/media.jpg',
+    },
+  ];
+
+  const LIBS = {
+    plyr:    'https://cdn.jsdelivr.net/npm/plyr@3.7.8/dist/plyr.min.js',
+    hls:     'https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js',
+    leaflet: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js',
+  };
+  const LEVELS = ['Flat', 'Poor', 'Fair', 'Good', 'Epic'];
+  // The day in four blocks, dawn → evening (local hours, [from, to)).
+  const BUCKETS = [
+    { label: 'Dawn', from: 6, to: 9 },
+    { label: 'Morning', from: 9, to: 12 },
+    { label: 'Afternoon', from: 12, to: 15 },
+    { label: 'Evening', from: 15, to: 19 },
+  ];
+  const COND_TTL = 30 * 60 * 1000; // re-fetch conditions after 30 minutes
+  // Tiles keep a short buffer and start on the lowest rendition — they're
+  // small, and ten of them at once adds up.
+  const TILE_HLS = {
+    liveDurationInfinity: true, enableWorker: true, capLevelToPlayerSize: true,
+    startLevel: 0, maxBufferLength: 8, maxMaxBufferLength: 16, backBufferLength: 0, liveSyncDurationCount: 3,
+  };
+  // How many tiles may stream at once; the rest sit on their snapshot until
+  // one scrolls away.
+  const MAX_TILES = matchMedia('(max-width: 640px)').matches ? 6 : 12;
+  const wide = matchMedia('(min-width: 1000px)');
+
+  const $ = (id) => document.getElementById(id);
+  const grid = $('grid'), chips = $('chips'), q = $('q'), empty = $('empty');
+  const layout = $('layout'), viewer = $('viewer'), frame = $('v-frame'), go = $('go');
+
+  let area = 'All';
+  let view = 'split';
+  // Data saver: on by default if the browser says so, else remembered.
+  let dataSaver = !!(navigator.connection && navigator.connection.saveData);
+  try { const s = localStorage.getItem('surf-saver'); if (s !== null) dataSaver = s === '1'; } catch {}
+  let lastFocus = null;
+  let hls = null, player = null;
+  let hideTimer = 0, goTimer = 0;
+  let conditions = {};   // cam id -> { now: {...}, hours: [{...}], t }
+  let condNote = '';
+  let map = null;
+  const markers = {};
+  const tiles = {};      // cam id -> { video, hls, visible, active, hold, dead }
+  const nativeHls = !!document.createElement('video').canPlayType('application/vnd.apple.mpegurl');
+
+  const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const haystack = (c) => norm([c.name, c.town, c.area, c.zone, c.country, c.source, ...(c.tags || [])].join(' '));
+  const matches = (c) => {
+    const terms = norm(q.value.trim()).split(/\s+/).filter(Boolean);
+    const hay = haystack(c);
+    return (area === 'All' || c.area === area) && terms.every((t) => hay.includes(t));
+  };
+  const byId = (id) => CAMS.find((x) => x.id === id);
+  const cards = () => [...grid.querySelectorAll('.cam')];
+  // 'split' only exists on wide screens; narrower ones fall back to the grid.
+  const effectiveView = () => (view === 'split' && !wide.matches ? 'grid' : view);
+
+  // Scripts are fetched once, the first time they're needed.
+  const loaded = {};
+  const loadScript = (url) => loaded[url] || (loaded[url] = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = url;
+    s.onload = resolve;
+    s.onerror = () => { delete loaded[url]; reject(new Error('Failed to load ' + url)); };
+    document.head.appendChild(s);
+  }));
+
+  // Bust snapshot caches once a minute so thumbnails stay roughly current
+  // without hammering the cam hosts.
+  const stamp = Math.floor(Date.now() / 60000);
+  const thumbUrl = (u) => u + (u.includes('?') ? '&' : '?') + 't=' + stamp;
+
+  /* ---------- Conditions + score ---------- */
+
+  // Smallest angle between two bearings, 0–180.
+  const angleDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
+  // Compass windows are [from, to] clockwise and may wrap through north.
+  const inWindow = (d, [a, b]) => (a <= b ? d >= a && d <= b : d >= a || d <= b);
+  const distToWindow = (d, w) => (inWindow(d, w) ? 0 : Math.min(angleDiff(d, w[0]), angleDiff(d, w[1])));
+  const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  const dirName = (d) => COMPASS[Math.round((((d % 360) + 360) % 360) / 45) % 8];
+  const windowText = ([a, b]) => (dirName(a) === dirName(b) ? dirName(a) : `${dirName(a)}–${dirName(b)}`);
+  const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+  // Linear ramp: y0 at x0, y1 at x1, clamped outside.
+  const lerp = (x, x0, y0, x1, y1) => y0 + (y1 - y0) * Math.min(1, Math.max(0, (x - x0) / (x1 - x0)));
+
+  const tideWord = (tn) => (tn < 0.33 ? 'low' : tn < 0.66 ? 'mid' : 'high');
+  // Wetsuit by water temperature — a rule of thumb, not gospel.
+  const suit = (t) => (t >= 22 ? 'boardies' : t >= 19 ? '2 mm spring' : t >= 16 ? '3/2 mm' : t >= 13 ? '4/3 mm' : '5/4 mm + boots');
+
+  // Wind direction is where it blows FROM. Offshore = inside the spot's
+  // window (give or take 15°); onshore = roughly from the sea; the rest is
+  // cross-shore, which is what a nortada does to the west-facing beaches.
+  function windRel(c, k) {
+    const off = distToWindow(k.wd, c.best.wind) <= 15;
+    const on = !off && angleDiff(k.wd, c.faces) < 45;
+    return off ? 'offshore' : on ? 'onshore' : 'cross-shore';
+  }
+
+  /* Score out of 10, judged against the spot's own `best` block.
+
+     First the offshore swell is turned into what actually arrives at the
+     beach: swell from inside the spot's window arrives whole; swell from
+     further round the compass fades towards the spot's `exposure` floor
+     (long-period swell wraps better, so it fades less), and any `gain`
+     (Nazaré's canyon) is applied. Everything below works on that height.
+
+     Three things add up to a raw 10:
+       Size       4 pts  ramps up to full marks 40% of the way into the
+                         spot's size range, holds to the top, then falls off
+       Period     3 pts  ramps from 2 s under the spot's "gets good" period
+                         to 5 s over it — long-period groundswell is what
+                         separates good from epic
+       Direction  3 pts  full marks inside the swell window, nothing 45° out
+
+     Then multipliers, because these are what ruin an otherwise good day:
+       Wind       ×1.0 glassy or light offshore … ×0.1 strong onshore,
+                  less again if it's gusty
+       Sea state  wind chop riding on the swell: ×1.0 clean groundswell
+                  … ×0.5 when the chop is as big as the swell
+       Tide       where today's tide sits (0 = low water, 1 = high) against
+                  the range the spot likes: ×1.0 inside, ×0.85 just outside,
+                  ×0.65 well outside; ×0.9 more if it's running the wrong way
+
+     Caps: under 0.4 m is Flat (0); swell far outside the size range can't
+     score above 3 (too big) or 4 (too small); after dark it's 0 ("Dark").
+     Blind to the banks — a nudge to open the cam, not a forecast. */
+  function score(c, k) {
+    if (!k || k.h == null || k.ws == null) return null;
+    const b = c.best, p = k.p || 0, P = b.period;
+    const [lo, hi] = b.size;
+    const f = [];
+
+    // How much of the offshore swell reaches this beach: whole when it's
+    // coming at the beach (within 45° of the way it faces), fading to the
+    // spot's exposure floor once it has to bend 110° round a headland.
+    const dd = k.d != null ? distToWindow(k.d, b.swell) : 0;
+    const bend = k.d != null ? angleDiff(k.d, c.faces) : 0;
+    const floor = b.exposure == null ? 0.85 : b.exposure;
+    let arrive = lerp(bend, 45, 1, 110, floor);
+    if (bend > 45 && p >= 12) arrive = Math.min(1, arrive * 1.15);   // long period wraps in
+    arrive *= b.gain || 1;
+    const h = k.h * arrive;
+    const hNow = Math.abs(arrive - 1) < 0.05 ? `${h.toFixed(1)} m` : `${h.toFixed(1)} m at the beach (${k.h.toFixed(1)} m offshore)`;
+
+    const sweet = lo + 0.4 * (hi - lo);
+    const size = h <= sweet ? lerp(h, lo * 0.5, 0, sweet, 4) : h <= hi ? 4 : lerp(h, hi, 4, hi * 1.4, 0);
+    f.push({ label: 'Size', pts: size, max: 4, now: hNow, likes: `${lo}–${hi} m` });
+
+    const per = lerp(p, P - 2, 0, P + 5, 3);
+    f.push({ label: 'Period', pts: per, max: 3, now: `${Math.round(p)} s`, likes: `${P} s and up` });
+
+    // Angle still matters once the swell is in: straight into the window
+    // lines up the banks; well outside it tends to bend in as closeouts.
+    const dir = k.d != null ? lerp(dd, 0, 3, 60, 0) : 2;
+    f.push({ label: 'Direction', pts: dir, max: 3, now: k.d != null ? `from ${dirName(k.d)}` : 'unknown', likes: windowText(b.swell) });
+
+    const rel = windRel(c, k), ws = k.ws;
+    let wind;
+    if (ws < 8)             wind = 1;                                                   // glassy
+    else if (rel === 'offshore') wind = ws < 20 ? 1 : ws < 30 ? 0.9 : ws < 40 ? 0.75 : 0.6;
+    else if (rel === 'onshore')  wind = ws < 10 ? 0.6 : ws < 18 ? 0.4 : ws < 28 ? 0.2 : 0.1;
+    else                         wind = ws < 12 ? 0.85 : ws < 20 ? 0.6 : ws < 30 ? 0.4 : 0.2;
+    const gusty = k.wg != null && k.wg > 25 && k.wg > ws * 1.5;
+    if (gusty) wind *= 0.85;
+    f.push({ label: 'Wind', mult: wind, now: `${Math.round(ws)} km/h ${dirName(k.wd)}, ${rel}${gusty ? `, gusting ${Math.round(k.wg)}` : ''}`, likes: `${windowText(b.wind)} offshore` });
+
+    // Chop is sampled offshore; an offshore wind grooms it out by the beach,
+    // so it counts half as much then.
+    let sea = 1;
+    if (k.wwh != null && h > 0) {
+      const r = (k.wwh / h) * (rel === 'offshore' ? 0.5 : 1);
+      sea = r > 1 ? 0.5 : r > 0.6 ? 0.7 : r > 0.35 ? 0.85 : 1;
+      f.push({ label: 'Sea state', mult: sea, now: `${k.wwh.toFixed(1)} m wind chop on ${h.toFixed(1)} m swell`, likes: 'clean groundswell' });
+    }
+
+    let tide = 1;
+    if (k.tn != null && b.tide && b.tide.range) {
+      const [tlo, thi] = b.tide.range;
+      const out = k.tn < tlo ? tlo - k.tn : k.tn > thi ? k.tn - thi : 0;
+      tide = out === 0 ? 1 : out <= 0.15 ? 0.85 : 0.65;
+      if (b.tide.dir && k.tdir && b.tide.dir !== k.tdir) tide *= 0.9;
+      f.push({ label: 'Tide', mult: tide, now: `${tideWord(k.tn)}${k.tdir ? ` and ${k.tdir}` : ''}`, likes: b.tide.text });
+    }
+
+    let total = (size + per + dir) * wind * sea * tide, cap = '', dark = false;
+    if (k.day === 0) { total = 0; cap = 'After dark'; dark = true; }
+    else if (h < 0.4) { total = 0; cap = 'Under 0.4 m, flat'; }
+    else if (h > hi * 1.4) { total = Math.min(total, 3); cap = `Capped: ${h.toFixed(1)} m is too big for this spot`; }
+    else if (h < lo * 0.7) { total = Math.min(total, 4); cap = `Capped: ${h.toFixed(1)} m is too small for this spot`; }
+    total = Math.round(total * 2) / 2;
+    const level = total === 0 ? 0 : total <= 3.5 ? 1 : total <= 6 ? 2 : total <= 8 ? 3 : 4;
+    return { total, level, label: dark ? 'Dark' : LEVELS[level], wind: rel, factors: f, cap };
+  }
+
+  const scoreOf = (c) => score(c, conditions[c.id] && conditions[c.id].now);
+  const badge = (c, lg) => {
+    const r = scoreOf(c);
+    return r
+      ? `<span class="score lvl-${r.level}${lg ? ' lg' : ''}"><b>${fmt(r.total)}</b><small>${r.label}</small></span>`
+      : `<span class="score lvl-x${lg ? ' lg' : ''}"><b>–</b><small>no data</small></span>`;
+  };
+  const condText = (c) => {
+    const k = conditions[c.id] && conditions[c.id].now, r = scoreOf(c);
+    if (!r) return '';
+    return `<b>${k.h.toFixed(1)} m</b> · <b>${Math.round(k.p)} s</b> · <b>${Math.round(k.ws)} km/h</b> ${r.wind}`;
+  };
+
+  /* ---------- Today: four bars + a summary ---------- */
+
+  const hourOf = (t) => parseInt(t.slice(11, 13), 10);
+  const levelOf = (total) => (total === 0 ? 0 : total <= 3.5 ? 1 : total <= 6 ? 2 : total <= 8 ? 3 : 4);
+
+  // Average score per block of the day, daylight hours only.
+  function dayBars(c) {
+    const hs = conditions[c.id] && conditions[c.id].hours;
+    if (!hs || !hs.length) return null;
+    const nowH = new Date().getHours();
+    return BUCKETS.map((b) => {
+      const rows = hs.filter((k) => k.day !== 0 && hourOf(k.t) >= b.from && hourOf(k.t) < b.to);
+      const totals = rows.map((k) => score(c, k)).filter(Boolean).map((r) => r.total);
+      const avg = totals.length ? Math.round((totals.reduce((a, x) => a + x, 0) / totals.length) * 2) / 2 : null;
+      return { ...b, score: avg, level: avg == null ? null : levelOf(avg), past: nowH >= b.to, now: nowH >= b.from && nowH < b.to };
+    });
+  }
+
+  const miniBars = (c) => {
+    const bars = dayBars(c);
+    if (!bars) return '';
+    return `<span class="mini" aria-hidden="true" title="Today, dawn to evening">${bars.map((b) =>
+      `<i class="${b.level == null ? 'lvl-x' : 'lvl-' + b.level}${b.past ? ' past' : ''}${b.now ? ' now' : ''}" style="height:${b.score == null ? 2 : Math.max(2, b.score * 10)}%"></i>`
+    ).join('')}</span>`;
+  };
+
+  // A sentence or two on how the day goes: size trend, wind, best window.
+  function daySummary(c) {
+    const hs = conditions[c.id] && conditions[c.id].hours;
+    if (!hs) return '';
+    const day = hs.filter((k) => k.day !== 0 && hourOf(k.t) >= 6 && hourOf(k.t) < 19);
+    if (day.length < 2) return 'No daylight hours left to call.';
+    const first = day[0], last = day[day.length - 1];
+    const dh = last.h - first.h;
+    const sizeTxt = Math.abs(dh) < 0.25
+      ? `Holding around ${((first.h + last.h) / 2).toFixed(1)} m at ${Math.round((first.p + last.p) / 2)} s`
+      : dh > 0 ? `Building from ${first.h.toFixed(1)} m to ${last.h.toFixed(1)} m` : `Easing from ${first.h.toFixed(1)} m to ${last.h.toFixed(1)} m`;
+    const rels = day.map((k) => windRel(c, k));
+    const half = Math.floor(rels.length / 2);
+    const mode = (arr) => arr.sort((a, b) => arr.filter((v) => v === a).length - arr.filter((v) => v === b).length).pop();
+    const am = mode(rels.slice(0, half)), pm = mode(rels.slice(half));
+    const speeds = day.map((k) => k.ws);
+    const windTxt = am === pm
+      ? `${am} wind all day, ${Math.round(Math.min(...speeds))}–${Math.round(Math.max(...speeds))} km/h`
+      : `${am} early, turning ${pm} later and up to ${Math.round(Math.max(...speeds))} km/h`;
+    const bars = (dayBars(c) || []).filter((b) => b.score != null);
+    const best = bars.slice().sort((a, b) => b.score - a.score)[0];
+    const bestTxt = best ? (best.past ? `Best was ${best.label.toLowerCase()} (${fmt(best.score)}).` : `Best window: ${best.label.toLowerCase()} (${fmt(best.score)}).`) : '';
+    return `${sizeTxt}; ${windTxt}. ${bestTxt}`.trim();
+  }
+
+  /* ---------- Fetching ---------- */
+
+  // Open-Meteo's marine model is coastal-coarse; a point on the sand can land
+  // in a cell with no sea data, so sample ~6 km out in the direction the
+  // beach faces.
+  const offshore = (c) => {
+    const rad = c.faces * Math.PI / 180;
+    const lat = c.lat + 0.06 * Math.cos(rad);
+    const lng = c.lng + 0.06 * Math.sin(rad) / Math.cos(c.lat * Math.PI / 180);
+    return [lat.toFixed(4), lng.toFixed(4)];
+  };
+
+  const MARINE = ['swell_wave_height', 'swell_wave_period', 'swell_wave_direction', 'wave_height', 'wave_period', 'wave_direction', 'wind_wave_height', 'sea_level_height_msl', 'sea_surface_temperature'];
+  const WIND = ['wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m', 'is_day', 'temperature_2m'];
+
+  // Open-Meteo answers with an object for one location, an array for several.
+  const asList = (r) => (Array.isArray(r) ? r : [r]);
+  const row = (hourly, i) => Object.fromEntries(Object.keys(hourly).map((k) => [k, hourly[k][i]]));
+  const toK = (m, w) => {
+    const h = m.swell_wave_height ?? m.wave_height;
+    if (h == null || w.wind_speed_10m == null) return null;
+    return {
+      h, p: m.swell_wave_period ?? m.wave_period, d: m.swell_wave_direction ?? m.wave_direction, wwh: m.wind_wave_height,
+      ws: w.wind_speed_10m, wd: w.wind_direction_10m, wg: w.wind_gusts_10m, day: w.is_day == null ? 1 : w.is_day,
+      tide: m.sea_level_height_msl, sst: m.sea_surface_temperature, air: w.temperature_2m,
+    };
+  };
+  // Tide state from the day's sea-level curve: tn is 0 at today's low water
+  // and 1 at high; tdir is which way it's running right now.
+  function addTide(hours, k, idx) {
+    const levels = hours.map((x) => x.tide).filter((v) => v != null);
+    if (levels.length < 3 || k.tide == null) return;
+    const min = Math.min(...levels), max = Math.max(...levels);
+    if (max - min < 0.2) return;
+    k.tn = Math.min(1, Math.max(0, (k.tide - min) / (max - min)));
+    const prev = hours[Math.max(0, idx - 1)], next = hours[Math.min(hours.length - 1, idx + 1)];
+    if (prev && next && prev.tide != null && next.tide != null) k.tdir = next.tide > prev.tide ? 'rising' : 'falling';
+  }
+  // Today's highs and lows from the hourly curve, refined by fitting a
+  // parabola through each peak so the time is good to ~10 minutes.
+  function tideEvents(hours) {
+    const out = [];
+    for (let i = 1; i < hours.length - 1; i++) {
+      const a = hours[i - 1].tide, b = hours[i].tide, c = hours[i + 1].tide;
+      if (a == null || b == null || c == null) continue;
+      const high = b > a && b >= c, low = b < a && b <= c;
+      if (!high && !low) continue;
+      const den = a - 2 * b + c;
+      const off = den ? 0.5 * (a - c) / den : 0; // vertex offset in hours, -0.5…0.5
+      // Hourly values stand for the whole hour, so their centre is at :30.
+      // Checked against the Cascais tide table: lands within ~5 minutes.
+      const mins = Math.round((hourOf(hours[i].t) + 0.5 + off) * 60);
+      const hh = Math.floor(mins / 60), mm = mins % 60;
+      out.push({ kind: high ? 'High' : 'Low', mins, t: `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}` });
+    }
+    return out;
+  }
+  // "High 14:51 · Low 21:10": what's still to come today, or the whole day once it's over.
+  function tideTimes(cnd) {
+    if (!cnd || !cnd.tides || !cnd.tides.length) return '';
+    const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+    const ahead = cnd.tides.filter((e) => e.mins >= nowMins);
+    return (ahead.length ? ahead : cnd.tides).map((e) => `${e.kind} ${e.t}`).join(' · ');
+  }
+  // Prefer `current`; fall back to the hourly row nearest to now.
+  function pick(loc) {
+    if (!loc) return null;
+    if (loc.current) return { ...loc.current };
+    if (!loc.hourly || !loc.hourly.time) return null;
+    const now = Date.now();
+    let best = 0, bestD = Infinity;
+    loc.hourly.time.forEach((t, i) => { const d = Math.abs(new Date(t) - now); if (d < bestD) { bestD = d; best = i; } });
+    return row(loc.hourly, best);
+  }
+
+  async function loadConditions() {
+    const ids = CAMS.map((c) => c.id).join();
+    const today = new Date().toDateString();
+    try {
+      const cached = JSON.parse(localStorage.getItem('surf-cond') || 'null');
+      if (cached && cached.ids === ids && cached.day === today && Date.now() - cached.t < COND_TTL) {
+        conditions = cached.data;
+        condNote = cached.note;
+        return;
+      }
+    } catch {}
+
+    const pts = CAMS.map(offshore);
+    const lat = pts.map((p) => p[0]).join(','), lng = pts.map((p) => p[1]).join(',');
+    const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&current=${MARINE.join()}&hourly=${MARINE.join()}&forecast_days=1&timezone=auto`;
+    const windUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=${WIND.join()}&hourly=${WIND.join()}&daily=sunrise,sunset&forecast_days=1&timezone=auto`;
+
+    try {
+      const [marine, wind] = await Promise.all([
+        fetch(marineUrl).then((r) => r.json()),
+        fetch(windUrl).then((r) => r.json()),
+      ]);
+      if (marine.error || wind.error) throw new Error(marine.reason || wind.reason);
+      const M = asList(marine), W = asList(wind);
+      const next = {};
+      let when = '';
+      CAMS.forEach((c, i) => {
+        const m = M[i], w = W[i];
+        if (!m || !w) return;
+        const cur = pick(m), curW = pick(w);
+        const now = cur && curW ? toK(cur, curW) : null;
+        if (!now) return;
+        const hours = [];
+        const n = Math.min(m.hourly && m.hourly.time ? m.hourly.time.length : 0, w.hourly && w.hourly.time ? w.hourly.time.length : 0);
+        for (let j = 0; j < n; j++) {
+          const k = toK(row(m.hourly, j), row(w.hourly, j));
+          if (k) hours.push({ t: m.hourly.time[j], ...k });
+        }
+        hours.forEach((k, j) => addTide(hours, k, j));
+        // "Now" sits between two hourly rows; use the nearer one for tide direction.
+        const nowMs = new Date(cur.time || Date.now()).getTime();
+        let near = 0, nearD = Infinity;
+        hours.forEach((k, j) => { const d = Math.abs(new Date(k.t) - nowMs); if (d < nearD) { nearD = d; near = j; } });
+        addTide(hours, now, near);
+        const sun = w.daily && w.daily.sunrise ? { rise: (w.daily.sunrise[0] || '').slice(11, 16), set: (w.daily.sunset[0] || '').slice(11, 16) } : null;
+        next[c.id] = { now, hours, sun, tides: tideEvents(hours), t: cur.time };
+        when = when || (cur.time || '').slice(11, 16);
+      });
+      conditions = next;
+      condNote = when ? `Scores from Open-Meteo swell, wind and tide at ${when} local, judged against each spot’s usual best.` : 'Conditions unavailable right now';
+      try { localStorage.setItem('surf-cond', JSON.stringify({ ids, day: today, t: Date.now(), data: conditions, note: condNote })); } catch {}
+    } catch (e) {
+      conditions = {};
+      condNote = 'Conditions unavailable right now';
+    }
+  }
+
+  /* ---------- Directions: one button, then choose the app ---------- */
+
+  const PIN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>';
+  const goButton = (c) => `<button class="nav" type="button" data-go="${esc(c.id)}">${PIN_SVG}Directions</button>`;
+
+  function openGo(c) {
+    const ll = `${c.lat},${c.lng}`;
+    clearTimeout(goTimer);
+    $('go-sub').textContent = `${c.name} · ${c.town}`;
+    $('go-list').innerHTML = [
+      ['Google Maps', `https://www.google.com/maps/dir/?api=1&destination=${ll}`, '#4285f4'],
+      ['Apple Maps', `https://maps.apple.com/?daddr=${ll}&dirflg=d`, '#8e8e93'],
+      ['Waze', `https://waze.com/ul?ll=${ll}&navigate=yes`, '#33ccff'],
+    ].map(([name, url, dot]) =>
+      `<a class="go-opt" href="${url}" target="_blank" rel="noopener noreferrer"><i style="background:${dot}"></i>${name}<small>Open</small></a>`
+    ).join('');
+    go.hidden = false;
+    requestAnimationFrame(() => go.classList.add('open'));
+    $('go-list').querySelector('a').focus();
+  }
+  function closeGo() {
+    if (go.hidden) return;
+    go.classList.remove('open');
+    goTimer = setTimeout(() => { go.hidden = true; }, 200);
+  }
+
+  /* ---------- Grid, grouped by area ---------- */
+
+  // Home areas first; anything else follows in the order it appears in CAMS.
+  const AREA_ORDER = ['Cascais', 'Caparica'];
+  const AREAS = [...new Set(CAMS.map((c) => c.area))]
+    .sort((a, b) => (AREA_ORDER.includes(a) ? AREA_ORDER.indexOf(a) : 99) - (AREA_ORDER.includes(b) ? AREA_ORDER.indexOf(b) : 99));
+
+  function renderChips() {
+    chips.innerHTML = ['All', ...AREAS].map((r) =>
+      `<button class="chip" type="button" data-area="${esc(r)}" aria-pressed="${r === area}">${esc(r)}</button>`
+    ).join('');
+  }
+
+  // The tile is the preview; name, place and conditions overlay the bottom.
+  const cardHtml = (c) => `
+    <button class="cam" type="button" data-id="${esc(c.id)}" aria-label="Watch ${esc(c.name)}, ${esc(c.town)}">
+      ${c.thumb ? `<img src="${esc(thumbUrl(c.thumb))}" alt="" loading="lazy" decoding="async" onload="this.classList.add('ready')" onerror="this.remove()">` : ''}
+      ${c.type === 'hls' ? `<video muted playsinline preload="none"${c.poster ? ` poster="${esc(c.poster)}"` : ''} aria-hidden="true"></video>` : ''}
+      <span class="live"><i></i>Live</span>
+      <span class="score-slot">${badge(c)}</span>
+      <div class="overlay">
+        <div class="name">${esc(c.name)}</div>
+        <div class="sub">
+          <span class="where">${esc(c.zone && c.zone !== c.town ? `${c.zone} · ${c.town}` : c.town)}</span>
+          <span class="cond-line">${condText(c)}</span>
+          <span class="mini-slot">${miniBars(c)}</span>
+        </div>
+      </div>
+    </button>`;
+
+  // Built once; conditions are patched in later so the tiles keep streaming.
+  function renderGrid() {
+    grid.innerHTML = AREAS.map((a) => {
+      const list = CAMS.filter((c) => c.area === a);
+      return `
+      <section class="area" data-area="${esc(a)}">
+        <div class="area-head">
+          <h2>${esc(a)}<small>${list.length} cam${list.length === 1 ? '' : 's'}</small></h2>
+          <div class="area-sum"></div>
+        </div>
+        <div class="cards">${list.map(cardHtml).join('')}</div>
+      </section>`;
+    }).join('');
+  }
+
+  function patchConditions() {
+    for (const el of cards()) {
+      const c = byId(el.dataset.id);
+      el.querySelector('.score-slot').innerHTML = badge(c);
+      el.querySelector('.cond-line').innerHTML = condText(c);
+      el.querySelector('.mini-slot').innerHTML = miniBars(c);
+    }
+    for (const sec of grid.querySelectorAll('.area')) {
+      const best = CAMS.filter((c) => c.area === sec.dataset.area)
+        .map((c) => ({ c, r: scoreOf(c) })).filter((x) => x.r)
+        .sort((x, y) => y.r.total - x.r.total)[0];
+      // Tide times are the same along an area's coast, so one cam's will do.
+      const withTide = CAMS.find((c) => c.area === sec.dataset.area && tideTimes(conditions[c.id]));
+      const tide = withTide ? tideTimes(conditions[withTide.id]) : '';
+      sec.querySelector('.area-sum').innerHTML =
+        (tide ? `<span class="tide-sum">${esc(tide)}</span>` : '') +
+        (best ? `<span>Best now: <b>${esc(best.c.name)}</b> · ${fmt(best.r.total)}/10</span>` : '');
+    }
+    const top = CAMS.map((c) => ({ c, r: scoreOf(c) })).filter((x) => x.r && x.r.total > 0)
+      .sort((x, y) => y.r.total - x.r.total).slice(0, 3);
+    const bestEl = $('best');
+    bestEl.hidden = !top.length;
+    bestEl.innerHTML = top.length
+      ? `<span class="best-label">Best right now</span>` + top.map(({ c }) =>
+          `<button class="best-chip" type="button" data-open="${esc(c.id)}">${badge(c)}<span>${esc(c.name)}</span></button>`).join('')
+      : '';
+  }
+
+  function applyFilter() {
+    let shown = 0;
+    for (const sec of grid.querySelectorAll('.area')) {
+      let n = 0;
+      for (const el of sec.querySelectorAll('.cam')) {
+        const ok = matches(byId(el.dataset.id));
+        el.hidden = !ok;
+        if (ok) n++;
+      }
+      sec.hidden = n === 0;
+      shown += n;
+    }
+    empty.classList.toggle('show', shown === 0 && effectiveView() !== 'map');
+    if (map) syncMarkers(true);
+    syncTiles();
+  }
+
+  /* ---------- Live tiles ---------- */
+
+  // Every HLS card streams while it's on screen (muted, lowest rendition).
+  // Off-screen, hidden-tab, data-saver and over-budget tiles fall back to
+  // their snapshot.
+  function startTile(c) {
+    const t = tiles[c.id];
+    if (!t || t.active || t.dead) return;
+    const video = t.video;
+    t.active = true;
+    video.muted = true;
+    const card = video.closest('.cam');
+    const onPlaying = () => { video.classList.add('ready'); card.classList.add('streaming'); };
+    video.addEventListener('playing', onPlaying);
+    t.cleanup = () => video.removeEventListener('playing', onPlaying);
+    const fail = () => { stopTile(c.id); t.dead = true; };
+
+    if (nativeHls) {
+      video.addEventListener('error', fail, { once: true });
+      video.src = c.embed;
+      video.play().catch(() => {});
+      return;
+    }
+    if (!window.Hls || !Hls.isSupported()) { t.active = false; return; }
+    t.hls = new Hls(TILE_HLS);
+    t.hls.on(Hls.Events.ERROR, (_, data) => {
+      if (!data.fatal) return;
+      if (data.type === Hls.ErrorTypes.MEDIA_ERROR && t.hls) return t.hls.recoverMediaError();
+      fail();
+    });
+    t.hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+    t.hls.loadSource(c.embed);
+    t.hls.attachMedia(video);
+  }
+
+  function stopTile(id) {
+    const t = tiles[id];
+    if (!t || !t.active) return;
+    if (t.hls) { try { t.hls.destroy(); } catch {} t.hls = null; }
+    if (t.cleanup) { t.cleanup(); t.cleanup = null; }
+    t.video.pause();
+    t.video.removeAttribute('src');
+    t.video.load();
+    t.video.classList.remove('ready');
+    t.video.closest('.cam').classList.remove('streaming');
+    t.active = false;
+  }
+
+  // Reconcile every tile with what should be playing right now.
+  function syncTiles() {
+    let budget = MAX_TILES;
+    const listShown = effectiveView() !== 'map';
+    for (const c of CAMS) {
+      const t = tiles[c.id];
+      if (!t) continue;
+      const want = !dataSaver && listShown && t.visible && !t.hold && !document.hidden && matches(c) && budget > 0;
+      if (want) { budget--; startTile(c); } else stopTile(c.id);
+    }
+  }
+
+  function setupTiles() {
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        const t = tiles[e.target.dataset.id];
+        if (t) t.visible = e.isIntersecting;
+      }
+      syncTiles();
+    }, { rootMargin: '200px 0px' });
+    for (const el of cards()) {
+      const video = el.querySelector('video');
+      if (!video) continue;
+      tiles[el.dataset.id] = { video, hls: null, visible: false, active: false, hold: false, dead: false };
+      io.observe(el);
+    }
+    document.addEventListener('visibilitychange', syncTiles);
+  }
+
+  /* ---------- Map ---------- */
+
+  const pinIcon = (c) => {
+    const r = scoreOf(c);
+    return L.divIcon({
+      className: 'pin-wrap',
+      html: `<span class="pin ${r ? 'lvl-' + r.level : 'lvl-x'}">${r ? fmt(r.total) : '·'}</span>`,
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
+      popupAnchor: [0, -16],
+      tooltipAnchor: [0, -16],
+    });
+  };
+
+  const popupHtml = (c) => {
+    const cond = condText(c);
+    const sum = daySummary(c);
+    return `
+      <div class="pop-head">
+        <div>
+          <div class="pop-name">${esc(c.name)}</div>
+          <div class="pop-where">${esc(c.zone || c.town)} · ${esc(c.area)}</div>
+        </div>
+        ${badge(c)}
+      </div>
+      ${cond ? `<div class="pop-cond">Now ${cond} ${miniBars(c)}</div>` : ''}
+      ${tideTimes(conditions[c.id]) ? `<div class="pop-sum">Tide: ${esc(tideTimes(conditions[c.id]))}</div>` : ''}
+      ${sum ? `<div class="pop-sum">${esc(sum)}</div>` : ''}
+      <div class="pop-actions">
+        <button class="pop-btn" type="button" data-open="${esc(c.id)}">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>Watch live
+        </button>
+        ${goButton(c)}
+      </div>`;
+  };
+
+  // Pin ↔ card: hovering a card lifts its pin; tapping a pin finds its card.
+  function hotPin(id, on) {
+    const el = markers[id] && markers[id].getElement && markers[id].getElement();
+    if (el) el.classList.toggle('hot', on);
+  }
+  function findCard(id) {
+    if (effectiveView() !== 'split') return;
+    const el = grid.querySelector(`.cam[data-id="${CSS.escape(id)}"]`);
+    if (!el || el.hidden) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 1600);
+  }
+
+  function initMap() {
+    map = L.map('map', { zoomControl: true, scrollWheelZoom: true });
+    // Plain OpenStreetMap streets by default — clean and keyless. Satellite
+    // (Esri imagery) is there as an option for reading the actual beach.
+    const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19,
+      className: 'osm-tiles',
+    });
+    const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Imagery &copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics, GIS User Community',
+      maxZoom: 19,
+    });
+    let base = 'osm';
+    try { base = localStorage.getItem('surf-base') || 'osm'; } catch {}
+    (base === 'sat' ? sat : osm).addTo(map);
+    L.control.layers({ 'Streets': osm, 'Satellite': sat }, null, { position: 'topright', collapsed: false }).addTo(map);
+    map.on('baselayerchange', (e) => { try { localStorage.setItem('surf-base', e.layer === sat ? 'sat' : 'osm'); } catch {} });
+
+    for (const c of CAMS) {
+      markers[c.id] = L.marker([c.lat, c.lng], { icon: pinIcon(c), title: c.name, keyboard: true })
+        .bindTooltip(c.name, { direction: 'top' })
+        .bindPopup(() => popupHtml(c), { closeButton: false, maxWidth: 340 })
+        .on('click', () => findCard(c.id));
+    }
+    map.getContainer().addEventListener('click', (e) => {
+      const b = e.target.closest('[data-open]');
+      if (b) { map.closePopup(); open(b.dataset.open); }
+    });
+    syncMarkers(true);
+  }
+
+  // Show only the markers that pass the current filter; optionally refit.
+  function syncMarkers(fit) {
+    const shown = [];
+    for (const c of CAMS) {
+      const m = markers[c.id];
+      if (matches(c)) { if (!map.hasLayer(m)) m.addTo(map); shown.push([c.lat, c.lng]); }
+      else if (map.hasLayer(m)) map.removeLayer(m);
+    }
+    if (fit && shown.length) {
+      if (shown.length === 1) map.setView(shown[0], 14);
+      else map.fitBounds(shown, { padding: [40, 40], maxZoom: 14 });
+    }
+  }
+
+  function refreshPins() {
+    if (!map) return;
+    for (const c of CAMS) markers[c.id].setIcon(pinIcon(c));
+  }
+
+  async function showMap() {
+    try {
+      await loadScript(LIBS.leaflet);
+    } catch {
+      $('map-hint').textContent = 'Couldn’t load the map.';
+      return;
+    }
+    if (!map) initMap();
+    // The pane has just been shown or resized; let layout settle first.
+    requestAnimationFrame(() => { map.invalidateSize(); syncMarkers(true); });
+  }
+
+  function setView(v) {
+    view = v;
+    const ev = effectiveView();
+    layout.dataset.view = ev;
+    for (const b of document.querySelectorAll('.seg button')) b.setAttribute('aria-pressed', b.dataset.view === view);
+    try { localStorage.setItem('surf-view', v); } catch {}
+    applyFilter();
+    if (ev !== 'grid') showMap();
+  }
+
+  /* ---------- Viewer ---------- */
+
+  function frameMsg(text) {
+    frame.insertAdjacentHTML('beforeend', `<div class="frame-msg">${esc(text)}</div>`);
+  }
+
+  const iframeHtml = (url, c) =>
+    `<iframe src="${esc(url)}" title="${esc(c.name)} live webcam" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+
+  function stopPlayback() {
+    if (hls) { try { hls.destroy(); } catch {} hls = null; }
+    if (player) { try { player.destroy(); } catch {} player = null; }
+    frame.innerHTML = '';
+  }
+
+  // A dead or blocked stream falls back to the cam's page when it has one.
+  function streamFailed(c, text) {
+    stopPlayback();
+    if (!c.fallback) { frame.className = 'frame video'; return frameMsg(text); }
+    frame.className = 'frame page';
+    frame.innerHTML = iframeHtml(c.fallback, c);
+  }
+
+  async function playHls(c) {
+    const video = document.createElement('video');
+    video.muted = true;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    if (c.poster) video.poster = c.poster;
+    video.setAttribute('aria-label', `${c.name} live webcam`);
+    frame.appendChild(video);
+    const gone = () => !frame.contains(video); // viewer closed while a lib loaded
+
+    try {
+      const libs = [loadScript(LIBS.plyr)];
+      if (!nativeHls) libs.push(loadScript(LIBS.hls));
+      await Promise.all(libs);
+      if (gone()) return;
+
+      if (nativeHls) {
+        video.src = c.embed;
+        video.addEventListener('error', () => streamFailed(c, 'Stream unavailable right now.'), { once: true });
+      } else {
+        if (!window.Hls.isSupported()) return streamFailed(c, 'This browser can’t play live streams.');
+        hls = new Hls({ liveDurationInfinity: true, enableWorker: true });
+        hls.on(Hls.Events.ERROR, (_, data) => {
+          if (!data.fatal) return;
+          if (data.type === Hls.ErrorTypes.MEDIA_ERROR) return hls.recoverMediaError();
+          streamFailed(c, 'Stream unavailable right now.');
+        });
+        hls.loadSource(c.embed);
+        hls.attachMedia(video);
+      }
+
+      player = new Plyr(video, {
+        // Cams have no audio, so no mute / volume controls to confuse things.
+        controls: ['play-large', 'play', 'pip', 'airplay', 'fullscreen'],
+        autoplay: true,
+        muted: true,
+        clickToPlay: true,
+        hideControls: true,
+        ratio: '16:9',
+        storage: { enabled: false },
+        fullscreen: { enabled: true, fallback: true, iosNative: true },
+      });
+    } catch {
+      if (!gone()) streamFailed(c, 'Couldn’t load the video player.');
+    }
+  }
+
+  function renderScore(c) {
+    const r = scoreOf(c);
+    const el = $('v-score');
+    if (!r) { el.hidden = true; el.innerHTML = ''; return; }
+    el.hidden = false;
+    el.innerHTML = `
+      <div class="score-total">
+        <span class="k">Score now</span>
+        ${badge(c, true)}
+        ${r.cap ? `<span class="score-cap">${esc(r.cap)}</span>` : ''}
+      </div>
+      <div class="factors">
+        ${r.factors.map((f) => {
+          const share = f.mult != null ? f.mult : f.pts / f.max;
+          const pts = f.mult != null ? `×${f.mult.toFixed(2).replace(/0$/, '')}` : `${fmt(Math.round(f.pts * 2) / 2)}/${f.max}`;
+          return `
+          <div class="factor lvl-${r.level}">
+            <span class="k">${f.label}</span>
+            <span class="f-bar"><i style="width:${share * 100}%"></i></span>
+            <span class="f-pts">${pts}</span>
+            <span class="f-detail"><b>${esc(f.now)}</b> · likes ${esc(f.likes)}</span>
+          </div>`; }).join('')}
+      </div>`;
+  }
+
+  function renderNow(c) {
+    const cnd = conditions[c.id], k = cnd && cnd.now;
+    const el = $('v-now');
+    if (!k) { el.hidden = true; el.innerHTML = ''; return; }
+    const stat = (kk, v, s) => `<div><span class="k">${kk}</span><span class="v">${v}${s ? ` <small>${s}</small>` : ''}</span></div>`;
+    const items = [];
+    if (k.sst != null) items.push(stat('Water', `${Math.round(k.sst)}°C`, suit(k.sst)));
+    if (k.air != null) items.push(stat('Air', `${Math.round(k.air)}°C`));
+    if (k.tn != null) items.push(stat('Tide', `${tideWord(k.tn)}${k.tdir ? ', ' + k.tdir : ''}`, tideTimes(cnd)));
+    if (cnd.sun && cnd.sun.rise) items.push(stat('Light', `${cnd.sun.rise}–${cnd.sun.set}`, 'sunrise to sunset'));
+    if (k.wg != null) items.push(stat('Gusts', `${Math.round(k.wg)} km/h`));
+    el.hidden = !items.length;
+    el.innerHTML = `<span class="k">Right now</span><div class="now-row">${items.join('')}</div>`;
+  }
+
+  function renderToday(c) {
+    const bars = dayBars(c);
+    const el = $('v-today');
+    if (!bars) { el.hidden = true; el.innerHTML = ''; return; }
+    el.hidden = false;
+    el.innerHTML = `
+      <div class="today-head"><span class="k">Today</span>${goButton(c)}</div>
+      <div class="today-bars">
+        ${bars.map((b) => `
+          <div class="tbar ${b.level == null ? 'lvl-x' : 'lvl-' + b.level}${b.past ? ' past' : ''}${b.now ? ' now' : ''}" title="${b.from}:00–${b.to}:00">
+            <b>${b.score == null ? '–' : fmt(b.score)}</b>
+            <span class="col"><i style="height:${b.score == null ? 3 : Math.max(4, b.score * 10)}%"></i></span>
+            <span>${b.label}</span>
+          </div>`).join('')}
+      </div>
+      <p class="today-sum">${esc(daySummary(c))}</p>`;
+  }
+
+  function renderLocal(c) {
+    const b = c.best;
+    const item = (k, v) => `<span>${k} <b>${v}</b></span>`;
+    $('v-local').innerHTML = `
+      <div class="today-head"><span class="k">Local knowledge</span>${conditions[c.id] ? '' : goButton(c)}</div>
+      <div class="local-row">
+        ${item('Swell', windowText(b.swell))}
+        ${item('Size', `${b.size[0]}–${b.size[1]} m`)}
+        ${item('Period', `${b.period} s+`)}
+        ${item('Wind', windowText(b.wind))}
+        ${item('Tide', esc(b.tide.text))}
+      </div>
+      <p class="local-notes">${esc(b.notes)}</p>
+      <div class="tags">${(c.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div>`;
+  }
+
+  function open(id, push = true) {
+    const c = byId(id);
+    if (!c) return;
+    lastFocus = document.activeElement;
+    $('v-name').textContent = c.name;
+    $('v-where').textContent = `${c.zone && c.zone !== c.town ? c.zone + ' · ' : ''}${c.town} · ${c.area}`;
+    $('v-open').href = c.link;
+    $('v-foot').innerHTML = `Stream by ${esc(c.source)} · <a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">open original</a>`;
+    renderScore(c);
+    renderNow(c);
+    renderToday(c);
+    renderLocal(c);
+    clearTimeout(hideTimer);
+    stopPlayback();
+    // Don't stream the same cam twice: the tile rests while the viewer plays.
+    for (const t of Object.values(tiles)) t.hold = false;
+    if (tiles[c.id]) tiles[c.id].hold = true;
+    syncTiles();
+    frame.className = 'frame ' + (c.type === 'page' ? 'page' : 'video');
+    if (c.type === 'hls') playHls(c);
+    else frame.innerHTML = iframeHtml(c.embed, c);
+    viewer.hidden = false;
+    viewer.querySelector('.sheet').scrollTop = 0;
+    requestAnimationFrame(() => viewer.classList.add('open'));
+    document.body.classList.add('locked');
+    $('v-close').focus();
+    if (push) history.pushState(null, '', '#' + c.id);
+  }
+
+  function close(push = true) {
+    if (viewer.hidden) return;
+    viewer.classList.remove('open');
+    document.body.classList.remove('locked');
+    stopPlayback();
+    for (const t of Object.values(tiles)) t.hold = false;
+    syncTiles();
+    hideTimer = setTimeout(() => { viewer.hidden = true; }, 250);
+    if (push && location.hash) history.pushState(null, '', location.pathname + location.search);
+    if (lastFocus) lastFocus.focus();
+  }
+
+  /* ---------- Wiring ---------- */
+
+  grid.addEventListener('click', (e) => {
+    const card = e.target.closest('.cam');
+    if (card) open(card.dataset.id);
+  });
+  grid.addEventListener('mouseover', (e) => { const card = e.target.closest('.cam'); if (card) hotPin(card.dataset.id, true); });
+  grid.addEventListener('mouseout',  (e) => { const card = e.target.closest('.cam'); if (card) hotPin(card.dataset.id, false); });
+  $('best').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-open]');
+    if (b) open(b.dataset.open);
+  });
+  // Any Directions button, anywhere (viewer panels, map popups).
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-go]');
+    if (b) { e.preventDefault(); openGo(byId(b.dataset.go)); }
+  });
+  go.addEventListener('click', (e) => { if (e.target === go || e.target.closest('.go-opt') || e.target.closest('#go-cancel')) closeGo(); });
+  chips.addEventListener('click', (e) => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    area = chip.dataset.area;
+    for (const b of chips.children) b.setAttribute('aria-pressed', b === chip);
+    applyFilter();
+  });
+  q.addEventListener('input', applyFilter);
+  document.querySelector('.seg').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-view]');
+    if (b) setView(b.dataset.view);
+  });
+  wide.addEventListener('change', () => setView(view));
+  const saver = $('saver');
+  function setSaver(on) {
+    dataSaver = on;
+    saver.setAttribute('aria-checked', on);
+    try { localStorage.setItem('surf-saver', on ? '1' : '0'); } catch {}
+    syncTiles();
+  }
+  saver.addEventListener('click', () => setSaver(!dataSaver));
+  saver.setAttribute('aria-checked', dataSaver);
+  $('v-close').addEventListener('click', () => close());
+  viewer.addEventListener('click', (e) => { if (e.target === viewer) close(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { if (!go.hidden) closeGo(); else close(); }
+    else if (e.key === '/' && document.activeElement !== q && viewer.hidden) { e.preventDefault(); q.focus(); }
+  });
+  window.addEventListener('popstate', () => {
+    const id = location.hash.slice(1);
+    id ? open(id, false) : close(false);
+  });
+
+  // The sticky map sits just under the sticky controls, whatever their height.
+  const controls = $('controls');
+  new ResizeObserver(() => {
+    document.documentElement.style.setProperty('--controls-h', controls.offsetHeight + 'px');
+    if (map) map.invalidateSize();
+  }).observe(controls);
+
+  renderChips();
+  renderGrid();
+  let savedView = '';
+  try { savedView = localStorage.getItem('surf-view') || ''; } catch {}
+  setView(['grid', 'split', 'map'].includes(savedView) ? savedView : (wide.matches ? 'split' : 'grid'));
+  if (location.hash) open(location.hash.slice(1), false);
+
+  // Tiles start streaming as soon as hls.js is in (Safari needs nothing).
+  (nativeHls ? Promise.resolve() : loadScript(LIBS.hls)).then(setupTiles, setupTiles);
+
+  // Conditions arrive after first paint; patch what depends on them.
+  loadConditions().then(() => {
+    patchConditions();
+    refreshPins();
+    if (!viewer.hidden && location.hash) {
+      const c = byId(location.hash.slice(1));
+      if (c) { renderScore(c); renderNow(c); renderToday(c); renderLocal(c); }
+    }
+  });
+</script>
+</body>
+</html>
