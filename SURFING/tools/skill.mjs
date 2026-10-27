@@ -136,9 +136,46 @@ async function verifyWaves() {
   console.log(`waves: ${total} buoy-hours; latest ${JSON.stringify(out.lastWave)}`);
 }
 
+/* ---------- Pooled feedback → per-spot calibration ----------
+   data/feedback.json holds every verdict we know about: pulled from the
+   Cloudflare Worker (tools/feedback-worker.js) when FEEDBACK_URL and
+   FEEDBACK_KEY are set, and/or pasted in by hand from the tune panel's
+   "Copy feedback log". A spot's calibration shrinks or grows its score by
+   how lopsided the verdicts are: 60% "too high" and 0% "too low" → ×0.86. */
+const FB_FILE = new URL('../data/feedback.json', import.meta.url);
+async function pullFeedback() {
+  let list = [];
+  try { list = JSON.parse(fs.readFileSync(FB_FILE, 'utf8')); } catch {}
+  if (!Array.isArray(list)) list = [];
+  const url = process.env.FEEDBACK_URL, key = process.env.FEEDBACK_KEY;
+  if (url && key) {
+    const since = list.map((e) => e.t).sort().pop() || '';
+    try {
+      const j = await getJson(`${url.replace(/\/$/, '')}/export?key=${encodeURIComponent(key)}&since=${encodeURIComponent(since)}`);
+      const seen = new Set(list.map((e) => `${e.t}|${e.id}|${e.verdict}`));
+      for (const e of j.verdicts || []) { const k = `${e.t}|${e.id}|${e.verdict}`; if (!seen.has(k)) { list.push(e); seen.add(k); } }
+      console.log(`feedback: ${j.count || 0} pulled from the worker`);
+    } catch (e) { console.log('feedback: worker unavailable', e.message); }
+  }
+  list.sort((a, b) => String(a.t).localeCompare(String(b.t)));
+  fs.mkdirSync(new URL('../data/', import.meta.url), { recursive: true });
+  fs.writeFileSync(FB_FILE, JSON.stringify(list, null, 0) + '\n');
+  const cal = {};
+  for (const id of new Set(list.map((e) => e.id))) {
+    const v = list.filter((e) => e.id === id);
+    const n = v.length, high = v.filter((e) => e.verdict === 'high').length, low = v.filter((e) => e.verdict === 'low').length;
+    const lean = (high - low) / n;                               // +1 all too high … −1 all too low
+    const f = Math.max(0.7, Math.min(1.15, 1 - 0.25 * lean));    // ×0.75 at the extreme
+    cal[id] = { n, high, low, f: +f.toFixed(3) };
+  }
+  out.calibration = cal;
+  console.log(`feedback: ${list.length} verdicts across ${Object.keys(cal).length} spots`);
+}
+
 (async () => {
   try { await verifyWind(); } catch (e) { console.log('wind failed:', e.message); }
   try { await verifyWaves(); } catch (e) { console.log('waves failed:', e.message); }
+  try { await pullFeedback(); } catch (e) { console.log('feedback failed:', e.message); }
   const round = (o) => Object.fromEntries(Object.entries(o).map(([k, s]) => [k, Object.fromEntries(Object.entries(s).map(([a, v]) => [a, typeof v === 'number' && a !== 'n' ? +v.toFixed(3) : v]))]));
   out.wind = round(out.wind); out.wave = round(out.wave);
   fs.mkdirSync(new URL('../data/', import.meta.url), { recursive: true });

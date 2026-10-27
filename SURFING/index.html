@@ -2205,6 +2205,13 @@
   // Each verdict is stored with the factors behind that moment's score, so
   // the spot's numbers can be fitted later instead of guessed.
   const FB_KEY = 'surf-feedback';
+  // Every verdict is pooled across all users: it goes to the Cloudflare
+  // Worker in tools/feedback-worker.js (no personal data: spot, score,
+  // factors, sea state, verdict) and the scheduled Action exports the pool
+  // into data/feedback.json, which becomes each spot's calibration in
+  // data/skill.json. The device copy only lets a user see their own votes.
+  // Deploy the worker once and paste its URL here.
+  const FEEDBACK_URL = '';
   const loadFb = () => { try { return JSON.parse(localStorage.getItem(FB_KEY) || '[]') || []; } catch { return []; } };
   const saveFb = (list) => { try { localStorage.setItem(FB_KEY, JSON.stringify(list.slice(-2000))); } catch {} };
   function logFeedback(c, verdict) {
@@ -2212,9 +2219,12 @@
     if (!k || !r) return;
     const f = {};
     for (const x of r.factors) f[x.label] = x.mult != null ? +x.mult.toFixed(2) : +x.pts.toFixed(2);
+    const entry = { t: new Date().toISOString(), id: c.id, total: r.total, verdict, f, k: { h: k.h, p: k.p, d: k.d, ws: k.ws, wd: k.wd, tn: k.tn, tdir: k.tdir, wwh: k.wwh, th: k.th } };
     const list = loadFb();
-    list.push({ t: new Date().toISOString(), id: c.id, total: r.total, verdict, f, k: { h: k.h, p: k.p, d: k.d, ws: k.ws, wd: k.wd, tn: k.tn, tdir: k.tdir, wwh: k.wwh, th: k.th } });
+    list.push(entry);
     saveFb(list);
+    if (FEEDBACK_URL) fetch(FEEDBACK_URL.replace(/\/$/, '') + '/v', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry), keepalive: true }).catch(() => {});
+    else console.warn('surf: FEEDBACK_URL not set, verdict kept on this device only');
   }
   function renderFb(c) {
     const el = $('v-fb');
@@ -2228,7 +2238,13 @@
         <button class="fb-btn${recent && last.verdict === 'high' ? ' sel' : ''}" type="button" data-fb="high">Too high</button>
         <button class="fb-btn${recent && last.verdict === 'ok' ? ' sel' : ''}" type="button" data-fb="ok">About right</button>
         <button class="fb-btn${recent && last.verdict === 'low' ? ' sel' : ''}" type="button" data-fb="low">Too low</button>
-        <span class="fb-note">${mine.length ? `${mine.length} verdict${mine.length === 1 ? '' : 's'} logged for this spot` : 'Logged on this device, with the factors behind the score'}</span>
+        <span class="fb-note">${(() => {
+          const pool = sharedSkill && sharedSkill.calibration && sharedSkill.calibration[c.id];
+          const bits = ['Anonymous; everyone’s verdicts calibrate this spot'];
+          if (pool) bits.push(`${pool.n} so far${pool.n >= 5 && Math.abs(pool.f - 1) >= 0.02 ? `, scores ×${pool.f.toFixed(2)}` : ''}`);
+          if (mine.length) bits.push(`${mine.length} from you`);
+          return bits.join(' · ');
+        })()}</span>
       </div>`;
     el.querySelectorAll('[data-fb]').forEach((b) => b.addEventListener('click', () => { logFeedback(c, b.dataset.fb); renderFb(c); if (TUNE) renderTune(c); }));
   }
@@ -2277,7 +2293,7 @@
     const b = c.best;
     el.hidden = false;
     el.innerHTML = `
-      <div class="today-head"><span class="k">Tune ${esc(c.name)}</span><span class="fb-note">changes apply live and are kept on this device</span></div>
+      <div class="today-head"><span class="k">Tune ${esc(c.name)}</span><span class="fb-note">changes apply live and are kept on this device · paste "Copy feedback log" into SURFING/data/feedback.json to pool it</span></div>
       <div class="tune-grid">
         ${TUNE_FIELDS.map((f, i) => `<label class="tune-f"><span>${f.label}</span><b data-out="${i}">${getF(b, f)}${f.unit}</b><input type="range" data-i="${i}" min="${f.min}" max="${f.max}" step="${f.step}" value="${getF(b, f)}"></label>`).join('')}
       </div>

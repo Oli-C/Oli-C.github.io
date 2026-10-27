@@ -318,7 +318,9 @@
     const mode = (arr) => arr.slice().sort((a, b) => arr.filter((v) => v === a).length - arr.filter((v) => v === b).length).pop();
     const rel = mode(scored.map((x) => x.r.wind));
     const dir = mode(scored.map((x) => dirName(x.k.d)));
-    const top = best ? best.score : half(avg(scored.map((x) => x.r.total)));
+    // Headline = the daylight average, not the peak block; the best window
+    // is named in the detail. Averaging keeps a day with one good hour honest.
+    const top = half(avg(scored.map((x) => x.r.total)));
     return {
       top, level: levelOf(top), label: LEVELS[levelOf(top)], best, blocks,
       hMin: Math.min(...hs), hMax: Math.max(...hs), p: Math.round(avg(ps)), dir,
@@ -415,7 +417,7 @@
   renderChips();
   load().then(() => {
     const ds = dates();
-    status.textContent = ds.length ? `${ds.length} days from ${dayLabel(ds[0], 0).big}, blended from ${WIND_MODELS.length} wind and ${MARINE_MODELS.length} wave models. Scores are each day's best window; faded days are less certain.` : 'Forecast unavailable right now.';
+    status.textContent = ds.length ? `${ds.length} days from ${dayLabel(ds[0], 0).big}, blended from ${WIND_MODELS.length} wind and ${MARINE_MODELS.length} wave models. Scores are each day's daylight average; faded days are less certain.` : 'Forecast unavailable right now.';
     render();
   }).catch(() => { status.textContent = 'Forecast unavailable right now.'; });
 </script>

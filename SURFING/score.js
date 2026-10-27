@@ -170,8 +170,15 @@ function score(c, k) {
   else if (h < 0.4) { total = 0; cap = `Under ${hgt(0.4)}, flat`; }
   else if (h > hi * 1.4) { total = Math.min(total, 3); cap = `Capped: ${hgt(h)} is too big for this spot`; }
   else if (h < lo * 0.7) { total = Math.min(total, 4); cap = `Capped: ${hgt(h)} is too small for this spot`; }
+  // Pooled "was it right?" verdicts for this spot (data/skill.json): a spot
+  // people keep marking too high gets scaled down, and vice versa.
+  const cal = typeof sharedSkill !== 'undefined' && sharedSkill && sharedSkill.calibration && sharedSkill.calibration[c.id];
+  if (cal && cal.n >= 5 && cal.f && Math.abs(cal.f - 1) >= 0.02) {
+    total *= cal.f;
+    f.push({ label: 'Verdicts', mult: cal.f, now: `${cal.n} people said ${cal.f < 1 ? 'too high' : 'too low'} more often`, likes: 'about right' });
+  }
   total = Math.round(total * 2) / 2;
-  const level = total === 0 ? 0 : total <= 3.5 ? 1 : total <= 6 ? 2 : total <= 8 ? 3 : 4;
+  const level = levelOf(total);
 
   // Where the sources disagree, say so rather than pretend to be sure.
   const notes = [];
@@ -190,7 +197,9 @@ function score(c, k) {
 
 const hourOf = (t) => parseInt(t.slice(11, 13), 10);
 
-const levelOf = (total) => (total === 0 ? 0 : total <= 3.5 ? 1 : total <= 6 ? 2 : total <= 8 ? 3 : 4);
+// Bands: Poor to 3.5, Fair to 6.5, Good to 8.5, Epic above — Epic needs a
+// near-perfect day, not just a good one.
+const levelOf = (total) => (total === 0 ? 0 : total <= 3.5 ? 1 : total <= 6.5 ? 2 : total <= 8.5 ? 3 : 4);
 
 /* ---------- Fetching ---------- */
 

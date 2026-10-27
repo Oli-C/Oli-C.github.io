@@ -24,13 +24,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Verify models against measurements
+      - name: Verify models against measurements, pool feedback
+        env:
+          FEEDBACK_URL: ${{ secrets.FEEDBACK_URL }}
+          FEEDBACK_KEY: ${{ secrets.FEEDBACK_KEY }}
         run: node SURFING/tools/skill.mjs
       - name: Commit if changed
         run: |
           git config user.name "surf-skill bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add SURFING/data/skill.json
+          git add SURFING/data/skill.json SURFING/data/feedback.json
           if git diff --cached --quiet; then
             echo "no change"
           else
