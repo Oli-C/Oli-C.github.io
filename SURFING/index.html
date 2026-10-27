@@ -1736,10 +1736,9 @@
   // one scrolls away.
   const MAX_TILES = matchMedia('(max-width: 640px)').matches ? 6 : 12;
   const wide = matchMedia('(min-width: 1000px)');
-  // Phones get the compact toolbar and open on the map; their view choice
-  // is remembered separately from the desktop one.
+  // Phones get the compact toolbar and always open on the cams (the map is
+  // one tap away); only wider screens remember their last view.
   const phone = matchMedia('(max-width: 700px)');
-  const viewKey = () => (phone.matches ? 'surf-view-m' : 'surf-view');
 
   const $ = (id) => document.getElementById(id);
   const grid = $('grid'), chips = $('chips'), q = $('q'), empty = $('empty');
@@ -2665,7 +2664,7 @@
     const ev = effectiveView();
     layout.dataset.view = ev;
     for (const b of $('view-seg').querySelectorAll('button')) b.setAttribute('aria-pressed', b.dataset.view === ev);
-    try { localStorage.setItem(viewKey(), v); } catch {}
+    if (!phone.matches) try { localStorage.setItem('surf-view', v); } catch {}
     applyFilter();
     if (ev !== 'grid') showMap();
   }
@@ -3333,8 +3332,8 @@
   renderChips();
   renderGrid();
   let savedView = '';
-  try { savedView = localStorage.getItem(viewKey()) || ''; } catch {}
-  setView(['grid', 'split', 'map'].includes(savedView) ? savedView : phone.matches ? 'map' : wide.matches ? 'split' : 'grid');
+  try { savedView = localStorage.getItem('surf-view') || ''; } catch {}
+  setView(phone.matches ? 'grid' : ['grid', 'split', 'map'].includes(savedView) ? savedView : wide.matches ? 'split' : 'grid');
   if (location.hash) open(location.hash.slice(1), false);
 
   // Tiles start streaming as soon as hls.js is in (Safari needs nothing).
