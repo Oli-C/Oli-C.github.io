@@ -571,7 +571,8 @@
     gap: 6px;
     margin-top: 1px;
   }
-  .overlay .where, .overlay .cond-line {
+  .overlay .cond-line {
+    flex: 1;
     font-size: 10px;
     letter-spacing: 0.02em;
     color: rgba(255,255,255,0.75);
@@ -1951,7 +1952,6 @@
       <div class="overlay">
         <div class="name">${esc(c.name)}</div>
         <div class="sub">
-          <span class="where">${esc(c.zone && c.zone !== c.town ? `${c.zone} · ${c.town}` : c.town)}</span>
           <span class="cond-line">${condText(c)}</span>
           <span class="mini-slot">${miniBars(c)}</span>
         </div>
