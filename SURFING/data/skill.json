@@ -1,35 +1,35 @@
 {
- "updated": "2026-10-27T12:07:48.765Z",
+ "updated": "2026-10-27T17:58:33.123Z",
  "wind": {
   "best_match": {
-   "n": 477,
-   "dir": 33.639,
-   "spd": 2.018
+   "n": 595,
+   "dir": 52.943,
+   "spd": 4.311
   },
   "ecmwf_ifs025": {
-   "n": 477,
-   "dir": 39.38,
-   "spd": 3.528
+   "n": 595,
+   "dir": 54.178,
+   "spd": 4.678
   },
   "gfs_seamless": {
-   "n": 477,
-   "dir": 36.307,
-   "spd": 3.442
+   "n": 595,
+   "dir": 45.858,
+   "spd": 4.889
   },
   "icon_seamless": {
-   "n": 477,
-   "dir": 34.706,
-   "spd": 1.953
+   "n": 595,
+   "dir": 51.187,
+   "spd": 4.305
   },
   "meteofrance_seamless": {
-   "n": 477,
-   "dir": 39.592,
-   "spd": 2.699
+   "n": 595,
+   "dir": 33.332,
+   "spd": 5.68
   },
   "ukmo_seamless": {
-   "n": 477,
-   "dir": 40.272,
-   "spd": 2.705
+   "n": 595,
+   "dir": 50.936,
+   "spd": 5.375
   }
  },
  "wave": {
@@ -64,9 +64,9 @@
    "dir": null
   }
  },
- "lastWindObs": "2026-10-27T11:00",
+ "lastWindObs": "2026-10-27T17:00",
  "lastWaveObs": "2026-10-23T14:00:00Z",
- "runs": 4,
+ "runs": 5,
  "stations": [
   "Setúbal, Areias",
   "Alcochete / Campo Tiro",
@@ -106,7 +106,26 @@
   "Aljezur - Rogil",
   "Portimão"
  ],
- "buoys": [],
- "lastWave": {},
+ "buoys": [
+  {
+   "id": "nazare",
+   "name": "Nazaré / Pedrógão coastal buoy (IH)",
+   "lat": 39.56,
+   "lng": -9.21,
+   "hours": 0,
+   "latest": "2026-10-23T14:00:00Z"
+  },
+  {
+   "id": "sines",
+   "name": "Sines coastal buoy (IH)",
+   "lat": 37.9211,
+   "lng": -8.9289,
+   "hours": 0,
+   "latest": "2026-10-23T14:00:00Z"
+  }
+ ],
+ "lastWave": {
+  "nazare": "2026-10-23T14:00:00Z"
+ },
  "calibration": {}
 }
