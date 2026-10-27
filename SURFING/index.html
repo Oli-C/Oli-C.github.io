@@ -257,6 +257,7 @@
     background: var(--accent);
   }
   .seg svg { width: 13px; height: 13px; }
+  .seg.sm button { padding: 4px 8px 2px; font-size: 11px; min-width: 30px; justify-content: center; }
 
   .chips {
     flex: 1;
@@ -334,7 +335,8 @@
     .search { flex: 0 1 340px; order: 1; }
     .chips { order: 2; }
     .seg { order: 3; }
-    .switch { order: 4; }
+    .seg.sm { order: 4; }
+    .switch { order: 5; }
   }
   /* Phones: 16px input stops iOS zooming on focus */
   @media (max-width: 640px) {
@@ -1100,6 +1102,10 @@
     </div>
     <div class="row r2">
       <div class="chips" id="chips" role="group" aria-label="Filter by area"></div>
+      <div class="seg sm" id="units" role="group" aria-label="Height units">
+        <button type="button" data-units="m" aria-pressed="true">m</button>
+        <button type="button" data-units="ft" aria-pressed="false">ft</button>
+      </div>
       <button class="switch" id="saver" type="button" role="switch" aria-checked="false" title="Don’t auto-play the tiles; only stream the cam you open">
         <i aria-hidden="true"></i>Data saver
       </button>
@@ -1509,6 +1515,11 @@
   // Data saver: on by default if the browser says so, else remembered.
   let dataSaver = !!(navigator.connection && navigator.connection.saveData);
   try { const s = localStorage.getItem('surf-saver'); if (s !== null) dataSaver = s === '1'; } catch {}
+  // Wave heights in metres or feet, remembered on this device.
+  let units = 'm';
+  try { units = localStorage.getItem('surf-units') === 'ft' ? 'ft' : 'm'; } catch {}
+  const hgt = (m) => (units === 'ft' ? `${Math.round(m * 3.281 * 2) / 2} ft` : `${m.toFixed(1)} m`);
+  const rng = (a, b) => (units === 'ft' ? `${Math.round(a * 3.281)}–${Math.round(b * 3.281)} ft` : `${a}–${b} m`);
   let lastFocus = null;
   let hls = null, player = null;
   let hideTimer = 0, goTimer = 0;
@@ -1621,11 +1632,11 @@
     if (bend > 45 && p >= 12) arrive = Math.min(1, arrive * 1.15);   // long period wraps in
     arrive *= b.gain || 1;
     const h = k.h * arrive;
-    const hNow = Math.abs(arrive - 1) < 0.05 ? `${h.toFixed(1)} m` : `${h.toFixed(1)} m at the beach (${k.h.toFixed(1)} m offshore)`;
+    const hNow = Math.abs(arrive - 1) < 0.05 ? hgt(h) : `${hgt(h)} at the beach (${hgt(k.h)} offshore)`;
 
     const sweet = lo + 0.4 * (hi - lo);
     const size = h <= sweet ? lerp(h, lo * 0.5, 0, sweet, 4) : h <= hi ? 4 : lerp(h, hi, 4, hi * 1.4, 0);
-    f.push({ label: 'Size', pts: size, max: 4, now: hNow, likes: `${lo}–${hi} m` });
+    f.push({ label: 'Size', pts: size, max: 4, now: hNow, likes: rng(lo, hi) });
 
     const per = lerp(p, P - 2, 0, P + 5, 3);
     // Short-period swell is lumpy however clean the wind is, so it also
@@ -1659,9 +1670,9 @@
       const r = (wwh * (rel === 'offshore' ? 0.5 : 1) + cross) / k.h;
       sea = r > 1 ? 0.5 : r > 0.6 ? 0.7 : r > 0.35 ? 0.85 : 1;
       const bits = [];
-      if (wwh >= 0.1) bits.push(`${wwh.toFixed(1)} m wind chop`);
-      if (cross >= 0.2) bits.push(`${cross.toFixed(1)} m cross swell`);
-      f.push({ label: 'Sea state', mult: sea, now: bits.length ? `${bits.join(' + ')} on ${k.h.toFixed(1)} m swell` : 'clean', likes: 'one clean groundswell' });
+      if (wwh >= 0.1) bits.push(`${hgt(wwh)} wind chop`);
+      if (cross >= 0.2) bits.push(`${hgt(cross)} cross swell`);
+      f.push({ label: 'Sea state', mult: sea, now: bits.length ? `${bits.join(' + ')} on ${hgt(k.h)} swell` : 'clean', likes: 'one clean groundswell' });
     }
 
     let tide = 1;
@@ -1675,9 +1686,9 @@
 
     let total = (size + per + dir) * wind * sea * tide * clean, cap = '', dark = false;
     if (k.day === 0) { total = 0; cap = 'After dark'; dark = true; }
-    else if (h < 0.4) { total = 0; cap = 'Under 0.4 m, flat'; }
-    else if (h > hi * 1.4) { total = Math.min(total, 3); cap = `Capped: ${h.toFixed(1)} m is too big for this spot`; }
-    else if (h < lo * 0.7) { total = Math.min(total, 4); cap = `Capped: ${h.toFixed(1)} m is too small for this spot`; }
+    else if (h < 0.4) { total = 0; cap = `Under ${hgt(0.4)}, flat`; }
+    else if (h > hi * 1.4) { total = Math.min(total, 3); cap = `Capped: ${hgt(h)} is too big for this spot`; }
+    else if (h < lo * 0.7) { total = Math.min(total, 4); cap = `Capped: ${hgt(h)} is too small for this spot`; }
     total = Math.round(total * 2) / 2;
     const level = total === 0 ? 0 : total <= 3.5 ? 1 : total <= 6 ? 2 : total <= 8 ? 3 : 4;
     return { total, level, label: dark ? 'Dark' : LEVELS[level], wind: rel, factors: f, cap };
@@ -1693,7 +1704,7 @@
   const condText = (c) => {
     const k = conditions[c.id] && conditions[c.id].now, r = scoreOf(c);
     if (!r) return '';
-    return `<b>${k.h.toFixed(1)} m</b> · <b>${Math.round(k.p)} s</b> · <b>${Math.round(k.ws)} km/h</b> ${r.wind}`;
+    return `<b>${hgt(k.h)}</b> · <b>${Math.round(k.p)} s</b> · <b>${Math.round(k.ws)} km/h</b> ${r.wind}`;
   };
 
   /* ---------- Today: four bars + a summary ---------- */
@@ -1731,8 +1742,8 @@
     const first = day[0], last = day[day.length - 1];
     const dh = last.h - first.h;
     const sizeTxt = Math.abs(dh) < 0.25
-      ? `Holding around ${((first.h + last.h) / 2).toFixed(1)} m at ${Math.round((first.p + last.p) / 2)} s`
-      : dh > 0 ? `Building from ${first.h.toFixed(1)} m to ${last.h.toFixed(1)} m` : `Easing from ${first.h.toFixed(1)} m to ${last.h.toFixed(1)} m`;
+      ? `Holding around ${hgt((first.h + last.h) / 2)} at ${Math.round((first.p + last.p) / 2)} s`
+      : dh > 0 ? `Building from ${hgt(first.h)} to ${hgt(last.h)}` : `Easing from ${hgt(first.h)} to ${hgt(last.h)}`;
     const rels = day.map((k) => windRel(c, k));
     const half = Math.floor(rels.length / 2);
     const mode = (arr) => arr.sort((a, b) => arr.filter((v) => v === a).length - arr.filter((v) => v === b).length).pop();
@@ -2366,7 +2377,7 @@
       <div class="today-head"><span class="k">Local knowledge</span>${conditions[c.id] ? '' : goButton(c)}</div>
       <div class="local-row">
         ${item('Swell', windowText(b.swell))}
-        ${item('Size', `${b.size[0]}–${b.size[1]} m`)}
+        ${item('Size', rng(b.size[0], b.size[1]))}
         ${item('Period', `${b.period} s+`)}
         ${item('Wind', windowText(b.wind))}
         ${item('Tide', esc(b.tide.text))}
@@ -2456,6 +2467,20 @@
   }
   saver.addEventListener('click', () => setSaver(!dataSaver));
   saver.setAttribute('aria-checked', dataSaver);
+  // Units: redraw everything that prints a height.
+  function setUnits(u) {
+    units = u === 'ft' ? 'ft' : 'm';
+    for (const b of $('units').querySelectorAll('button')) b.setAttribute('aria-pressed', b.dataset.units === units);
+    try { localStorage.setItem('surf-units', units); } catch {}
+    patchConditions();
+    if (map) map.closePopup();
+    if (!viewer.hidden && location.hash) {
+      const c = byId(location.hash.slice(1));
+      if (c) { renderScore(c); renderToday(c); renderLocal(c); }
+    }
+  }
+  $('units').addEventListener('click', (e) => { const b = e.target.closest('button[data-units]'); if (b) setUnits(b.dataset.units); });
+  for (const b of $('units').querySelectorAll('button')) b.setAttribute('aria-pressed', b.dataset.units === units);
   $('v-close').addEventListener('click', () => close());
   viewer.addEventListener('click', (e) => { if (e.target === viewer) close(); });
   document.addEventListener('keydown', (e) => {
