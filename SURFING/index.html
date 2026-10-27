@@ -694,28 +694,43 @@
   .particles { pointer-events: none; mix-blend-mode: screen; }
   [data-theme="light"] .particles { mix-blend-mode: multiply; opacity: 0.85; }
 
-  /* Data tag beside each pin: name, then swell · wind. Shown from zoom 11. */
-  .tag {
+  /* Infographic card beside each pin (from zoom 11): name caption, a swell
+     row and a wind row with direction glyphs, and the day's four bars. */
+  .card {
     position: absolute;
     left: 34px;
     top: 50%;
     transform: translateY(-50%);
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 4px 8px 3px;
-    border-radius: 8px;
+    display: grid;
+    grid-template-columns: auto auto;
+    grid-template-areas: "nm nm" "swell bars" "wind bars";
+    column-gap: 10px;
+    row-gap: 2px;
+    align-items: center;
+    padding: 4px 8px 4px 7px;
+    border-radius: 9px;
     border-left: 3px solid var(--pin);
-    background: rgba(8, 14, 20, 0.8);
+    background: rgba(8, 14, 20, 0.82);
     color: #fff;
     white-space: nowrap;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.45);
     pointer-events: none;
   }
-  .tag b { font-size: 11px; font-weight: 600; line-height: 1.1; }
-  .tag i { font-style: normal; font-size: 10px; line-height: 1.1; color: rgba(255,255,255,0.82); letter-spacing: 0.02em; }
-  .tag i em { font-style: normal; color: #fff; font-weight: 600; }
-  .leaflet-container:not(.labels) .tag { display: none; }
+  .card .nm { grid-area: nm; font-size: 9px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255,255,255,0.7); line-height: 1; margin-bottom: 1px; }
+  .card .row { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; line-height: 1; color: rgba(255,255,255,0.8); }
+  .card .row em { font-style: normal; font-weight: 700; color: #fff; font-size: 11px; }
+  .card .row svg { width: 12px; height: 12px; fill: currentColor; transform: rotate(var(--rot)); flex: none; }
+  .card .swell { grid-area: swell; }
+  .card .swell svg { color: #4fc3dc; }
+  .card .wind { grid-area: wind; }
+  .card .wind.w0 svg { color: #9eb05c; }
+  .card .wind.w1 svg { color: #e3a23a; }
+  .card .wind.w2 svg { color: #ff8200; }
+  .card .wind.w3 svg { color: #e5484d; }
+  .card .mini { grid-area: bars; height: 22px; gap: 2px; align-self: end; }
+  .card .mini i { width: 5px; }
+  .card .none { grid-area: swell; grid-column: 1 / -1; font-size: 10px; color: rgba(255,255,255,0.6); }
+  .leaflet-container:not(.labels) .card { display: none; }
   .leaflet-marker-icon.hot { z-index: 1000 !important; }
 
   /* Leaflet chrome in our palette */
@@ -1709,15 +1724,20 @@
   /* ---------- Map ---------- */
 
   const REL_SHORT = { offshore: 'off', onshore: 'on', 'cross-shore': 'cross' };
+  const GLYPH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l6 9h-3.5v11h-5V11H6z"/></svg>';
+  const windClass = (ws) => (ws < 12 ? 'w0' : ws < 25 ? 'w1' : ws < 40 ? 'w2' : 'w3');
   const pinIcon = (c) => {
     const r = scoreOf(c), k = conditions[c.id] && conditions[c.id].now;
     const lvl = r ? 'lvl-' + r.level : 'lvl-x';
-    const data = k
-      ? `<em>${hgt(k.h)}</em> ${Math.round(k.p)} s${k.d != null ? ' ' + dirName(k.d) : ''} · <em>${kts(k.ws)} kts</em> ${dirName(k.wd)}${r ? ' ' + REL_SHORT[r.wind] : ''}`
-      : 'no data yet';
+    // Arrows point the way swell travels / wind blows (direction + 180).
+    const body = k ? `
+        <span class="row swell"><span style="display:inline-flex;--rot:${k.d != null ? Math.round(k.d + 180) : 0}deg">${k.d != null ? GLYPH : ''}</span><em>${hgt(k.h)}</em>${Math.round(k.p)} s</span>
+        <span class="row wind ${windClass(k.ws)}"><span style="display:inline-flex;--rot:${Math.round(k.wd + 180)}deg">${GLYPH}</span><em>${kts(k.ws)} kt</em>${r ? REL_SHORT[r.wind] : ''}</span>
+        ${miniBars(c)}`
+      : '<span class="none">no data yet</span>';
     return L.divIcon({
       className: 'pin-wrap',
-      html: `<span class="pin ${lvl}">${r ? fmt(r.total) : '·'}</span><span class="tag ${lvl}"><b>${esc(c.name)}</b><i>${data}</i></span>`,
+      html: `<span class="pin ${lvl}">${r ? fmt(r.total) : '·'}</span><span class="card ${lvl}"><b class="nm">${esc(c.name)}</b>${body}</span>`,
       iconSize: [30, 30],
       iconAnchor: [15, 15],
       popupAnchor: [0, -16],
