@@ -315,6 +315,7 @@ body.pills-away .pill { animation-play-state: running, paused; }
 .pills .pill:nth-child(5) { --pi: 4; --tilt: -1.2deg; --nudge: 0px; --size: 44px; --blob: 11.3s; }
 .pills .pill:nth-child(6) { --pi: 5; --tilt:  0.9deg; --nudge: -1px; --size: 46px; --blob: 8.8s; }
 .pills .pill:nth-child(7) { --pi: 6; --tilt: -1.5deg; --nudge: 1px; --size: 45px; --blob: 9.7s; }
+.pills .pill:nth-child(8) { --pi: 7; --tilt:  1.1deg; --nudge: -1px; --size: 46px; --blob: 9.4s; }
 /* Load cascade — initLoadCascade (app.js) tags cards and year-dividers in the
    initial viewport with .bloom-load; they run smoke-emerge on the hero-cascade
    timing via --i / --yi, held hidden through the delay by `backwards`. Cards

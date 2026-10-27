@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="charcoal">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>allfield · 7-day surf outlook</title>
+<meta name="description" content="Seven-day surf outlook for each cam spot, scored against what the spot likes.">
+<link rel="icon" type="image/jpeg" href="../assets/favicon.jpg">
+<meta name="theme-color" content="#101820">
+<link rel="preload" href="../assets/fonts/anek-kannada-latin.woff2" as="font" type="font/woff2" crossorigin>
+<script>
+  document.documentElement.setAttribute('data-theme',
+    matchMedia('(prefers-color-scheme: dark)').matches ? 'charcoal' : 'light');
+</script>
+<style>
+  @font-face {
+    font-family: 'Anek Kannada';
+    font-style: normal;
+    font-weight: 400 700;
+    font-stretch: 125%;
+    font-display: swap;
+    src: url('../assets/fonts/anek-kannada-latin-ext.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  }
+  @font-face {
+    font-family: 'Anek Kannada';
+    font-style: normal;
+    font-weight: 400 700;
+    font-stretch: 125%;
+    font-display: swap;
+    src: url('../assets/fonts/anek-kannada-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --accent: #ff8200;
+    --lvl-0: #5c6166; --lvl-1: #8b2f45; --lvl-2: #e3a23a; --lvl-3: #9eb05c; --lvl-4: #ff8200;
+    --radius: 10px; --radius-lg: 14px;
+    --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+  [data-theme="charcoal"] {
+    --bg: #101820; --bg-2: #373a36; --bg-3: #1a232c;
+    --fg: #d6d2c4; --fg-muted: #968c83; --accent-ink: var(--accent);
+    --border: rgba(214, 210, 196, 0.12); --border-2: rgba(214, 210, 196, 0.22); --border-3: rgba(214, 210, 196, 0.38);
+  }
+  [data-theme="light"] {
+    --accent: #ff6900; --lvl-4: #ff6900;
+    --bg: #d7d2cb; --bg-2: #bfb8af; --bg-3: #eae6e0;
+    --fg: #101820; --fg-muted: #6e6259; --accent-ink: color-mix(in srgb, var(--accent) 58%, var(--fg));
+    --border: rgba(16, 24, 32, 0.12); --border-2: rgba(16, 24, 32, 0.22); --border-3: rgba(16, 24, 32, 0.40);
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Anek Kannada', system-ui, sans-serif;
+    font-stretch: 125%;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    letter-spacing: -0.005em;
+  }
+  .page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 64px max(16px, env(safe-area-inset-left));
+  }
+
+  .top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .back { color: var(--fg-muted); text-decoration: none; font-size: 14px; letter-spacing: 0.04em; }
+  .back:hover { color: var(--accent-ink); }
+  .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  h1 { font-size: clamp(32px, 6vw, 48px); font-weight: 600; line-height: 1; letter-spacing: -0.03em; }
+  h1 span { color: var(--accent-ink); }
+  .status { color: var(--fg-muted); font-size: 13px; }
+
+  /* Controls: day picker, area chips, units */
+  .controls {
+    position: sticky; top: 0; z-index: 5;
+    margin: 12px -16px 14px; padding: 8px 16px;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  }
+  .days { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: 1 1 100%; }
+  .days::-webkit-scrollbar { display: none; }
+  .day {
+    flex: 1 0 auto; min-width: 64px;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    font: inherit; color: var(--fg-muted);
+    background: var(--bg-3); border: 1px solid var(--border-2); border-radius: var(--radius);
+    padding: 6px 8px 5px; cursor: pointer;
+    transition: border-color .2s var(--ease), background .2s var(--ease), color .2s var(--ease);
+  }
+  .day small { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .day b { font-size: 14px; font-weight: 600; color: var(--fg); }
+  .day .score { margin-top: 3px; }
+  .day[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg-3)); color: var(--fg); }
+  .chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: none; font: inherit; font-size: 12px; letter-spacing: 0.03em; color: var(--fg-muted);
+    background: transparent; border: 1px solid var(--border-2); border-radius: 999px; padding: 4px 10px 2px; cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { color: var(--fg); background: var(--bg-2); border-color: var(--border-3); }
+  .seg { flex: none; display: inline-flex; border: 1px solid var(--border-2); border-radius: 8px; padding: 2px; background: var(--bg-3); }
+  .seg button { font: inherit; font-size: 11px; min-width: 30px; color: var(--fg-muted); background: transparent; border: 0; border-radius: 6px; padding: 4px 8px 2px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { color: #101820; background: var(--accent); }
+  .nav {
+    flex: none; display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 12px; letter-spacing: 0.03em;
+    color: var(--fg); text-decoration: none; border: 1px solid var(--border-2); border-radius: 999px; padding: 5px 11px 3px;
+  }
+  .nav:hover { border-color: var(--accent); color: var(--accent-ink); }
+
+  /* Score badge */
+  .lvl-0 { --pin: var(--lvl-0); --ink: #fff; }
+  .lvl-1 { --pin: var(--lvl-1); --ink: #fff; }
+  .lvl-2 { --pin: var(--lvl-2); --ink: #101820; }
+  .lvl-3 { --pin: var(--lvl-3); --ink: #101820; }
+  .lvl-4 { --pin: var(--lvl-4); --ink: #101820; }
+  .lvl-x { --pin: var(--bg-2); --ink: var(--fg-muted); }
+  .score {
+    display: inline-flex; align-items: baseline; gap: 4px; color: var(--ink); background: var(--pin);
+    border-radius: 7px; padding: 3px 7px 2px; white-space: nowrap; line-height: 1;
+  }
+  .score b { font-size: 14px; font-weight: 700; }
+  .score small { font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+
+  /* Areas and spot rows */
+  .area { margin-bottom: 24px; }
+  .area[hidden] { display: none; }
+  .area-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+  }
+  .area-head h2 { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+  .area-head .sum { color: var(--fg-muted); font-size: 13px; text-align: right; }
+  .area-head .sum b { color: var(--fg); font-weight: 600; }
+
+  .spot {
+    display: grid;
+    grid-template-columns: minmax(140px, 220px) 1fr;
+    gap: 6px 14px;
+    align-items: center;
+    padding: 10px 12px;
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    margin-bottom: 8px;
+  }
+  .spot[hidden] { display: none; }
+  .spot-name { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .spot-name a { color: inherit; text-decoration: none; }
+  .spot-name a:hover { color: var(--accent-ink); }
+  .spot-zone { color: var(--fg-muted); font-size: 12px; margin-top: 1px; }
+  .week {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
+  }
+  .cell {
+    position: relative;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    font: inherit; color: var(--fg-muted);
+    background: transparent; border: 1px solid transparent; border-radius: 8px;
+    padding: 6px 2px 5px; cursor: pointer;
+    transition: border-color .2s var(--ease), background .2s var(--ease);
+  }
+  .cell small { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .cell .bar { width: 60%; height: 5px; border-radius: 3px; background: var(--bg-2); overflow: hidden; }
+  .cell .bar i { display: block; height: 100%; background: var(--pin, var(--bg-2)); }
+  .cell:hover { border-color: var(--border-2); }
+  .cell[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .detail {
+    grid-column: 1 / -1;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px;
+    font-size: 13px; color: var(--fg-muted);
+    padding-top: 6px; border-top: 1px solid var(--border);
+  }
+  .detail b { color: var(--fg); font-weight: 600; }
+  .detail .win { display: inline-flex; align-items: center; gap: 6px; }
+  .bars { display: inline-flex; gap: 3px; align-items: flex-end; height: 18px; }
+  .bars i { display: block; width: 7px; min-height: 2px; border-radius: 2px; background: var(--pin, var(--bg-2)); }
+  .empty { display: none; text-align: center; color: var(--fg-muted); padding: 60px 16px; }
+  .empty.show { display: block; }
+
+  @media (max-width: 760px) {
+    .spot { grid-template-columns: 1fr; }
+    .spot-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .cell { padding: 5px 0 4px; }
+    .cell .score { padding: 2px 5px 1px; } .cell .score b { font-size: 12px; } .cell .score small { display: none; }
+    .day { min-width: 56px; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+  <header>
+    <div class="top">
+      <a class="back" href="./">← live cams</a>
+      <a class="back" href="../">allfield</a>
+    </div>
+    <div class="head">
+      <h1>7-day outlook<span>.</span></h1>
+      <div class="status" id="status">Loading forecast…</div>
+    </div>
+  </header>
+
+  <div class="controls">
+    <div class="days" id="days" role="group" aria-label="Pick a day"></div>
+    <div class="chips" id="chips" role="group" aria-label="Filter by area"></div>
+    <div class="seg" id="units" role="group" aria-label="Height units">
+      <button type="button" data-units="m" aria-pressed="true">m</button>
+      <button type="button" data-units="ft" aria-pressed="false">ft</button>
+    </div>
+    <a class="nav" href="./">Live cams</a>
+  </div>
+
+  <div id="list"></div>
+  <p class="empty" id="empty">No spots match that filter.</p>
+</main>
+
+<script src="spots.js"></script>
+<script src="score.js"></script>
+<script>
+  /* Seven days for every spot. For each day we score every daylight hour
+     against the spot (same engine as the live page), then take the best
+     three-hour window as the day's headline and keep the four dawn→evening
+     blocks for the strip. Open-Meteo gives us 7 days of hourly marine and
+     wind in two calls. */
+  const DAYS = 7;
+  const TTL = 60 * 60 * 1000;   // an hour; forecasts don't change faster than that
+  const VER = 1;
+
+  const $ = (id) => document.getElementById(id);
+  const list = $('list'), daysEl = $('days'), chips = $('chips'), empty = $('empty'), status = $('status');
+
+  try { units = localStorage.getItem('surf-units') === 'ft' ? 'ft' : 'm'; } catch {}
+  let area = 'All';
+  let dayIdx = 0;
+  let data = {};      // cam id -> { days: [{ date, hours:[k], tides:[], sun }], }
+
+  const byId = (id) => CAMS.find((x) => x.id === id);
+  const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayLabel = (iso, i) => {
+    const d = new Date(iso + 'T12:00');
+    return { small: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : DOW[d.getDay()], big: `${d.getDate()}/${d.getMonth() + 1}` };
+  };
+
+  /* ---------- Fetch ---------- */
+  async function load() {
+    const ids = CAMS.map((c) => c.id).join(), today = new Date().toDateString();
+    try {
+      const c = JSON.parse(localStorage.getItem('surf-week') || 'null');
+      if (c && c.v === VER && c.ids === ids && c.day === today && Date.now() - c.t < TTL) { data = c.data; return; }
+    } catch {}
+    const pts = CAMS.map(offshore);
+    const lat = pts.map((p) => p[0]).join(','), lng = pts.map((p) => p[1]).join(',');
+    const [marine, wind] = await Promise.all([
+      fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&hourly=${MARINE.join()}&forecast_days=${DAYS}&timezone=auto`).then((r) => r.json()),
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=${WIND.join()}&daily=sunrise,sunset&forecast_days=${DAYS}&timezone=auto`).then((r) => r.json()),
+    ]);
+    if (marine.error || wind.error) throw new Error(marine.reason || wind.reason);
+    const M = asList(marine), W = asList(wind);
+    const next = {};
+    CAMS.forEach((c, i) => {
+      const m = M[i], w = W[i];
+      if (!m || !w || !m.hourly || !w.hourly) return;
+      const n = Math.min(m.hourly.time.length, w.hourly.time.length);
+      const byDate = {};
+      for (let j = 0; j < n; j++) {
+        const k = toK(row(m.hourly, j), row(w.hourly, j));
+        if (!k) continue;
+        const t = m.hourly.time[j], date = t.slice(0, 10);
+        (byDate[date] = byDate[date] || []).push({ t, ...k });
+      }
+      const days = Object.keys(byDate).sort().map((date, di) => {
+        const hours = byDate[date];
+        hours.forEach((k, j) => addTide(hours, k, j));   // tide relative to that day's range
+        const sun = w.daily && w.daily.sunrise && w.daily.sunrise[di] ? { rise: w.daily.sunrise[di].slice(11, 16), set: w.daily.sunset[di].slice(11, 16) } : null;
+        return { date, hours, tides: tideEvents(hours), sun };
+      });
+      next[c.id] = { days };
+    });
+    data = next;
+    try { localStorage.setItem('surf-week', JSON.stringify({ v: VER, ids, day: today, t: Date.now(), data })); } catch {}
+  }
+
+  /* ---------- Per-day digest ---------- */
+  const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+  const half = (x) => Math.round(x * 2) / 2;
+
+  // Score every daylight hour; headline = best dawn→evening block.
+  function digest(c, day) {
+    if (!day) return null;
+    const daylight = day.hours.filter((k) => k.day !== 0 && hourOf(k.t) >= 6 && hourOf(k.t) < 20);
+    const scored = daylight.map((k) => ({ k, r: score(c, k) })).filter((x) => x.r);
+    if (!scored.length) return null;
+    const blocks = BUCKETS.map((b) => {
+      const rows = scored.filter((x) => hourOf(x.k.t) >= b.from && hourOf(x.k.t) < b.to);
+      const s = avg(rows.map((x) => x.r.total));
+      return { ...b, score: s == null ? null : half(s), level: s == null ? null : levelOf(half(s)) };
+    });
+    const best = blocks.filter((b) => b.score != null).sort((a, b) => b.score - a.score)[0];
+    const hs = scored.map((x) => x.k.h), ps = scored.map((x) => x.k.p), ws = scored.map((x) => x.k.ws);
+    // Dominant wind relation and swell direction across the day
+    const mode = (arr) => arr.slice().sort((a, b) => arr.filter((v) => v === a).length - arr.filter((v) => v === b).length).pop();
+    const rel = mode(scored.map((x) => x.r.wind));
+    const dir = mode(scored.map((x) => dirName(x.k.d)));
+    const top = best ? best.score : half(avg(scored.map((x) => x.r.total)));
+    return {
+      top, level: levelOf(top), label: LEVELS[levelOf(top)], best, blocks,
+      hMin: Math.min(...hs), hMax: Math.max(...hs), p: Math.round(avg(ps)), dir,
+      wsMin: Math.round(Math.min(...ws)), wsMax: Math.round(Math.max(...ws)), rel,
+      tides: day.tides, sun: day.sun,
+    };
+  }
+  const digestOf = (c, i) => (data[c.id] && data[c.id].days[i] ? digest(c, data[c.id].days[i]) : null);
+
+  const badge = (d) => (d
+    ? `<span class="score lvl-${d.level}"><b>${fmt(d.top)}</b><small>${d.label}</small></span>`
+    : `<span class="score lvl-x"><b>–</b><small>n/a</small></span>`);
+  const bars = (d) => (d ? `<span class="bars" aria-hidden="true">${d.blocks.map((b) => `<i class="${b.level == null ? 'lvl-x' : 'lvl-' + b.level}" style="height:${b.score == null ? 2 : Math.max(2, b.score * 10)}%"></i>`).join('')}</span>` : '');
+
+  /* ---------- Render ---------- */
+  const dates = () => { const any = Object.values(data)[0]; return any ? any.days.map((d) => d.date) : []; };
+  const matches = (c) => area === 'All' || c.area === area;
+
+  function renderDays() {
+    const ds = dates();
+    // Coast-wide headline per day: the best spot's score
+    daysEl.innerHTML = ds.map((iso, i) => {
+      const l = dayLabel(iso, i);
+      const best = CAMS.map((c) => digestOf(c, i)).filter(Boolean).sort((a, b) => b.top - a.top)[0];
+      return `<button class="day" type="button" data-i="${i}" aria-pressed="${i === dayIdx}"><small>${l.small}</small><b>${l.big}</b>${badge(best)}</button>`;
+    }).join('');
+  }
+
+  function renderChips() {
+    chips.innerHTML = ['All', ...AREAS].map((a) => `<button class="chip" type="button" data-area="${esc(a)}" aria-pressed="${a === area}">${esc(a)}</button>`).join('');
+  }
+
+  function detailHtml(c, d) {
+    if (!d) return `<div class="detail">No forecast for this day.</div>`;
+    const tide = d.tides && d.tides.length ? d.tides.map((e) => `${e.kind} ${fmtMins(e.mins)}`).join(' · ') : '';
+    const size = Math.abs(d.hMax - d.hMin) < 0.25 ? hgt((d.hMin + d.hMax) / 2) : `${hgt(d.hMin)}–${hgt(d.hMax)}`;
+    const wind = d.wsMin === d.wsMax ? `${d.wsMin} km/h` : `${d.wsMin}–${d.wsMax} km/h`;
+    return `<div class="detail">
+      <span class="win">${bars(d)}${d.best ? `Best <b>${d.best.label.toLowerCase()}</b> (${fmt(d.best.score)})` : ''}</span>
+      <span>Swell <b>${size}</b> at <b>${d.p} s</b> from <b>${d.dir}</b></span>
+      <span>Wind <b>${wind}</b> ${d.rel}</span>
+      ${tide ? `<span>Tide <b>${tide}</b></span>` : ''}
+      ${d.sun ? `<span>Light <b>${d.sun.rise}–${d.sun.set}</b></span>` : ''}
+    </div>`;
+  }
+
+  function renderList() {
+    const ds = dates();
+    let shown = 0;
+    list.innerHTML = AREAS.map((a) => {
+      const cams = CAMS.filter((c) => c.area === a && matches(c));
+      if (!cams.length) return '';
+      shown += cams.length;
+      const bestToday = cams.map((c) => ({ c, d: digestOf(c, dayIdx) })).filter((x) => x.d).sort((x, y) => y.d.top - x.d.top)[0];
+      return `<section class="area">
+        <div class="area-head"><h2>${esc(a)}</h2><div class="sum">${bestToday ? `Best: <b>${esc(bestToday.c.name)}</b> · ${fmt(bestToday.d.top)}/10` : ''}</div></div>
+        ${cams.map((c) => {
+          const cells = ds.map((iso, i) => {
+            const d = digestOf(c, i), l = dayLabel(iso, i);
+            return `<button class="cell ${d ? 'lvl-' + d.level : 'lvl-x'}" type="button" data-i="${i}" aria-pressed="${i === dayIdx}" title="${l.small} ${l.big}">
+              <small>${i === 0 ? 'Today' : DOW[new Date(iso + 'T12:00').getDay()]}</small>${badge(d)}<span class="bar"><i style="width:${d ? d.top * 10 : 0}%"></i></span>
+            </button>`;
+          }).join('');
+          return `<article class="spot" data-id="${esc(c.id)}">
+            <div class="spot-head"><div><div class="spot-name"><a href="./#${esc(c.id)}">${esc(c.name)}</a></div><div class="spot-zone">${esc(c.zone || c.town)}</div></div></div>
+            <div class="week">${cells}</div>
+            ${detailHtml(c, digestOf(c, dayIdx))}
+          </article>`;
+        }).join('')}
+      </section>`;
+    }).join('');
+    empty.classList.toggle('show', shown === 0);
+  }
+
+  function render() { renderDays(); renderChips(); renderList(); }
+
+  /* ---------- Wiring ---------- */
+  daysEl.addEventListener('click', (e) => { const b = e.target.closest('.day'); if (b) { dayIdx = +b.dataset.i; render(); } });
+  list.addEventListener('click', (e) => { const b = e.target.closest('.cell'); if (b) { dayIdx = +b.dataset.i; render(); } });
+  chips.addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (b) { area = b.dataset.area; render(); } });
+  $('units').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-units]');
+    if (!b) return;
+    units = b.dataset.units === 'ft' ? 'ft' : 'm';
+    for (const x of $('units').querySelectorAll('button')) x.setAttribute('aria-pressed', x.dataset.units === units);
+    try { localStorage.setItem('surf-units', units); } catch {}
+    render();
+  });
+  for (const x of $('units').querySelectorAll('button')) x.setAttribute('aria-pressed', x.dataset.units === units);
+
+  renderChips();
+  load().then(() => {
+    const ds = dates();
+    status.textContent = ds.length ? `Open-Meteo, ${ds.length} days from ${dayLabel(ds[0], 0).big}. Scores are each day's best window.` : 'Forecast unavailable right now.';
+    render();
+  }).catch(() => { status.textContent = 'Forecast unavailable right now.'; });
+</script>
+</body>
+</html>

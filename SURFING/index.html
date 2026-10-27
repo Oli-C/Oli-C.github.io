@@ -335,8 +335,9 @@
     .search { flex: 0 1 340px; order: 1; }
     .chips { order: 2; }
     .seg { order: 3; }
-    .seg.sm { order: 4; }
-    .switch { order: 5; }
+    .r2 > .nav { order: 4; }
+    .seg.sm { order: 5; }
+    .switch { order: 6; }
   }
   /* Phones: 16px input stops iOS zooming on focus */
   @media (max-width: 640px) {
@@ -684,7 +685,11 @@
   .leaflet-marker-icon:hover .pin, .leaflet-marker-icon.hot .pin { transform: scale(1.18); }
   .leaflet-marker-icon.hot { z-index: 1000 !important; }
 
-  /* Wind / swell arrows drawn just offshore of each pin */
+  /* Animated particle field (wind / swell), drawn between tiles and pins */
+  .particles { pointer-events: none; mix-blend-mode: screen; }
+  [data-theme="light"] .particles { mix-blend-mode: multiply; opacity: 0.85; }
+
+  /* Wind / swell readouts drawn just offshore of each pin */
   .arrow-wrap { background: none; border: 0; pointer-events: none; }
   .arrow {
     display: flex;
@@ -694,10 +699,11 @@
     width: 52px;
     color: var(--arrow, #fff);
     filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+    opacity: 0.9;
   }
-  .arrow svg { width: 22px; height: 22px; fill: currentColor; transform: rotate(var(--rot)); }
+  .arrow svg { width: 18px; height: 18px; fill: currentColor; transform: rotate(var(--rot)); }
   .arrow b {
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
     line-height: 1;
     letter-spacing: 0.02em;
@@ -712,7 +718,7 @@
   .arrow.w2 { --arrow: #ff8200; }   /* strong */
   .arrow.w3 { --arrow: #e5484d; }   /* gale */
   .arrow.swell { --arrow: #4fc3dc; }
-  .arrow.swell svg { width: 26px; height: 26px; }
+  .arrow.swell svg { width: 22px; height: 22px; }
 
   /* Leaflet chrome in our palette */
   .leaflet-container { font-family: inherit; background: var(--bg-3); }
@@ -799,6 +805,7 @@
   }
   .nav:hover, .nav:focus-visible { border-color: var(--accent); color: var(--accent-ink); outline: none; }
   .nav svg { width: 13px; height: 13px; }
+  .r2 > .nav { font-size: 12px; padding: 5px 11px 3px; }
 
   /* "Open in…" chooser for directions */
   .go {
@@ -1133,6 +1140,7 @@
     </div>
     <div class="row r2">
       <div class="chips" id="chips" role="group" aria-label="Filter by area"></div>
+      <a class="nav" href="week.html" title="Seven-day outlook for every spot">7-day</a>
       <div class="seg sm" id="units" role="group" aria-label="Height units">
         <button type="button" data-units="m" aria-pressed="true">m</button>
         <button type="button" data-units="ft" aria-pressed="false">ft</button>
@@ -1195,335 +1203,14 @@
   </div>
 </div>
 
+<script src="spots.js"></script>
+<script src="score.js"></script>
 <script>
-  /* ---------------------------------------------------------------------------
-     CAMS — add a new webcam by appending an entry.
-
-       id      url-safe slug, used for deep links (surfing/#guincho-norte)
-       name    spot name shown on the card
-       town    nearest town / area
-       area    the group it's listed under and the filter chip it sits in
-       zone    finer locality shown on the card (e.g. "Baleal")
-       country
-       tags    extra search words (break type, orientation, nicknames…)
-       lat/lng the camera's beach — where the pin goes and where directions
-               lead. Checked against OpenStreetMap where it names the beach.
-       faces   compass bearing the beach looks out to sea (270 = west). Used
-               to spot onshore wind and to fetch conditions from a point just
-               offshore rather than on the sand.
-       best    local knowledge, used by the score:
-                 swell   [from, to] compass window the spot likes swell from
-                 size    [min, max] metres of swell it works in
-                 period  seconds — the period it starts to get good at
-                 exposure 0–1: how much of a swell from OUTSIDE the window
-                           still reaches the beach (open beach ~0.85,
-                           tucked-away south-facer ~0.45). Default 0.85.
-                 gain    multiplier on swell height at the beach (Nazaré's
-                           canyon: 1.4). Default 1.
-                 wind    [from, to] compass window of offshore wind
-                 tide    { range: [lo, hi] of the tide the spot likes, where
-                           0 = today's low water and 1 = high water;
-                           dir: 'rising' | 'falling' | null; text: shown }
-                 notes   a sentence or two for the viewer
-       type    'hls'   — a raw HLS stream (.m3u8) played in our own player
-                         (Plyr; Safari plays HLS natively, other browsers load
-                         hls.js), shown 16:9. Tiles in the grid also play it.
-               'video' — a player-only embed (YouTube live, official cam embed),
-                         shown 16:9
-               'page'  — a full web page in a frame (no player-only embed
-                         available), shown tall
-       embed   the .m3u8 URL for 'hls', otherwise the URL loaded in the iframe
-       poster  optional still shown before an 'hls' stream starts
-       fallback optional page URL framed instead if an 'hls' stream won't play
-       link    the cam's own page, for the "open on source" button
-       source  who runs / hosts the cam
-       thumb   optional preview image (also the tile's backdrop until it plays)
-
-     Areas are listed in the order they first appear here, so keep the array
-     roughly north → south.
-  --------------------------------------------------------------------------- */
-
-  // Shared local knowledge for the Caparica jetty beaches.
-  const CAPARICA = {
-    swell: [240, 320], size: [0.6, 2.0], period: 9, exposure: 0.8, wind: [30, 120], tide: { range: [0, 1], dir: 'rising', text: 'all tides, best on the push' },
-    notes: 'Jetty-sheltered beach breaks with gentle banks, the surf-school stretch south of Lisbon. Takes most W/NW swell and works on every tide, best as it rises; above ~2 m it starts to wall up. E/NE wind cleans it; the summer nortada blows it side-on.',
-  };
-
-  const CAMS = [
-    {
-      id:      'nazare-norte',
-      name:    'Praia do Norte',
-      town:    'Nazaré', area: 'Nazaré', zone: 'Praia do Norte',
-      country: 'Portugal',
-      tags:    ['beach break', 'big wave', 'canyon', 'heavy'],
-      lat: 39.6080, lng: -9.0856, faces: 290,   // OSM coastline, the beach north of the fort
-      best: {
-        swell: [260, 330], size: [0.6, 2.5], period: 9, exposure: 0.9, gain: 1.4, wind: [60, 150], tide: { range: [0.2, 0.8], dir: null, text: 'mid' },
-        notes: 'The big-wave beach, the Nazaré Canyon focuses any W–NW swell into something far heavier than the numbers suggest. For paddling it’s a powerful, shifty beach break that’s best small (under ~2 m), mid tide, with an E/SE wind; above that it’s tow-in country and the rips are serious. Experienced surfers only. Praia da Vila, round the headland, is the gentler option.',
-      },
-      type:    'hls',
-      embed:   'https://deliverys5.quanteec.com/contents/encodings/live/528309e0-caee-4b99-3933-3530-6d61-63-b69a-caa00a3177f6d/master.m3u8',
-      poster:  'https://deliverys5.quanteec.com/contents/encodings/live/528309e0-caee-4b99-3933-3530-6d61-63-b69a-caa00a3177f6d/poster.jpg',
-      fallback: 'https://gosurf.fr/webcam/fr/100/Nazare-Praia-do-Norte',
-      link:    'https://gosurf.fr/webcam/fr/100/Nazare-Praia-do-Norte',
-      source:  'MEO Beachcam via viewsurf',
-      thumb:   'https://films.viewsurf.com/BCnazareparadonorte_1_1.stream/media.jpg',
-    },
-    {
-      id:      'peniche-lagide',
-      name:    'Praia do Lagide',
-      town:    'Peniche', area: 'Peniche', zone: 'Baleal',
-      country: 'Portugal',
-      tags:    ['reef break', 'left', 'baleal'],
-      lat: 39.3734, lng: -9.3367, faces: 320,   // OSM coastline, north side of the Baleal isthmus
-      best: {
-        swell: [270, 350], size: [0.6, 3.0], period: 9, exposure: 0.6, wind: [120, 200], tide: { range: [0.3, 0.8], dir: 'rising', text: 'mid, on the rise' },
-        notes: 'Long, mellow left over flat reef on the north side of Baleal. Likes W–NW swell with a S/SE wind; rocks and urchins show at low tide, so mid tide on the push is the call. Handles size when the beaches max out. Busy, and the bodyboarders have priority on the inside.',
-      },
-      type:    'hls',
-      embed:   'https://deliverys5.quanteec.com/contents/encodings/live/d2d6a6b5-eeee-4850-3134-3530-6d61-63-8b84-8bfc9f91f211d/master.m3u8',
-      poster:  'https://deliverys5.quanteec.com/contents/encodings/live/d2d6a6b5-eeee-4850-3134-3530-6d61-63-8b84-8bfc9f91f211d/poster.jpg',
-      fallback: 'https://gosurf.fr/webcam/fr/102/Peniche-Praia-do-Lagide',
-      link:    'https://gosurf.fr/webcam/fr/102/Peniche-Praia-do-Lagide',
-      source:  'MEO Beachcam via viewsurf',
-      thumb:   'https://films.viewsurf.com/BClagide_1_1.stream/media.jpg',
-    },
-    {
-      id:      'peniche-supertubos',
-      name:    'Supertubos',
-      town:    'Peniche', area: 'Peniche', zone: 'Peniche south',
-      country: 'Portugal',
-      tags:    ['beach break', 'barrels', 'wsl'],
-      lat: 39.3483, lng: -9.3660, faces: 250,   // OSM coastline at the end of Estrada da Supertubos
-      best: {
-        swell: [210, 290], size: [1.0, 3.0], period: 10, exposure: 0.7, wind: [20, 100], tide: { range: [0.4, 1], dir: null, text: 'mid to high' },
-        notes: 'Heavy, hollow beach break, the "European Pipeline" and the WSL contest site. Wants SW–W swell from head high to double overhead with a NE/E wind, mid to high tide; bigger than that it closes out. Advanced only, and crowded. Sept–Nov is prime.',
-      },
-      type:    'hls',
-      embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/d0b0b725-f0cd-4ac6-3234-3530-6d61-63-9da6-3f3819b83f9ad/master.m3u8',
-      poster:  'https://ds1-cache.quanteec.com/contents/encodings/live/d0b0b725-f0cd-4ac6-3234-3530-6d61-63-9da6-3f3819b83f9ad/poster.jpg',
-      fallback: 'https://gosurf.fr/webcam/fr/103/Peniche-Praia-do-Supertubos',
-      link:    'https://gosurf.fr/webcam/fr/103/Peniche-Praia-do-Supertubos',
-      source:  'MEO Beachcam via viewsurf',
-      thumb:   'https://films.viewsurf.com/BCsupertubos_1_1.stream/media.jpg',
-    },
-    {
-      id:      'praia-grande-norte',
-      name:    'Praia Grande Norte',
-      town:    'Sintra', area: 'Sintra', zone: 'Praia Grande',
-      country: 'Portugal',
-      tags:    ['beach break', 'west facing', 'bodyboard', 'colares'],
-      lat: 38.8185, lng: -9.4752, faces: 260,   // OSM coastline, north end below Praia Pequena
-      best: {
-        swell: [260, 330], size: [0.6, 2.5], period: 9, wind: [40, 130], tide: { range: [0.4, 1], dir: 'rising', text: 'mid to high' },
-        notes: 'The open northern half of Praia Grande, wider, sandier banks and a bit more exposed than the south end, so it picks up the most swell and is first to blow out in a nortada. Same recipe: W–NW swell, E/NE wind, mid to high tide as the shorebreak at low is heavy. Lots of room when the south end is crowded; strong rips when it’s big.',
-      },
-      type:    'hls',
-      embed:   'https://ds2-cache.quanteec.com/contents/encodings/live/97f4c14c-c861-44cf-3634-3530-6d61-63-8d1d-f07b2cd93deed/master.m3u8',
-      poster:  'https://ds2-cache.quanteec.com/contents/encodings/live/97f4c14c-c861-44cf-3634-3530-6d61-63-8d1d-f07b2cd93deed/poster.jpg',
-      fallback: 'https://gosurf.fr/webcam/fr/113/Sintra-Praia-Grande-Norte',
-      link:    'https://gosurf.fr/webcam/fr/113/Sintra-Praia-Grande-Norte',
-      source:  'MEO Beachcam via viewsurf',
-      thumb:   'https://films.viewsurf.com/BCpraiagrande_1_1.stream/media.jpg',
-    },
-    {
-      id:      'praia-grande-sul',
-      name:    'Praia Grande Sul',
-      town:    'Sintra', area: 'Sintra', zone: 'Praia Grande',
-      country: 'Portugal',
-      tags:    ['beach break', 'west facing', 'bodyboard', 'colares'],
-      lat: 38.8121, lng: -9.4789, faces: 255,   // OSM: Praia Grande do Rodízio, south end
-      best: {
-        swell: [260, 330], size: [0.6, 2.5], period: 9, wind: [40, 130], tide: { range: [0.4, 1], dir: 'rising', text: 'mid to high' },
-        notes: 'Sintra’s long, open beach break, consistent, punchy and a bodyboarding stronghold. The south end has the best-shaped banks and a rock ledge for shelter. Takes W–NW swell with an E/NE wind; low tide is a heavy shorebreak, so mid to high on the push is the call. Rips when it’s big; the nortada blows it out in summer afternoons.',
-      },
-      type:    'hls',
-      embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/f05e1d93-57cf-4e07-3734-3530-6d61-63-8b8c-a57a96c1fc1ed/master.m3u8',
-      poster:  'https://ds1-cache.quanteec.com/contents/encodings/live/f05e1d93-57cf-4e07-3734-3530-6d61-63-8b8c-a57a96c1fc1ed/poster.jpg',
-      fallback: 'https://gosurf.fr/webcam/fr/114/Sintra-Praya-Grande-Sul',
-      link:    'https://gosurf.fr/webcam/fr/114/Sintra-Praya-Grande-Sul',
-      source:  'MEO Beachcam via viewsurf',
-      thumb:   'https://films.viewsurf.com/BCpraiagrande2_1_1.stream/media.jpg',
-    },
-    {
-      id:      'guincho-norte',
-      name:    'Guincho Norte',
-      town:    'Cascais', area: 'Cascais', zone: 'Guincho',
-      country: 'Portugal',
-      tags:    ['beach break', 'west facing', 'sintra-cascais'],
-      lat: 38.7370, lng: -9.4726, faces: 270,   // OSM coastline, north end (beach centre 38.7337, -9.4728)
-      best: {
-        swell: [270, 340], size: [0.6, 2.4], period: 9, wind: [60, 130], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
-        notes: 'Exposed beach break that catches every swell going, NW is best, with an E wind. The summer nortada (N wind) blows it side-shore by late morning, so go early. Low to mid tide works best; strong currents when it gets big. The north end is the more open, punchier bank.',
-      },
-      type:    'hls',
-      embed:   'https://ds2-cache.quanteec.com/contents/encodings/live/61f5d898-0c04-4515-3934-3530-6d61-63-87e5-3432badee226d/master.m3u8',
-      poster:  'https://ds2-cache.quanteec.com/contents/encodings/live/61f5d898-0c04-4515-3934-3530-6d61-63-87e5-3432badee226d/poster.jpg',
-      fallback: 'https://gosurf.fr/webcam/fr/116/Cascais-Praia-Do-Guincho-Norte',
-      link:    'https://gosurf.fr/webcam/fr/116/Cascais-Praia-Do-Guincho-Norte',
-      source:  'MEO Beachcam via viewsurf',
-      thumb:   'https://films.viewsurf.com/BCpraiaguinchosul_1_1.stream/media.jpg',
-    },
-    {
-      // GoSurf's Sul page plays the stream viewsurf names "guinchonorte" (and
-      // the Norte page plays "guinchosul") — check which way round is right.
-      id:      'guincho-sul',
-      name:    'Guincho Sul',
-      town:    'Cascais', area: 'Cascais', zone: 'Guincho',
-      country: 'Portugal',
-      tags:    ['beach break', 'west facing', 'sintra-cascais'],
-      lat: 38.7306, lng: -9.4750, faces: 265,   // OSM coastline, south end by the Muchaxo
-      best: {
-        swell: [270, 340], size: [0.6, 2.4], period: 9, wind: [60, 130], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
-        notes: 'The southern end of Guincho, tucked in a touch under the headland so it holds a little longer when the nortada picks up. Same recipe as the north end: NW swell, E wind, low to mid tide, and early. Rips run hard along the rocks when it’s big.',
-      },
-      type:    'hls',
-      embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/8d2e5d1c-5771-49c8-3834-3530-6d61-63-a417-988a6df6a2f2d/master.m3u8',
-      poster:  'https://ds1-cache.quanteec.com/contents/encodings/live/8d2e5d1c-5771-49c8-3834-3530-6d61-63-a417-988a6df6a2f2d/poster.jpg',
-      fallback: 'https://gosurf.fr/webcam/fr/115/Cascais-Praia-Do-Guincho-Sul',
-      link:    'https://gosurf.fr/webcam/fr/115/Cascais-Praia-Do-Guincho-Sul',
-      source:  'MEO Beachcam via viewsurf',
-      thumb:   'https://films.viewsurf.com/BCpraiaguinchonorte_1_1.stream/media.jpg',
-    },
-    {
-      id:      'sao-pedro-estoril',
-      name:    'São Pedro do Estoril',
-      town:    'Estoril', area: 'Cascais', zone: 'Linha de Cascais',
-      country: 'Portugal',
-      tags:    ['reef break', 'right', 'south facing', 'linha de cascais', 'sao pedro', 'bafureira', 'bico'],
-      lat: 38.6930, lng: -9.3712, faces: 180,
-      best: {
-        swell: [200, 300], size: [1.0, 2.4], period: 10, exposure: 0.6, wind: [340, 60], tide: { range: [0, 0.55], dir: 'falling', text: 'low to mid, on the drop' },
-        notes: 'Reef and point setups, Bafureira’s right on the left of the bay, the Bico point next door. Needs at least a metre of SW–W swell to get going, with a N/NE wind; low to mid on a dropping tide is the usual call. Intermediate and up; less crowded than Bico.',
-      },
-      type:    'hls',
-      embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/5fcf6d21-f52c-422a-3035-3530-6d61-63-98fa-626cced74f41d/master.m3u8',
-      poster:  'https://ds1-cache.quanteec.com/contents/encodings/live/5fcf6d21-f52c-422a-3035-3530-6d61-63-98fa-626cced74f41d/poster.jpg',
-      fallback: 'https://gosurf.fr/webcam/fr/117/Estoril-Praia-de-Sao-Pedro-do-Estoril',
-      link:    'https://gosurf.fr/webcam/fr/117/Estoril-Praia-de-Sao-Pedro-do-Estoril',
-      source:  'MEO Beachcam via viewsurf',
-      thumb:   'https://films.viewsurf.com/BCsaopedroestoria_1_1.stream/media.jpg',
-    },
-    {
-      id:      'carcavelos',
-      name:    'Carcavelos',
-      town:    'Carcavelos', area: 'Cascais', zone: 'Linha de Cascais',
-      country: 'Portugal',
-      tags:    ['beach break', 'south facing', 'linha de cascais'],
-      lat: 38.6792, lng: -9.3352, faces: 190,   // OSM: Praia de Carcavelos
-      best: {
-        swell: [200, 290], size: [0.8, 2.5], period: 10, exposure: 0.55, wind: [340, 60], tide: { range: [0.3, 0.8], dir: 'rising', text: 'mid, on the rise' },
-        notes: 'Lisbon’s town beach. Faces south, so it needs a proper SW–W swell, or a big long-period NW to wrap round Cabo Raso. Sheltered from the nortada and best in a N/NE wind, it’s the call when Guincho is blown out. Works all tides, best mid and rising. Crowded; watch the rips.',
-      },
-      type:    'hls',
-      embed:   'https://ds2-cache.quanteec.com/contents/encodings/live/7dbfbd58-2c72-4c87-3135-3530-6d61-63-a1b9-8dc2ff272a5cd/master.m3u8',
-      poster:  'https://ds2-cache.quanteec.com/contents/encodings/live/7dbfbd58-2c72-4c87-3135-3530-6d61-63-a1b9-8dc2ff272a5cd/poster.jpg',
-      fallback: 'https://gosurf.fr/webcam/fr/118/Carcavelos-Praia-de-Carcavelos',
-      link:    'https://gosurf.fr/webcam/fr/118/Carcavelos-Praia-de-Carcavelos',
-      source:  'MEO Beachcam via viewsurf',
-      thumb:   'https://films.viewsurf.com/BCcarcavelos_1_1.stream/media.jpg',
-    },
-    {
-      id:      'caparica-sao-joao',
-      name:    'São João',
-      town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
-      country: 'Portugal',
-      tags:    ['beach break', 'west facing', 'caparica', 'almada', 'sao joao', 'beginner'],
-      lat: 38.6569, lng: -9.2513, faces: 275,   // OSM: Praia de São João
-      best: { ...CAPARICA, notes: 'The northernmost Caparica beach and the roomiest. Waves are flatter and fatter than further south, a good hunting ground for learners and improvers, though an E wind in autumn can throw up glassy little wedges. ' + CAPARICA.notes },
-      type:    'hls',
-      embed:   'https://deliverys5.quanteec.com/contents/encodings/live/f829148a-5ae5-4a90-3735-3530-6d61-63-b215-b6a95fb68802d/master.m3u8',
-      poster:  'https://deliverys5.quanteec.com/contents/encodings/live/f829148a-5ae5-4a90-3735-3530-6d61-63-b215-b6a95fb68802d/poster.jpg',
-      fallback: 'https://gosurf.fr/webcam/fr/124/Costa-Caparica-Praia-do-Sao-Joao',
-      link:    'https://gosurf.fr/webcam/fr/124/Costa-Caparica-Praia-do-Sao-Joao',
-      source:  'MEO Beachcam via viewsurf',
-      thumb:   'https://films.viewsurf.com/BCcostacaparicasaojoao_1_1.stream/media.jpg',
-    },
-    {
-      id:      'caparica-cds',
-      name:    'CDS',
-      town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
-      country: 'Portugal',
-      tags:    ['beach break', 'west facing', 'caparica', 'almada'],
-      lat: 38.6449, lng: -9.2419, faces: 270,   // OSM: Praia do CDS
-      best: { ...CAPARICA, notes: 'Right in front of town by the surf centre, between two jetties that groom the banks. ' + CAPARICA.notes },
-      type:    'hls',
-      embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/b969e298-ceb4-4132-3635-3530-6d61-63-82b6-c59507e55b39d/master.m3u8',
-      poster:  'https://ds1-cache.quanteec.com/contents/encodings/live/b969e298-ceb4-4132-3635-3530-6d61-63-82b6-c59507e55b39d/poster.jpg',
-      fallback: 'https://gosurf.fr/webcam/fr/123/Costa-Caparica-Praia-do-CDS',
-      link:    'https://gosurf.fr/webcam/fr/123/Costa-Caparica-Praia-do-CDS',
-      source:  'MEO Beachcam via viewsurf',
-      thumb:   'https://films.viewsurf.com/BCcostacaparicacds_1_1.stream/media.jpg',
-    },
-    {
-      id:      'caparica-riviera',
-      name:    'Riviera',
-      town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
-      country: 'Portugal',
-      tags:    ['beach break', 'west facing', 'caparica', 'almada'],
-      lat: 38.6197, lng: -9.2202, faces: 265,   // OSM: Praia da Riviera
-      best: { ...CAPARICA, notes: 'South of town, where the jetties thin out, so a touch more open and more push than CDS. ' + CAPARICA.notes },
-      type:    'hls',
-      embed:   'https://ds2-cache.quanteec.com/contents/encodings/live/033c1cda-143d-4a55-3835-3530-6d61-63-a933-f44c0821ad62d/master.m3u8',
-      poster:  'https://ds2-cache.quanteec.com/contents/encodings/live/033c1cda-143d-4a55-3835-3530-6d61-63-a933-f44c0821ad62d/poster.jpg',
-      fallback: 'https://gosurf.fr/webcam/fr/125/Costa-Caparica-Praia-do-Riviera',
-      link:    'https://gosurf.fr/webcam/fr/125/Costa-Caparica-Praia-do-Riviera',
-      source:  'MEO Beachcam via viewsurf',
-      thumb:   'https://films.viewsurf.com/BCriviera_1_1.stream/media.jpg',
-    },
-    {
-      id:      'fonte-da-telha',
-      name:    'Fonte da Telha',
-      town:    'Fonte da Telha', area: 'Caparica', zone: 'South of the jetties',
-      country: 'Portugal',
-      tags:    ['beach break', 'west facing', 'caparica', 'almada'],
-      lat: 38.5719, lng: -9.1961, faces: 260,   // OSM: Fonte da Telha beach
-      best: {
-        swell: [230, 300], size: [0.6, 2.5], period: 9, wind: [30, 110], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
-        notes: 'Open, exposed beach south of the Caparica jetties with more punch than town, picks up local windswell as well as groundswell, so it’s rarely flat. WSW swell and an ENE wind is the recipe; even a light onshore ruins it. Low to mid tide; often crowded.',
-      },
-      type:    'hls',
-      embed:   'https://ds2-cache.quanteec.com/contents/encodings/live/a31a9026-5ced-4668-3935-3530-6d61-63-aa32-b07694268059d/master.m3u8',
-      poster:  'https://ds2-cache.quanteec.com/contents/encodings/live/a31a9026-5ced-4668-3935-3530-6d61-63-aa32-b07694268059d/poster.jpg',
-      fallback: 'https://gosurf.fr/webcam/fr/126/Fonte-da-Telha-Praia-da-Fonte-Telha',
-      link:    'https://gosurf.fr/webcam/fr/126/Fonte-da-Telha-Praia-da-Fonte-Telha',
-      source:  'MEO Beachcam via viewsurf',
-      thumb:   'https://films.viewsurf.com/BCfontedatelha_1_1.stream/media.jpg',
-    },
-    {
-      id:      'arrifana',
-      name:    'Praia da Arrifana',
-      town:    'Aljezur', area: 'Algarve', zone: 'Costa Vicentina',
-      country: 'Portugal',
-      tags:    ['beach break', 'right', 'point', 'aljezur', 'vicentina'],
-      lat: 37.2926, lng: -8.8653, faces: 250,   // OSM: Praia da Arrifana, the bay below the village
-      best: {
-        swell: [250, 320], size: [0.8, 2.5], period: 9, exposure: 0.5, wind: [340, 110], tide: { range: [0.3, 0.8], dir: 'rising', text: 'mid, on the rise' },
-        notes: 'Horseshoe bay under high cliffs on the Costa Vicentina, with a beach break through the middle and a long right-hand point over rocks at the north end when a solid W/NW swell runs. The cliffs shelter it from the nortada, so it’s often the call when the open beaches are blown out. Mid tide on the push; N/NE wind. Point is for experienced surfers; the beach suits everyone and gets crowded.',
-      },
-      type:    'hls',
-      embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/a91257ec-cafd-4eeb-3436-3530-6d61-63-b7ab-31c6e7bb583bd/master.m3u8',
-      poster:  'https://ds1-cache.quanteec.com/contents/encodings/live/a91257ec-cafd-4eeb-3436-3530-6d61-63-b7ab-31c6e7bb583bd/poster.jpg',
-      fallback: 'https://gosurf.fr/webcam/fr/131/Arrifana-Praia-da-Arrifana',
-      link:    'https://gosurf.fr/webcam/fr/131/Arrifana-Praia-da-Arrifana',
-      source:  'MEO Beachcam via viewsurf',
-      thumb:   'https://films.viewsurf.com/BCarrifana_1_1.stream/media.jpg',
-    },
-  ];
-
   const LIBS = {
     plyr:    'https://cdn.jsdelivr.net/npm/plyr@3.7.8/dist/plyr.min.js',
     hls:     'https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js',
     leaflet: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js',
   };
-  const LEVELS = ['Flat', 'Poor', 'Fair', 'Good', 'Epic'];
-  // The day in four blocks, dawn → evening (local hours, [from, to)).
-  const BUCKETS = [
-    { label: 'Dawn', from: 6, to: 9 },
-    { label: 'Morning', from: 9, to: 12 },
-    { label: 'Afternoon', from: 12, to: 15 },
-    { label: 'Evening', from: 15, to: 19 },
-  ];
   const COND_TTL = 30 * 60 * 1000; // re-fetch conditions after 30 minutes
   const COND_VER = 3;              // bump when the cached shape changes
   // Tiles keep a short buffer and start on the lowest rendition — they're
@@ -1546,23 +1233,18 @@
   // Data saver: on by default if the browser says so, else remembered.
   let dataSaver = !!(navigator.connection && navigator.connection.saveData);
   try { const s = localStorage.getItem('surf-saver'); if (s !== null) dataSaver = s === '1'; } catch {}
-  // Wave heights in metres or feet, remembered on this device.
-  let units = 'm';
-  try { units = localStorage.getItem('surf-units') === 'ft' ? 'ft' : 'm'; } catch {}
-  const hgt = (m) => (units === 'ft' ? `${Math.round(m * 3.281 * 2) / 2} ft` : `${m.toFixed(1)} m`);
-  const rng = (a, b) => (units === 'ft' ? `${Math.round(a * 3.281)}–${Math.round(b * 3.281)} ft` : `${a}–${b} m`);
   let lastFocus = null;
   let hls = null, player = null;
   let hideTimer = 0, goTimer = 0;
   let conditions = {};   // cam id -> { now: {...}, hours: [{...}], t }
   let condNote = '';
-  let map = null, windLayer = null, swellLayer = null;
+  let map = null, windLayer = null, swellLayer = null, windField = null, swellField = null;
+  let fieldGrid = null;  // coarse wind/swell samples along the coast, for the particle field
   const markers = {};
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const tiles = {};      // cam id -> { video, hls, visible, active, hold, dead }
   const nativeHls = !!document.createElement('video').canPlayType('application/vnd.apple.mpegurl');
 
-  const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const haystack = (c) => norm([c.name, c.town, c.area, c.zone, c.country, c.source, ...(c.tags || [])].join(' '));
   const matches = (c) => {
     const terms = norm(q.value.trim()).split(/\s+/).filter(Boolean);
@@ -1589,142 +1271,6 @@
   const stamp = Math.floor(Date.now() / 60000);
   const thumbUrl = (u) => u + (u.includes('?') ? '&' : '?') + 't=' + stamp;
 
-  /* ---------- Conditions + score ---------- */
-
-  // Smallest angle between two bearings, 0–180.
-  const angleDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
-  // Compass windows are [from, to] clockwise and may wrap through north.
-  const inWindow = (d, [a, b]) => (a <= b ? d >= a && d <= b : d >= a || d <= b);
-  const distToWindow = (d, w) => (inWindow(d, w) ? 0 : Math.min(angleDiff(d, w[0]), angleDiff(d, w[1])));
-  const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-  const dirName = (d) => COMPASS[Math.round((((d % 360) + 360) % 360) / 45) % 8];
-  const windowText = ([a, b]) => (dirName(a) === dirName(b) ? dirName(a) : `${dirName(a)}–${dirName(b)}`);
-  const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
-  // Linear ramp: y0 at x0, y1 at x1, clamped outside.
-  const lerp = (x, x0, y0, x1, y1) => y0 + (y1 - y0) * Math.min(1, Math.max(0, (x - x0) / (x1 - x0)));
-
-  const tideWord = (tn) => (tn < 0.33 ? 'low' : tn < 0.66 ? 'mid' : 'high');
-  // Wetsuit by water temperature — a rule of thumb, not gospel.
-  const suit = (t) => (t >= 22 ? 'boardies' : t >= 19 ? '2 mm spring' : t >= 16 ? '3/2 mm' : t >= 13 ? '4/3 mm' : '5/4 mm + boots');
-
-  // Wind direction is where it blows FROM. Offshore = inside the spot's
-  // window (give or take 15°); onshore = roughly from the sea; the rest is
-  // cross-shore, which is what a nortada does to the west-facing beaches.
-  function windRel(c, k) {
-    const off = distToWindow(k.wd, c.best.wind) <= 15;
-    const on = !off && angleDiff(k.wd, c.faces) < 45;
-    return off ? 'offshore' : on ? 'onshore' : 'cross-shore';
-  }
-
-  /* Score out of 10, judged against the spot's own `best` block.
-
-     First the offshore swell is turned into what actually arrives at the
-     beach: swell from inside the spot's window arrives whole; swell from
-     further round the compass fades towards the spot's `exposure` floor
-     (long-period swell wraps better, so it fades less), and any `gain`
-     (Nazaré's canyon) is applied. Everything below works on that height.
-
-     Three things add up to a raw 10:
-       Size       4 pts  ramps up to full marks 40% of the way into the
-                         spot's size range, holds to the top, then falls off
-       Period     3 pts  ramps from 2 s under the spot's "gets good" period
-                         to 5 s over it — long-period groundswell is what
-                         separates good from epic
-       Direction  3 pts  full marks inside the swell window, nothing 45° out
-
-     Then multipliers, because these are what ruin an otherwise good day:
-       Wind       ×1.0 glassy or light offshore … ×0.1 strong onshore,
-                  less again if it's gusty
-       Sea state  wind chop and any secondary swell crossing the main one:
-                  ×1.0 one clean groundswell … ×0.5 when the mess is as big
-                  as the swell
-       Period     a second, whole-score penalty for short period: ×0.8 under
-                  10 s, ×0.6 under 8 s — lumpy is lumpy whatever the wind
-       Tide       where today's tide sits (0 = low water, 1 = high) against
-                  the range the spot likes: ×1.0 inside, ×0.85 just outside,
-                  ×0.65 well outside; ×0.9 more if it's running the wrong way
-
-     Caps: under 0.4 m is Flat (0); swell far outside the size range can't
-     score above 3 (too big) or 4 (too small); after dark it's 0 ("Dark").
-     Blind to the banks — a nudge to open the cam, not a forecast. */
-  function score(c, k) {
-    if (!k || k.h == null || k.ws == null) return null;
-    const b = c.best, p = k.p || 0, P = b.period;
-    const [lo, hi] = b.size;
-    const f = [];
-
-    // How much of the offshore swell reaches this beach: whole when it's
-    // coming at the beach (within 45° of the way it faces), fading to the
-    // spot's exposure floor once it has to bend 110° round a headland.
-    const dd = k.d != null ? distToWindow(k.d, b.swell) : 0;
-    const bend = k.d != null ? angleDiff(k.d, c.faces) : 0;
-    const floor = b.exposure == null ? 0.85 : b.exposure;
-    let arrive = lerp(bend, 45, 1, 110, floor);
-    if (bend > 45 && p >= 12) arrive = Math.min(1, arrive * 1.15);   // long period wraps in
-    arrive *= b.gain || 1;
-    const h = k.h * arrive;
-    const hNow = Math.abs(arrive - 1) < 0.05 ? hgt(h) : `${hgt(h)} at the beach (${hgt(k.h)} offshore)`;
-
-    const sweet = lo + 0.4 * (hi - lo);
-    const size = h <= sweet ? lerp(h, lo * 0.5, 0, sweet, 4) : h <= hi ? 4 : lerp(h, hi, 4, hi * 1.4, 0);
-    f.push({ label: 'Size', pts: size, max: 4, now: hNow, likes: rng(lo, hi) });
-
-    const per = lerp(p, P - 2, 0, P + 5, 3);
-    // Short-period swell is lumpy however clean the wind is, so it also
-    // scales the whole score, not just its own 3 points.
-    const clean = p < 8 ? 0.6 : p < 10 ? 0.8 : p < 12 ? 0.9 : 1;
-    f.push({ label: 'Period', pts: per, max: 3, now: `${Math.round(p)} s${clean < 1 ? ', lumpy' : ''}`, likes: `${P} s and up` });
-
-    // Angle still matters once the swell is in: straight into the window
-    // lines up the banks; well outside it tends to bend in as closeouts.
-    const dir = k.d != null ? lerp(dd, 0, 3, 60, 0) : 2;
-    f.push({ label: 'Direction', pts: dir, max: 3, now: k.d != null ? `from ${dirName(k.d)}` : 'unknown', likes: windowText(b.swell) });
-
-    const rel = windRel(c, k), ws = k.ws;
-    let wind;
-    if (ws < 8)             wind = 1;                                                   // glassy
-    else if (rel === 'offshore') wind = ws < 20 ? 1 : ws < 30 ? 0.9 : ws < 40 ? 0.75 : 0.6;
-    else if (rel === 'onshore')  wind = ws < 10 ? 0.6 : ws < 18 ? 0.4 : ws < 28 ? 0.2 : 0.1;
-    else                         wind = ws < 12 ? 0.85 : ws < 20 ? 0.6 : ws < 30 ? 0.4 : 0.2;
-    const gusty = k.wg != null && k.wg > 25 && k.wg > ws * 1.5;
-    if (gusty) wind *= 0.85;
-    f.push({ label: 'Wind', mult: wind, now: `${Math.round(ws)} km/h ${dirName(k.wd)}, ${rel}${gusty ? `, gusting ${Math.round(k.wg)}` : ''}`, likes: `${windowText(b.wind)} offshore` });
-
-    // Sea state: wind chop (sampled offshore, so an offshore wind grooms it
-    // and it counts half) plus any secondary swell crossing the main one,
-    // which shows up as total wave height above the swell height and no
-    // wind can tidy.
-    let sea = 1;
-    if (h > 0 && (k.wwh != null || k.th != null)) {
-      const wwh = k.wwh || 0;
-      const cross = k.th != null ? Math.sqrt(Math.max(0, k.th * k.th - k.h * k.h - wwh * wwh)) : 0;
-      const r = (wwh * (rel === 'offshore' ? 0.5 : 1) + cross) / k.h;
-      sea = r > 1 ? 0.5 : r > 0.6 ? 0.7 : r > 0.35 ? 0.85 : 1;
-      const bits = [];
-      if (wwh >= 0.1) bits.push(`${hgt(wwh)} wind chop`);
-      if (cross >= 0.2) bits.push(`${hgt(cross)} cross swell`);
-      f.push({ label: 'Sea state', mult: sea, now: bits.length ? `${bits.join(' + ')} on ${hgt(k.h)} swell` : 'clean', likes: 'one clean groundswell' });
-    }
-
-    let tide = 1;
-    if (k.tn != null && b.tide && b.tide.range) {
-      const [tlo, thi] = b.tide.range;
-      const out = k.tn < tlo ? tlo - k.tn : k.tn > thi ? k.tn - thi : 0;
-      tide = out === 0 ? 1 : out <= 0.15 ? 0.85 : 0.65;
-      if (b.tide.dir && k.tdir && b.tide.dir !== k.tdir) tide *= 0.9;
-      f.push({ label: 'Tide', mult: tide, now: `${tideWord(k.tn)}${k.tdir ? ` and ${k.tdir}` : ''}`, likes: b.tide.text });
-    }
-
-    let total = (size + per + dir) * wind * sea * tide * clean, cap = '', dark = false;
-    if (k.day === 0) { total = 0; cap = 'After dark'; dark = true; }
-    else if (h < 0.4) { total = 0; cap = `Under ${hgt(0.4)}, flat`; }
-    else if (h > hi * 1.4) { total = Math.min(total, 3); cap = `Capped: ${hgt(h)} is too big for this spot`; }
-    else if (h < lo * 0.7) { total = Math.min(total, 4); cap = `Capped: ${hgt(h)} is too small for this spot`; }
-    total = Math.round(total * 2) / 2;
-    const level = total === 0 ? 0 : total <= 3.5 ? 1 : total <= 6 ? 2 : total <= 8 ? 3 : 4;
-    return { total, level, label: dark ? 'Dark' : LEVELS[level], wind: rel, factors: f, cap };
-  }
-
   const scoreOf = (c) => score(c, conditions[c.id] && conditions[c.id].now);
   const badge = (c, lg) => {
     const r = scoreOf(c);
@@ -1740,8 +1286,6 @@
 
   /* ---------- Today: four bars + a summary ---------- */
 
-  const hourOf = (t) => parseInt(t.slice(11, 13), 10);
-  const levelOf = (total) => (total === 0 ? 0 : total <= 3.5 ? 1 : total <= 6 ? 2 : total <= 8 ? 3 : 4);
 
   // Average score per block of the day, daylight hours only.
   function dayBars(c) {
@@ -1789,72 +1333,6 @@
     return `${sizeTxt}; ${windTxt}. ${bestTxt}`.trim();
   }
 
-  /* ---------- Fetching ---------- */
-
-  // Open-Meteo's marine model is coastal-coarse; a point on the sand can land
-  // in a cell with no sea data, so sample ~6 km out in the direction the
-  // beach faces.
-  const offshore = (c) => {
-    const rad = c.faces * Math.PI / 180;
-    const lat = c.lat + 0.06 * Math.cos(rad);
-    const lng = c.lng + 0.06 * Math.sin(rad) / Math.cos(c.lat * Math.PI / 180);
-    return [lat.toFixed(4), lng.toFixed(4)];
-  };
-
-  const MARINE = ['swell_wave_height', 'swell_wave_period', 'swell_wave_direction', 'wave_height', 'wave_period', 'wave_direction', 'wind_wave_height', 'sea_level_height_msl', 'sea_surface_temperature'];
-  const WIND = ['wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m', 'is_day', 'temperature_2m'];
-
-  // Open-Meteo answers with an object for one location, an array for several.
-  const asList = (r) => (Array.isArray(r) ? r : [r]);
-  const row = (hourly, i) => Object.fromEntries(Object.keys(hourly).map((k) => [k, hourly[k][i]]));
-  const toK = (m, w) => {
-    const h = m.swell_wave_height ?? m.wave_height;
-    if (h == null || w.wind_speed_10m == null) return null;
-    return {
-      h, p: m.swell_wave_period ?? m.wave_period, d: m.swell_wave_direction ?? m.wave_direction, wwh: m.wind_wave_height, th: m.wave_height,
-      ws: w.wind_speed_10m, wd: w.wind_direction_10m, wg: w.wind_gusts_10m, day: w.is_day == null ? 1 : w.is_day,
-      tide: m.sea_level_height_msl, sst: m.sea_surface_temperature, air: w.temperature_2m,
-    };
-  };
-  // Tide state from the day's sea-level curve: tn is 0 at today's low water
-  // and 1 at high; tdir is which way it's running right now.
-  function addTide(hours, k, idx) {
-    const levels = hours.map((x) => x.tide).filter((v) => v != null);
-    if (levels.length < 3 || k.tide == null) return;
-    const min = Math.min(...levels), max = Math.max(...levels);
-    if (max - min < 0.2) return;
-    k.tn = Math.min(1, Math.max(0, (k.tide - min) / (max - min)));
-    const prev = hours[Math.max(0, idx - 1)], next = hours[Math.min(hours.length - 1, idx + 1)];
-    if (prev && next && prev.tide != null && next.tide != null) k.tdir = next.tide > prev.tide ? 'rising' : 'falling';
-  }
-  // Today's highs and lows from the hourly curve, refined by fitting a
-  // parabola through each peak so the time is good to ~10 minutes.
-  function tideEvents(hours) {
-    const out = [];
-    for (let i = 1; i < hours.length - 1; i++) {
-      const a = hours[i - 1].tide, b = hours[i].tide, c = hours[i + 1].tide;
-      if (a == null || b == null || c == null) continue;
-      const high = b > a && b >= c, low = b < a && b <= c;
-      if (!high && !low) continue;
-      const den = a - 2 * b + c;
-      const off = den ? 0.5 * (a - c) / den : 0; // vertex offset in hours, -0.5…0.5
-      // Hourly values stand for the whole hour, so their centre is at :30.
-      // Checked against the Cascais tide table: lands within ~5 minutes.
-      const mins = Math.round((hourOf(hours[i].t) + 0.5 + off) * 60);
-      const hh = Math.floor(mins / 60), mm = mins % 60;
-      out.push({ kind: high ? 'High' : 'Low', mins, t: `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}` });
-    }
-    return out;
-  }
-  const fmtMins = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-  // "High 14:51 · Low 21:10": what's still to come today, or the whole day once it's over.
-  function tideTimes(src) {
-    const ev = Array.isArray(src) ? src : src && src.tides;
-    if (!ev || !ev.length) return '';
-    const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
-    const ahead = ev.filter((e) => e.mins >= nowMins);
-    return (ahead.length ? ahead : ev).map((e) => `${e.kind} ${fmtMins(e.mins)}`).join(' · ');
-  }
   // Tide times barely differ along this coast, so one averaged set serves
   // everyone; an area only gets its own line if it strays by 20+ minutes.
   function coastTides() {
@@ -1877,16 +1355,6 @@
   });
   // The tide line a spot should show: the coast-wide one unless its area strays.
   const tidesFor = (c) => { const ev = areaTides(c.area), coast = coastTides(); return tidesDiffer(ev, coast) ? ev : (coast || ev); };
-  // Prefer `current`; fall back to the hourly row nearest to now.
-  function pick(loc) {
-    if (!loc) return null;
-    if (loc.current) return { ...loc.current };
-    if (!loc.hourly || !loc.hourly.time) return null;
-    const now = Date.now();
-    let best = 0, bestD = Infinity;
-    loc.hourly.time.forEach((t, i) => { const d = Math.abs(new Date(t) - now); if (d < bestD) { bestD = d; best = i; } });
-    return row(loc.hourly, best);
-  }
 
   async function loadConditions() {
     const ids = CAMS.map((c) => c.id).join();
@@ -1973,10 +1441,6 @@
 
   /* ---------- Grid, grouped by area ---------- */
 
-  // Home areas first; anything else follows in the order it appears in CAMS.
-  const AREA_ORDER = ['Cascais', 'Caparica'];
-  const AREAS = [...new Set(CAMS.map((c) => c.area))]
-    .sort((a, b) => (AREA_ORDER.includes(a) ? AREA_ORDER.indexOf(a) : 99) - (AREA_ORDER.includes(b) ? AREA_ORDER.indexOf(b) : 99));
 
   function renderChips() {
     chips.innerHTML = ['All', ...AREAS].map((r) =>
@@ -2215,9 +1679,19 @@
     let base = 'osm';
     try { base = localStorage.getItem('surf-base') || 'osm'; } catch {}
     (base === 'sat' ? sat : osm).addTo(map);
-    // Wind and swell arrows, drawn from the same Open-Meteo data as the scores.
+    // Wind and swell overlays: animated particles plus labelled arrows, from
+    // the same Open-Meteo data as the scores. Reduced-motion gets arrows only.
     windLayer = L.layerGroup();
     swellLayer = L.layerGroup();
+    if (!reducedMotion) {
+      const PL = makeParticleLayer();
+      const phone = matchMedia('(max-width: 640px)').matches;
+      windField = new PL({ max: phone ? 450 : 1400, density: 1800, life: 90, fade: 0.9, width: 1.3, min: 0.5,
+        speed: (ws) => 0.25 + ws * 0.045, color: windColor });
+      swellField = new PL({ max: phone ? 250 : 700, density: 3600, life: 160, fade: 0.95, width: 1.8, min: 0.15,
+        speed: (h) => 0.25 + h * 0.3, color: swellColor });
+      loadFieldGrid().then(updateFields);
+    }
     let overlays = { wind: true, swell: false };
     try { overlays = { ...overlays, ...JSON.parse(localStorage.getItem('surf-overlays') || '{}') }; } catch {}
     if (overlays.wind) windLayer.addTo(map);
@@ -2245,9 +1719,6 @@
     syncMarkers(true);
   }
 
-  // With no filter the map opens on the home stretch (Sintra → Caparica)
-  // rather than zoomed out to fit Nazaré and the Algarve too.
-  const HOME_AREAS = ['Sintra', 'Cascais', 'Caparica'];
 
   // Show only the markers that pass the current filter; optionally refit.
   function syncMarkers(fit) {
@@ -2274,6 +1745,143 @@
     buildArrows();
   }
 
+  /* ---------- Animated particle field ----------
+     A canvas in Leaflet's overlay pane. Each particle reads the local vector
+     (inverse-distance blend of the sample points), steps along it, and
+     leaves a fading trail — the Windy look, from our own data. */
+  // Defined lazily, once Leaflet is loaded.
+  let ParticleLayerClass = null;
+  function makeParticleLayer() {
+    if (ParticleLayerClass) return ParticleLayerClass;
+    ParticleLayerClass = L.Layer.extend({
+      initialize(opts) { L.setOptions(this, opts); this.samples = []; this._pts = []; this._parts = []; this._raf = 0; },
+      onAdd(map) {
+        this._map = map;
+        this._canvas = L.DomUtil.create('canvas', 'particles leaflet-zoom-hide');
+        map.getPanes().overlayPane.appendChild(this._canvas);
+        map.on('moveend zoomend resize', this._reset, this);
+        this._reset();
+        this._start();
+      },
+      onRemove(map) {
+        this._stop();
+        map.off('moveend zoomend resize', this._reset, this);
+        L.DomUtil.remove(this._canvas);
+      },
+      setSamples(samples) { this.samples = samples; if (this._map) this._reset(); },
+      _reset() {
+        const map = this._map, size = map.getSize();
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        this._canvas.width = size.x * dpr; this._canvas.height = size.y * dpr;
+        this._canvas.style.width = size.x + 'px'; this._canvas.style.height = size.y + 'px';
+        L.DomUtil.setPosition(this._canvas, map.containerPointToLayerPoint([0, 0]));
+        this._ctx = this._canvas.getContext('2d');
+        this._ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        this._ctx.clearRect(0, 0, size.x, size.y);
+        this._w = size.x; this._h = size.y;
+        // Project samples to screen space; store velocity as screen-space u,v.
+        this._pts = this.samples.map((s) => {
+          const p = map.latLngToContainerPoint([s.lat, s.lng]);
+          const to = (s.toward) * Math.PI / 180;
+          return { x: p.x, y: p.y, u: Math.sin(to) * s.mag, v: -Math.cos(to) * s.mag, mag: s.mag };
+        });
+        const n = this._pts.length ? Math.min(this.options.max, Math.floor((size.x * size.y) / this.options.density)) : 0;
+        this._parts = Array.from({ length: n }, () => this._spawn());
+      },
+      _spawn() { return { x: Math.random() * this._w, y: Math.random() * this._h, age: Math.floor(Math.random() * this.options.life) }; },
+      // Inverse-distance-weighted blend of the sample vectors at (x, y).
+      _vel(x, y) {
+        let su = 0, sv = 0, sm = 0, sw = 0;
+        for (const p of this._pts) {
+          const dx = x - p.x, dy = y - p.y;
+          const d2 = dx * dx + dy * dy + 400;
+          const w = 1 / (d2 * d2);
+          su += p.u * w; sv += p.v * w; sm += p.mag * w; sw += w;
+        }
+        return sw ? { u: su / sw, v: sv / sw, mag: sm / sw } : { u: 0, v: 0, mag: 0 };
+      },
+      _start() { if (!this._raf) this._raf = requestAnimationFrame(() => this._frame()); },
+      _stop() { if (this._raf) cancelAnimationFrame(this._raf); this._raf = 0; },
+      _frame() {
+        this._raf = 0;
+        if (!this._map) return;
+        if (document.hidden || !this._pts.length) { this._raf = requestAnimationFrame(() => this._frame()); return; }
+        const ctx = this._ctx, o = this.options;
+        // Fade what's there, then draw each particle's next step.
+        ctx.globalCompositeOperation = 'destination-in';
+        ctx.fillStyle = `rgba(0,0,0,${o.fade})`;
+        ctx.fillRect(0, 0, this._w, this._h);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.lineWidth = o.width;
+        ctx.lineCap = 'round';
+        for (const p of this._parts) {
+          const v = this._vel(p.x, p.y);
+          const speed = o.speed(v.mag);
+          const len = Math.hypot(v.u, v.v) || 1;
+          const nx = p.x + (v.u / len) * speed, ny = p.y + (v.v / len) * speed;
+          ctx.strokeStyle = o.color(v.mag);
+          ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(nx, ny); ctx.stroke();
+          p.x = nx; p.y = ny; p.age++;
+          if (p.age > o.life || nx < 0 || ny < 0 || nx > this._w || ny > this._h || v.mag < o.min) Object.assign(p, this._spawn(), { age: 0 });
+        }
+        this._raf = requestAnimationFrame(() => this._frame());
+      },
+    });
+    return ParticleLayerClass;
+  }
+
+  // Wind: strength palette (light → gale), brisk short trails.
+  const windColor = (ws) => (ws < 12 ? 'rgba(158,176,92,0.85)' : ws < 25 ? 'rgba(227,162,58,0.9)' : ws < 40 ? 'rgba(255,130,0,0.95)' : 'rgba(229,72,77,1)');
+  // Swell: sea blue, slow long streaks, brighter the bigger it is.
+  const swellColor = (h) => `rgba(79,195,220,${Math.min(0.95, 0.35 + h * 0.2)})`;
+
+  // Coarse sample grid along the coast so particles flow between the spots.
+  // Wind comes back everywhere; swell only over sea cells (land is null).
+  const GRID = [];
+  for (let lat = 36.9; lat <= 40.0; lat += 0.3) for (const lng of [-10.3, -9.95, -9.6, -9.25, -8.9]) GRID.push([+lat.toFixed(2), lng]);
+  async function loadFieldGrid() {
+    const key = 'surf-field', today = new Date().toDateString();
+    try {
+      const c = JSON.parse(localStorage.getItem(key) || 'null');
+      if (c && c.day === today && Date.now() - c.t < COND_TTL) { fieldGrid = c.data; return; }
+    } catch {}
+    const lat = GRID.map((p) => p[0]).join(','), lng = GRID.map((p) => p[1]).join(',');
+    try {
+      const [w, m] = await Promise.all([
+        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=wind_speed_10m,wind_direction_10m`).then((r) => r.json()),
+        fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&current=swell_wave_height,swell_wave_direction,wave_height,wave_direction`).then((r) => r.json()),
+      ]);
+      const W = asList(w), M = asList(m);
+      fieldGrid = GRID.map((p, i) => {
+        const wc = W[i] && W[i].current, mc = M[i] && M[i].current;
+        return {
+          lat: p[0], lng: p[1],
+          ws: wc ? wc.wind_speed_10m : null, wd: wc ? wc.wind_direction_10m : null,
+          h: mc ? (mc.swell_wave_height ?? mc.wave_height) : null, d: mc ? (mc.swell_wave_direction ?? mc.wave_direction) : null,
+        };
+      });
+      try { localStorage.setItem(key, JSON.stringify({ day: today, t: Date.now(), data: fieldGrid })); } catch {}
+    } catch { fieldGrid = []; }
+  }
+  // Feed both particle layers from the grid plus the per-spot readings.
+  function updateFields() {
+    if (!windField) return;
+    const wind = [], swell = [];
+    for (const g of fieldGrid || []) {
+      if (g.ws != null && g.wd != null) wind.push({ lat: g.lat, lng: g.lng, toward: g.wd + 180, mag: g.ws });
+      if (g.h != null && g.d != null) swell.push({ lat: g.lat, lng: g.lng, toward: g.d + 180, mag: g.h });
+    }
+    for (const c of CAMS) {
+      const k = conditions[c.id] && conditions[c.id].now;
+      if (!k) continue;
+      const [la, lo] = seaward(c, 4);
+      wind.push({ lat: la, lng: lo, toward: k.wd + 180, mag: k.ws });
+      if (k.d != null) swell.push({ lat: la, lng: lo, toward: k.d + 180, mag: k.h });
+    }
+    windField.setSamples(wind);
+    swellField.setSamples(swell);
+  }
+
   // One arrow per spot, a little way out to sea so it clears the pin. Wind
   // arrows point where the wind is blowing TO; swell arrows where it travels.
   const ARROW = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l6 9h-3.5v11h-5V11H6z"/></svg>';
@@ -2283,11 +1891,6 @@
     iconSize: [52, 40], iconAnchor: [26, 20],
   });
   const windClass = (ws) => (ws < 12 ? 'w0' : ws < 25 ? 'w1' : ws < 40 ? 'w2' : 'w3');
-  // A point `km` kilometres out to sea from the cam, in the direction it faces.
-  const seaward = (c, km) => {
-    const rad = c.faces * Math.PI / 180, d = km / 111;
-    return [c.lat + d * Math.cos(rad), c.lng + d * Math.sin(rad) / Math.cos(c.lat * Math.PI / 180)];
-  };
   function buildArrows() {
     if (!windLayer) return;
     windLayer.clearLayers();
@@ -2298,6 +1901,8 @@
       windLayer.addLayer(L.marker(seaward(c, 1.3), { icon: arrowIcon(k.wd + 180, `${Math.round(k.ws)} km/h`, windClass(k.ws)), interactive: false, keyboard: false }));
       if (k.d != null) swellLayer.addLayer(L.marker(seaward(c, 2.6), { icon: arrowIcon(k.d + 180, `${hgt(k.h)} ${Math.round(k.p)}s`, 'swell'), interactive: false, keyboard: false }));
     }
+    if (windField) { windLayer.addLayer(windField); swellLayer.addLayer(swellField); }
+    updateFields();
   }
 
   async function showMap() {
