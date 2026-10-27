@@ -694,36 +694,29 @@
   .particles { pointer-events: none; mix-blend-mode: screen; }
   [data-theme="light"] .particles { mix-blend-mode: multiply; opacity: 0.85; }
 
-  /* Wind / swell readouts drawn just offshore of each pin */
-  .arrow-wrap { background: none; border: 0; pointer-events: none; }
-  .arrow {
+  /* Data tag beside each pin: name, then swell · wind. Shown from zoom 11. */
+  .tag {
+    position: absolute;
+    left: 34px;
+    top: 50%;
+    transform: translateY(-50%);
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 1px;
-    width: 52px;
-    color: var(--arrow, #fff);
-    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
-    opacity: 0.9;
-  }
-  .arrow svg { width: 18px; height: 18px; fill: currentColor; transform: rotate(var(--rot)); }
-  .arrow b {
-    font-size: 9px;
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: 0.02em;
+    gap: 2px;
+    padding: 4px 8px 3px;
+    border-radius: 8px;
+    border-left: 3px solid var(--pin);
+    background: rgba(8, 14, 20, 0.8);
     color: #fff;
-    background: rgba(0,0,0,0.55);
-    padding: 3px 5px 2px;
-    border-radius: 999px;
     white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    pointer-events: none;
   }
-  .arrow.w0 { --arrow: #9eb05c; }   /* light */
-  .arrow.w1 { --arrow: #e3a23a; }   /* fresh */
-  .arrow.w2 { --arrow: #ff8200; }   /* strong */
-  .arrow.w3 { --arrow: #e5484d; }   /* gale */
-  .arrow.swell { --arrow: #4fc3dc; }
-  .arrow.swell svg { width: 22px; height: 22px; }
+  .tag b { font-size: 11px; font-weight: 600; line-height: 1.1; }
+  .tag i { font-style: normal; font-size: 10px; line-height: 1.1; color: rgba(255,255,255,0.82); letter-spacing: 0.02em; }
+  .tag i em { font-style: normal; color: #fff; font-weight: 600; }
+  .leaflet-container:not(.labels) .tag { display: none; }
+  .leaflet-marker-icon.hot { z-index: 1000 !important; }
 
   /* Leaflet chrome in our palette */
   .leaflet-container { font-family: inherit; background: var(--bg-3); }
@@ -1715,15 +1708,19 @@
 
   /* ---------- Map ---------- */
 
+  const REL_SHORT = { offshore: 'off', onshore: 'on', 'cross-shore': 'cross' };
   const pinIcon = (c) => {
-    const r = scoreOf(c);
+    const r = scoreOf(c), k = conditions[c.id] && conditions[c.id].now;
+    const lvl = r ? 'lvl-' + r.level : 'lvl-x';
+    const data = k
+      ? `<em>${hgt(k.h)}</em> ${Math.round(k.p)} s${k.d != null ? ' ' + dirName(k.d) : ''} · <em>${kts(k.ws)} kts</em> ${dirName(k.wd)}${r ? ' ' + REL_SHORT[r.wind] : ''}`
+      : 'no data yet';
     return L.divIcon({
       className: 'pin-wrap',
-      html: `<span class="pin ${r ? 'lvl-' + r.level : 'lvl-x'}">${r ? fmt(r.total) : '·'}</span>`,
+      html: `<span class="pin ${lvl}">${r ? fmt(r.total) : '·'}</span><span class="tag ${lvl}"><b>${esc(c.name)}</b><i>${data}</i></span>`,
       iconSize: [30, 30],
       iconAnchor: [15, 15],
       popupAnchor: [0, -16],
-      tooltipAnchor: [0, -16],
     });
   };
 
@@ -1804,11 +1801,14 @@
     const windy = $('windy');
     const syncWindy = () => { const c = map.getCenter(); windy.href = `https://www.windy.com/-Wind-wind?${c.lat.toFixed(3)},${c.lng.toFixed(3)},${Math.max(5, Math.min(11, map.getZoom()))}`; };
     map.on('moveend', syncWindy);
+    // Pin tags only once there's room for them.
+    const labels = () => map.getContainer().classList.toggle('labels', map.getZoom() >= 11);
+    map.on('zoomend', labels);
+    labels();
     buildArrows();
 
     for (const c of CAMS) {
       markers[c.id] = L.marker([c.lat, c.lng], { icon: pinIcon(c), title: c.name, keyboard: true })
-        .bindTooltip(c.name, { direction: 'top' })
         .bindPopup(() => popupHtml(c), { closeButton: false, maxWidth: 340 })
         .on('click', () => findCard(c.id));
     }
@@ -1982,25 +1982,12 @@
     swellField.setSamples(swell);
   }
 
-  // One arrow per spot, a little way out to sea so it clears the pin. Wind
-  // arrows point where the wind is blowing TO; swell arrows where it travels.
-  const ARROW = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l6 9h-3.5v11h-5V11H6z"/></svg>';
-  const arrowIcon = (toward, label, cls) => L.divIcon({
-    className: 'arrow-wrap',
-    html: `<span class="arrow ${cls}" style="--rot:${Math.round(toward)}deg">${ARROW}<b>${label}</b></span>`,
-    iconSize: [52, 40], iconAnchor: [26, 20],
-  });
-  const windClass = (ws) => (ws < 12 ? 'w0' : ws < 25 ? 'w1' : ws < 40 ? 'w2' : 'w3');
+  // The Wind / Swell overlays are the animated particle fields; the numbers
+  // live on the pin tags.
   function buildArrows() {
     if (!windLayer) return;
     windLayer.clearLayers();
     swellLayer.clearLayers();
-    for (const c of CAMS) {
-      const k = conditions[c.id] && conditions[c.id].now;
-      if (!k) continue;
-      windLayer.addLayer(L.marker(seaward(c, 1.3), { icon: arrowIcon(k.wd + 180, `${kts(k.ws)} kts`, windClass(k.ws)), interactive: false, keyboard: false }));
-      if (k.d != null) swellLayer.addLayer(L.marker(seaward(c, 2.6), { icon: arrowIcon(k.d + 180, `${hgt(k.h)} ${Math.round(k.p)}s`, 'swell'), interactive: false, keyboard: false }));
-    }
     if (windField) { windLayer.addLayer(windField); swellLayer.addLayer(swellField); }
     updateFields();
   }
