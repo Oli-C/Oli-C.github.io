@@ -1,35 +1,35 @@
 {
- "updated": "2026-10-27T17:58:33.123Z",
+ "updated": "2026-10-27T22:11:01.328Z",
  "wind": {
   "best_match": {
-   "n": 595,
-   "dir": 52.943,
-   "spd": 4.311
+   "n": 681,
+   "dir": 21.023,
+   "spd": 3.561
   },
   "ecmwf_ifs025": {
-   "n": 595,
-   "dir": 54.178,
-   "spd": 4.678
+   "n": 681,
+   "dir": 27.929,
+   "spd": 5.996
   },
   "gfs_seamless": {
-   "n": 595,
-   "dir": 45.858,
-   "spd": 4.889
+   "n": 681,
+   "dir": 23.931,
+   "spd": 5.685
   },
   "icon_seamless": {
-   "n": 595,
-   "dir": 51.187,
-   "spd": 4.305
+   "n": 681,
+   "dir": 22.088,
+   "spd": 3.516
   },
   "meteofrance_seamless": {
-   "n": 595,
-   "dir": 33.332,
-   "spd": 5.68
+   "n": 681,
+   "dir": 19.405,
+   "spd": 5.247
   },
   "ukmo_seamless": {
-   "n": 595,
-   "dir": 50.936,
-   "spd": 5.375
+   "n": 681,
+   "dir": 37.173,
+   "spd": 4.3
   }
  },
  "wave": {
@@ -64,9 +64,9 @@
    "dir": null
   }
  },
- "lastWindObs": "2026-10-27T17:00",
+ "lastWindObs": "2026-10-27T21:00",
  "lastWaveObs": "2026-10-23T14:00:00Z",
- "runs": 5,
+ "runs": 6,
  "stations": [
   "Setúbal, Areias",
   "Alcochete / Campo Tiro",
