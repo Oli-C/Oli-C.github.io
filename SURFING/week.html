@@ -98,6 +98,10 @@
   .day b { font-size: 14px; font-weight: 600; color: var(--fg); }
   .day .score { margin-top: 3px; }
   .day[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg-3)); color: var(--fg); }
+  /* Far-off or disputed days fade; --conf is set per element */
+  .day .score, .cell .score, .cell .bar { opacity: var(--conf, 1); }
+  .day .conf { font-size: 9px; color: var(--fg-muted); letter-spacing: 0.06em; text-transform: uppercase; margin-top: 2px; }
+  .confn { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pin); }
   .chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; }
   .chips::-webkit-scrollbar { display: none; }
   .chip {
@@ -230,7 +234,7 @@
      wind in two calls. */
   const DAYS = 7;
   const TTL = 60 * 60 * 1000;   // an hour; forecasts don't change faster than that
-  const VER = 1;
+  const VER = 2;
 
   const $ = (id) => document.getElementById(id);
   const list = $('list'), daysEl = $('days'), chips = $('chips'), empty = $('empty'), status = $('status');
@@ -256,12 +260,16 @@
     } catch {}
     const pts = CAMS.map(offshore);
     const lat = pts.map((p) => p[0]).join(','), lng = pts.map((p) => p[1]).join(',');
+    // Same multi-model blend as the live page: every wind and wave model's
+    // hourly series, outliers set aside, weighted (wind weights include what
+    // the live page has learned from the stations on this device).
     const [marine, wind] = await Promise.all([
-      fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&hourly=${MARINE.join()}&forecast_days=${DAYS}&timezone=auto`).then((r) => r.json()),
-      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=${WIND.join()}&daily=sunrise,sunset&forecast_days=${DAYS}&timezone=auto`).then((r) => r.json()),
+      fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&hourly=${MARINE.join()}&models=${modelIds(MARINE_MODELS)}&forecast_days=${DAYS}&timezone=auto`).then((r) => r.json()),
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=${WIND.join()}&models=${modelIds(WIND_MODELS)}&daily=sunrise,sunset&forecast_days=${DAYS}&timezone=auto`).then((r) => r.json()),
     ]);
     if (marine.error || wind.error) throw new Error(marine.reason || wind.reason);
     const M = asList(marine), W = asList(wind);
+    const windW = WIND_MODELS.map(modelWeight), marineW = MARINE_MODELS.map((mod) => mod.w);
     const next = {};
     CAMS.forEach((c, i) => {
       const m = M[i], w = W[i];
@@ -269,16 +277,16 @@
       const n = Math.min(m.hourly.time.length, w.hourly.time.length);
       const byDate = {};
       for (let j = 0; j < n; j++) {
-        const k = toK(row(m.hourly, j), row(w.hourly, j));
-        if (!k) continue;
+        const bh = blendHour(m.hourly, w.hourly, j, windW, marineW);
+        if (!bh) continue;
         const t = m.hourly.time[j], date = t.slice(0, 10);
-        (byDate[date] = byDate[date] || []).push({ t, ...k });
+        (byDate[date] = byDate[date] || []).push({ t, ...bh.k });
       }
       const days = Object.keys(byDate).sort().map((date, di) => {
         const hours = byDate[date];
         hours.forEach((k, j) => addTide(hours, k, j));   // tide relative to that day's range
         const sun = w.daily && w.daily.sunrise && w.daily.sunrise[di] ? { rise: w.daily.sunrise[di].slice(11, 16), set: w.daily.sunset[di].slice(11, 16) } : null;
-        return { date, hours, tides: tideEvents(hours), sun };
+        return { date, hours, tides: tideEvents(hours), sun, conf: dayConfidence(hours, di) };
       });
       next[c.id] = { days };
     });
@@ -331,8 +339,10 @@
     // Coast-wide headline per day: the best spot's score
     daysEl.innerHTML = ds.map((iso, i) => {
       const l = dayLabel(iso, i);
-      const best = CAMS.map((c) => digestOf(c, i)).filter(Boolean).sort((a, b) => b.top - a.top)[0];
-      return `<button class="day" type="button" data-i="${i}" aria-pressed="${i === dayIdx}"><small>${l.small}</small><b>${l.big}</b>${badge(best)}</button>`;
+      const ds = CAMS.map((c) => digestOf(c, i)).filter(Boolean);
+      const best = ds.slice().sort((a, b) => b.top - a.top)[0];
+      const conf = ds.length ? ds.reduce((a, d) => a + (d.conf == null ? 0.5 : d.conf), 0) / ds.length : null;
+      return `<button class="day" type="button" data-i="${i}" aria-pressed="${i === dayIdx}" style="--conf:${conf == null ? 1 : 0.55 + 0.45 * conf}"><small>${l.small}</small><b>${l.big}</b>${badge(best)}<small class="conf">${conf == null ? '' : confWord(conf)}</small></button>`;
     }).join('');
   }
 
@@ -351,6 +361,7 @@
       <span>Wind <b>${wind}</b> ${d.rel}</span>
       ${tide ? `<span>Tide <b>${tide}</b></span>` : ''}
       ${d.sun ? `<span>Light <b>${d.sun.rise}–${d.sun.set}</b></span>` : ''}
+      ${d.conf != null ? `<span class="confn lvl-${d.conf >= 0.75 ? 3 : d.conf >= 0.45 ? 2 : 1}">${confWord(d.conf)} confidence</span>` : ''}
     </div>`;
   }
 
@@ -367,7 +378,7 @@
         ${cams.map((c) => {
           const cells = ds.map((iso, i) => {
             const d = digestOf(c, i), l = dayLabel(iso, i);
-            return `<button class="cell ${d ? 'lvl-' + d.level : 'lvl-x'}" type="button" data-i="${i}" aria-pressed="${i === dayIdx}" title="${l.small} ${l.big}">
+            return `<button class="cell ${d ? 'lvl-' + d.level : 'lvl-x'}" type="button" data-i="${i}" aria-pressed="${i === dayIdx}" title="${l.small} ${l.big}${d && d.conf != null ? ` · ${confWord(d.conf)} confidence` : ''}" style="--conf:${d && d.conf != null ? 0.55 + 0.45 * d.conf : 1}">
               <small>${i === 0 ? 'Today' : DOW[new Date(iso + 'T12:00').getDay()]}</small>${badge(d)}<span class="bar"><i style="width:${d ? d.top * 10 : 0}%"></i></span>
             </button>`;
           }).join('');
@@ -401,7 +412,7 @@
   renderChips();
   load().then(() => {
     const ds = dates();
-    status.textContent = ds.length ? `Open-Meteo, ${ds.length} days from ${dayLabel(ds[0], 0).big}. Scores are each day's best window.` : 'Forecast unavailable right now.';
+    status.textContent = ds.length ? `${ds.length} days from ${dayLabel(ds[0], 0).big}, blended from ${WIND_MODELS.length} wind and ${MARINE_MODELS.length} wave models. Scores are each day's best window; faded days are less certain.` : 'Forecast unavailable right now.';
     render();
   }).catch(() => { status.textContent = 'Forecast unavailable right now.'; });
 </script>

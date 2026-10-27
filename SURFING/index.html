@@ -1459,11 +1459,9 @@
         const hours = [], srcAt = [];
         const n = Math.min(m.hourly.time.length, w.hourly.time.length);
         for (let j = 0; j < n; j++) {
-          const mRows = MARINE_MODELS.map((mod) => modelRow(m.hourly, j, MARINE, mod));
-          const wRows = WIND_MODELS.map((mod) => modelRow(w.hourly, j, WIND, mod));
-          const k = toK(blend(mRows, MARINE, marineW), blend(wRows, WIND, windW));
-          if (!k) continue;
-          k.model = { ws: k.ws, wd: k.wd };
+          const bh = blendHour(m.hourly, w.hourly, j, windW, marineW);
+          if (!bh) continue;
+          const { k, mRows, wRows } = bh;
           // A fresh station reading leans on the hours around it.
           if (ob) {
             const away = (new Date(m.hourly.time[j]) - new Date(`${ob.day}T${ob.t}`)) / 3.6e6;

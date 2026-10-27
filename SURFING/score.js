@@ -188,7 +188,7 @@ const offshore = (c) => {
   return [lat.toFixed(4), lng.toFixed(4)];
 };
 
-const MARINE = ['swell_wave_height', 'swell_wave_period', 'swell_wave_direction', 'wave_height', 'wave_period', 'wave_direction', 'wind_wave_height', 'sea_level_height_msl', 'sea_surface_temperature'];
+const MARINE = ['swell_wave_height', 'swell_wave_period', 'swell_wave_peak_period', 'swell_wave_direction', 'wave_height', 'wave_period', 'wave_direction', 'wind_wave_height', 'sea_level_height_msl', 'sea_surface_temperature'];
 const WIND = ['wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m', 'is_day', 'temperature_2m'];
 
 // Several models per metric, so one model's quirk doesn't decide a score.
@@ -328,17 +328,45 @@ function confidence(src, obs, k) {
 }
 const confWord = (c) => (c == null ? '' : c >= 0.75 ? 'High' : c >= 0.45 ? 'Medium' : 'Low');
 
+// One forecast hour from every model, blended. Returns the blended row
+// (with the models' spread and a copy of the model-only wind, for
+// confidence and for comparing against a station) plus the raw rows.
+function blendHour(mH, wH, j, windW, marineW) {
+  const mRows = MARINE_MODELS.map((mod) => modelRow(mH, j, MARINE, mod));
+  const wRows = WIND_MODELS.map((mod) => modelRow(wH, j, WIND, mod));
+  const k = toK(blend(mRows, MARINE, marineW), blend(wRows, WIND, windW));
+  if (!k) return null;
+  const wds = wRows.map((r) => r.wind_direction_10m).filter((v) => v != null);
+  const hs = mRows.map((r) => r.swell_wave_height ?? r.wave_height).filter((v) => v != null && v > 0.05);
+  k.spread = { wd: dirSpread(wds), h: hs.length > 1 ? +((Math.max(...hs) - Math.min(...hs)) / Math.max(...hs)).toFixed(2) : 0 };
+  k.model = { ws: k.ws, wd: k.wd };
+  return { k, mRows, wRows };
+}
+// 0–1 confidence for a forecast day: model spread (averaged over its
+// hours) costs, and so does distance into the future.
+function dayConfidence(hours, dayIdx) {
+  const sp = hours.map((k) => k.spread).filter(Boolean);
+  if (!sp.length) return null;
+  const wd = sp.reduce((a, s) => a + s.wd, 0) / sp.length, h = sp.reduce((a, s) => a + s.h, 0) / sp.length;
+  let c = 1 - lerp(wd, 30, 0, 120, 0.35) - lerp(h, 0.15, 0, 0.5, 0.3) - lerp(dayIdx, 1, 0, 6, 0.35);
+  return Math.max(0, Math.min(1, +c.toFixed(2)));
+}
+
 // IPMA (Portugal's met office) reports wind direction as a compass class.
 const IPMA_DIR = [null, 0, 45, 90, 135, 180, 225, 270, 315, 0];
 
 // Open-Meteo answers with an object for one location, an array for several.
 const asList = (r) => (Array.isArray(r) ? r : [r]);
 const row = (hourly, i) => Object.fromEntries(Object.keys(hourly).map((k) => [k, hourly[k][i]]));
+// Period is the PEAK period (what surf forecasts quote), which runs
+// 10–40% longer than the mean period; models without a peak figure fall
+// back to mean × 1.25.
 const toK = (m, w) => {
   const h = m.swell_wave_height ?? m.wave_height;
   if (h == null || w.wind_speed_10m == null) return null;
+  const p = m.swell_wave_peak_period ?? (m.swell_wave_period != null ? +(m.swell_wave_period * 1.25).toFixed(1) : m.wave_period);
   return {
-    h, p: m.swell_wave_period ?? m.wave_period, d: m.swell_wave_direction ?? m.wave_direction, wwh: m.wind_wave_height, th: m.wave_height,
+    h, p, d: m.swell_wave_direction ?? m.wave_direction, wwh: m.wind_wave_height, th: m.wave_height,
     ws: w.wind_speed_10m, wd: w.wind_direction_10m, wg: w.wind_gusts_10m, day: w.is_day == null ? 1 : w.is_day,
     tide: m.sea_level_height_msl, sst: m.sea_surface_temperature, air: w.temperature_2m,
   };
