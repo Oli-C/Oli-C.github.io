@@ -922,6 +922,9 @@
     { code: 'COL-001', title: 'allfield at Collect Radio', series: 'col', tag: 'COLLECT RADIO', date: '27.10.2026',
       when: '19:00 – 21:00', tz: 'Lisbon / London', start: '2026-10-27T19:00:00+00:00', until: '2026-10-27T21:00:00+00:00',
       img: 'assets/mix-col-001.jpeg', url: 'https://www.youtube.com/c/collectradio' },
+    { code: 'LUS-059', title: 'October Radio', series: 'lus', tag: 'LUSOPHONICA', date: '29.10.2026',
+      when: '12:00 – 14:00', tz: 'Lisbon / London', start: '2026-10-29T12:00:00+00:00', until: '2026-10-29T14:00:00+00:00',
+      img: 'assets/mix-lus-059.jpeg', url: 'https://www.lusophonica.com/' },
   ];
 
   // ============================================================================
