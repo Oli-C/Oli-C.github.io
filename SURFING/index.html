@@ -1461,6 +1461,7 @@
     .search input { height: 36px; padding: 6px 8px 5px 34px; border-radius: 10px; }
     .search svg { left: 10px; width: 16px; height: 16px; color: var(--fg); }
     .r1:not(:has(.search input:focus)):not(:has(.search input:not(:placeholder-shown))) .search input {
+      padding-right: 0;   /* folded: 34px icon inset + borders = exactly 36px */
       color: transparent;
       cursor: pointer;
     }
@@ -1589,7 +1590,9 @@
     .fb-row .k { flex-basis: 100%; }
     .fb-btn { font-size: 12px; padding: 6px 10px 4px; }
   }
-  @media (max-width: 380px) {
+  /* Most phones (up to 420px): the view you're not on shows as its icon,
+     so brand, search, toggle and ⋯ fit with even gaps and edge padding. */
+  @media (max-width: 420px) {
     #view-seg button:not([aria-pressed="true"]) { padding: 2px 8px 0; }
     #view-seg button:not([aria-pressed="true"]) span { display: none; }
   }
