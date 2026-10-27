@@ -655,84 +655,62 @@
     filter: invert(1) hue-rotate(180deg) brightness(0.82) contrast(0.9) saturate(0.55);
   }
 
-  /* Pins: a divIcon carrying the score, coloured by level. */
+  /* Pins: one capsule centred on the spot. Score on the left in its level
+     colour; swell, wind and the day's four bars on the right. Zoomed out
+     (below 11) only the score segment shows. */
   .pin-wrap { background: none; border: 0; }
   .pin {
-    position: relative;
+    position: absolute;
+    left: 0; top: 0;
+    transform: translate(-50%, -50%);
+    display: inline-flex;
+    align-items: stretch;
+    height: 22px;
+    border-radius: 11px;
+    background: rgba(8, 14, 20, 0.86);
+    border: 1.5px solid rgba(255,255,255,0.9);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    white-space: nowrap;
+    transition: transform .2s var(--ease);
+  }
+  .pin .sc {
     display: grid;
     place-items: center;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
+    min-width: 30px;
+    padding: 1px 6px 0;
+    border-radius: 9px 0 0 9px;
     font-size: 12px;
     font-weight: 700;
     line-height: 1;
-    padding-top: 1px;
     color: var(--ink);
     background: var(--pin);
-    border: 2px solid #fff;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.45);
-    transition: transform .2s var(--ease);
   }
-  .pin.lvl-x { border-style: dashed; border-color: var(--fg-muted); }
-  .pin.lvl-4::after {
-    content: "";
-    position: absolute;
-    inset: -2px;
-    border-radius: 50%;
-    animation: pulse-pin 2s infinite;
-  }
-  @keyframes pulse-pin {
-    0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--lvl-4) 60%, transparent); }
-    70%  { box-shadow: 0 0 0 10px transparent; }
-    100% { box-shadow: 0 0 0 0 transparent; }
-  }
-  .leaflet-marker-icon:hover .pin, .leaflet-marker-icon.hot .pin { transform: scale(1.18); }
+  .pin .d { display: inline-flex; align-items: center; gap: 5px; padding: 0 7px 0 6px; color: #fff; }
+  .pin .row { display: inline-flex; align-items: center; gap: 2px; font-size: 9px; line-height: 1; color: rgba(255,255,255,0.75); }
+  .pin .row em { font-style: normal; font-weight: 700; font-size: 10px; color: #fff; }
+  .pin .row svg { width: 10px; height: 10px; fill: currentColor; transform: rotate(var(--rot)); flex: none; }
+  .pin .swell svg { color: #4fc3dc; }
+  /* Wind figure coloured by relation: offshore green, cross amber, onshore red */
+  .pin .wind.off em { color: #9eb05c; }
+  .pin .wind.cross em { color: #e3a23a; }
+  .pin .wind.on em { color: #e5484d; }
+  .pin .wind svg { color: rgba(255,255,255,0.85); }
+  .pin .mini { height: 12px; gap: 1.5px; }
+  .pin .mini i { width: 3px; }
+  .pin .mini i.now { outline-color: rgba(255,255,255,0.8); }
+  .pin.lvl-x .sc { border: 0; }
+  .pin.lvl-4 .sc { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.4); }
+  .leaflet-container:not(.labels) .pin .d { display: none; }
+  .leaflet-container:not(.labels) .pin .sc { border-radius: 9px; }
+  .leaflet-marker-icon:hover .pin, .leaflet-marker-icon.hot .pin { transform: translate(-50%, -50%) scale(1.1); }
   .leaflet-marker-icon.hot { z-index: 1000 !important; }
 
   /* Animated particle field (wind / swell), drawn between tiles and pins */
   .particles { pointer-events: none; mix-blend-mode: screen; }
   [data-theme="light"] .particles { mix-blend-mode: multiply; opacity: 0.85; }
 
-  /* Infographic card beside each pin (from zoom 11): name caption, a swell
-     row and a wind row with direction glyphs, and the day's four bars. */
-  .card {
-    position: absolute;
-    left: 34px;
-    top: 50%;
-    transform: translateY(-50%);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 18px;
-    padding: 0 6px 0 5px;
-    border-radius: 9px;
-    border-left: 3px solid var(--pin);
-    background: rgba(8, 14, 20, 0.84);
-    color: #fff;
-    white-space: nowrap;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.45);
-    pointer-events: none;
-  }
-  /* Placement pass may flip a card to the other side, or above / below. */
-  .card.pos-l { left: auto; right: 34px; }
-  .card.pos-t { left: 50%; top: auto; bottom: 34px; transform: translateX(-50%); }
-  .card.pos-b { left: 50%; top: 34px; transform: translateX(-50%); }
-  .card.hide { display: none; }
-  .card .nm { font-size: 9px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: rgba(255,255,255,0.7); line-height: 1; }
-  .card .row { display: inline-flex; align-items: center; gap: 3px; font-size: 9px; line-height: 1; color: rgba(255,255,255,0.78); }
-  .card .row em { font-style: normal; font-weight: 700; color: #fff; font-size: 10px; }
-  .card .row svg { width: 10px; height: 10px; fill: currentColor; transform: rotate(var(--rot)); flex: none; }
-  .card .swell svg { color: #4fc3dc; }
-  .card .wind.w0 svg { color: #9eb05c; }
-  .card .wind.w1 svg { color: #e3a23a; }
-  .card .wind.w2 svg { color: #ff8200; }
-  .card .wind.w3 svg { color: #e5484d; }
-  .card .mini { height: 12px; gap: 1.5px; }
-  .card .mini i { width: 3px; }
-  .card .none { font-size: 9px; color: rgba(255,255,255,0.6); }
-  .leaflet-container:not(.labels) .card { display: none; }
-  .leaflet-marker-icon.hot { z-index: 1000 !important; }
+  /* Legend: wind-colour key alongside the score levels */
+  .legend .wl i { border-radius: 2px; }
 
   /* Leaflet chrome in our palette */
   .leaflet-container { font-family: inherit; background: var(--bg-3); }
@@ -1186,6 +1164,9 @@
           <span class="lvl-2"><i></i>Fair</span>
           <span class="lvl-3"><i></i>Good</span>
           <span class="lvl-4"><i></i>Epic</span>
+          <span class="wl" style="--pin:#9eb05c"><i></i>wind off</span>
+          <span class="wl" style="--pin:#e3a23a"><i></i>cross</span>
+          <span class="wl" style="--pin:#e5484d"><i></i>on</span>
         </div>
       </div>
       <p class="map-hint" id="map-hint">Pins show each spot’s score; arrows show wind and swell. Tap a pin for details, directions and the cam. <a id="windy" href="https://www.windy.com/-Wind-wind?38.70,-9.40,9" target="_blank" rel="noopener noreferrer">Open this view in Windy ↗</a></p>
@@ -1727,56 +1708,24 @@
   const REL_SHORT = { offshore: 'off', onshore: 'on', 'cross-shore': 'cross' };
   const GLYPH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l6 9h-3.5v11h-5V11H6z"/></svg>';
   const windClass = (ws) => (ws < 12 ? 'w0' : ws < 25 ? 'w1' : ws < 40 ? 'w2' : 'w3');
-  // Short names for the cards; the full name is in the popup and viewer.
-  const SHORT = { 'nazare-norte': 'Nazaré', 'sao-pedro-estoril': 'S. Pedro', 'fonte-da-telha': 'F. Telha', 'praia-grande-norte': 'P. Grande N', 'praia-grande-sul': 'P. Grande S' };
-  const shortName = (c) => SHORT[c.id] || c.name.replace(/^Praia (do|da|de) /, '').replace(/ Norte$/, ' N').replace(/ Sul$/, ' S');
+  // Everything lives in the pin itself: score segment, then swell (arrow =
+  // direction of travel, height, period), wind (arrow = blowing to, knots
+  // coloured off / cross / on) and the day's four bars.
   const pinIcon = (c) => {
     const r = scoreOf(c), k = conditions[c.id] && conditions[c.id].now;
     const lvl = r ? 'lvl-' + r.level : 'lvl-x';
-    // Arrows point the way swell travels / wind blows (direction + 180).
-    const body = k ? `
+    const data = k ? `<span class="d">
         <span class="row swell"><span style="display:inline-flex;--rot:${k.d != null ? Math.round(k.d + 180) : 0}deg">${k.d != null ? GLYPH : ''}</span><em>${hgt(k.h)}</em>${Math.round(k.p)}s</span>
-        <span class="row wind ${windClass(k.ws)}"><span style="display:inline-flex;--rot:${Math.round(k.wd + 180)}deg">${GLYPH}</span><em>${kts(k.ws)}kt</em>${r ? REL_SHORT[r.wind] : ''}</span>
-        ${miniBars(c)}`
-      : '<span class="none">no data</span>';
+        <span class="row wind ${r ? REL_SHORT[r.wind] : ''}"><span style="display:inline-flex;--rot:${Math.round(k.wd + 180)}deg">${GLYPH}</span><em>${kts(k.ws)}kt</em></span>
+        ${miniBars(c)}</span>` : '';
     return L.divIcon({
       className: 'pin-wrap',
-      html: `<span class="pin ${lvl}">${r ? fmt(r.total) : '·'}</span><span class="card ${lvl}"><b class="nm">${esc(shortName(c))}</b>${body}</span>`,
-      iconSize: [30, 30],
-      iconAnchor: [15, 15],
-      popupAnchor: [0, -16],
+      html: `<span class="pin ${lvl}" title="${esc(c.name)}"><span class="sc">${r ? fmt(r.total) : '·'}</span>${data}</span>`,
+      iconSize: [0, 0],
+      iconAnchor: [0, 0],
+      popupAnchor: [0, -14],
     });
   };
-
-  // Label placement: give each visible card the first slot (right, left,
-  // above, below its pin) that doesn't overlap a placed card or sit on
-  // another pin; hide it if none fits. Better-scoring spots choose first.
-  let placeRaf = 0;
-  function placeCards() {
-    if (!map || !map.getContainer().classList.contains('labels')) return;
-    const size = map.getSize(), placed = [];
-    const items = CAMS.filter((c) => markers[c.id] && map.hasLayer(markers[c.id]))
-      .map((c) => ({ c, p: map.latLngToContainerPoint([c.lat, c.lng]), s: (scoreOf(c) || { total: -1 }).total }))
-      .filter((x) => x.p.x > -200 && x.p.y > -60 && x.p.x < size.x + 200 && x.p.y < size.y + 60)
-      .sort((a, b) => b.s - a.s || a.p.y - b.p.y);
-    for (const { c, p } of items) {
-      const el = markers[c.id].getElement(), card = el && el.querySelector('.card');
-      if (!card) continue;
-      card.classList.remove('pos-l', 'pos-t', 'pos-b', 'hide');
-      const w = card.offsetWidth || 150, h = card.offsetHeight || 18;
-      const slots = [['', p.x + 19, p.y - h / 2], ['pos-l', p.x - 19 - w, p.y - h / 2], ['pos-t', p.x - w / 2, p.y - 19 - h], ['pos-b', p.x - w / 2, p.y + 19]];
-      let fit = null;
-      for (const [cls, x, y] of slots) {
-        const r = { x1: x, y1: y, x2: x + w, y2: y + h };
-        const hitsCard = placed.some((q) => !(r.x2 < q.x1 || r.x1 > q.x2 || r.y2 < q.y1 || r.y1 > q.y2));
-        const hitsPin = items.some((o) => o.c !== c && o.p.x > r.x1 - 16 && o.p.x < r.x2 + 16 && o.p.y > r.y1 - 16 && o.p.y < r.y2 + 16);
-        if (!hitsCard && !hitsPin) { fit = [cls, r]; break; }
-      }
-      if (fit) { if (fit[0]) card.classList.add(fit[0]); placed.push(fit[1]); }
-      else card.classList.add('hide');
-    }
-  }
-  const placeSoon = () => { cancelAnimationFrame(placeRaf); placeRaf = requestAnimationFrame(placeCards); };
 
   const popupHtml = (c) => {
     const cond = condText(c);
@@ -1855,9 +1804,9 @@
     const windy = $('windy');
     const syncWindy = () => { const c = map.getCenter(); windy.href = `https://www.windy.com/-Wind-wind?${c.lat.toFixed(3)},${c.lng.toFixed(3)},${Math.max(5, Math.min(11, map.getZoom()))}`; };
     map.on('moveend', syncWindy);
-    // Pin cards only once there's room for them, then placed to avoid each other.
-    const labels = () => { map.getContainer().classList.toggle('labels', map.getZoom() >= 11); placeSoon(); };
-    map.on('zoomend moveend resize', labels);
+    // Pins show their data segment only once there's room for it.
+    const labels = () => map.getContainer().classList.toggle('labels', map.getZoom() >= 11);
+    map.on('zoomend', labels);
     labels();
     buildArrows();
 
@@ -1891,14 +1840,12 @@
       if (target.length === 1) map.setView(target[0], 14);
       else map.fitBounds(target, { padding: [40, 40], maxZoom: 14 });
     }
-    placeSoon();
   }
 
   function refreshPins() {
     if (!map) return;
     for (const c of CAMS) markers[c.id].setIcon(pinIcon(c));
     buildArrows();
-    placeSoon();
   }
 
   /* ---------- Animated particle field ----------
