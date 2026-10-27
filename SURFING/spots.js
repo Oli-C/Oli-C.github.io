@@ -271,6 +271,7 @@ const CAMS = [
     best: { ...CAPARICA, notes: 'The northernmost Caparica beach and the roomiest. Waves are flatter and fatter than further south, a good hunting ground for learners and improvers, though an E wind in autumn can throw up glassy little wedges. ' + CAPARICA.notes },
     type:    'hls',
     embed:   'https://deliverys5.quanteec.com/contents/encodings/live/f829148a-5ae5-4a90-3735-3530-6d61-63-b215-b6a95fb68802d/master.m3u8',
+    alt:     'https://video-auth1.iol.pt/auth-beachcam/bccostasaojoao/playlist.m3u8',   // same cam straight from MEO, tried if viewsurf drops
     poster:  'https://deliverys5.quanteec.com/contents/encodings/live/f829148a-5ae5-4a90-3735-3530-6d61-63-b215-b6a95fb68802d/poster.jpg',
     fallback: 'https://gosurf.fr/webcam/fr/124/Costa-Caparica-Praia-do-Sao-Joao',
     link:    'https://gosurf.fr/webcam/fr/124/Costa-Caparica-Praia-do-Sao-Joao',

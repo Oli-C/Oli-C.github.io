@@ -1703,24 +1703,33 @@
     const onPlaying = () => { video.classList.add('ready'); card.classList.add('streaming'); };
     video.addEventListener('playing', onPlaying);
     t.cleanup = () => video.removeEventListener('playing', onPlaying);
-    const fail = () => { stopTile(c.id); t.dead = true; };
-
-    if (nativeHls) {
-      video.addEventListener('error', fail, { once: true });
-      video.src = c.embed;
-      video.play().catch(() => {});
-      return;
-    }
-    if (!window.Hls || !Hls.isSupported()) { t.active = false; return; }
-    t.hls = new Hls(TILE_HLS);
-    t.hls.on(Hls.Events.ERROR, (_, data) => {
-      if (!data.fatal) return;
-      if (data.type === Hls.ErrorTypes.MEDIA_ERROR && t.hls) return t.hls.recoverMediaError();
-      fail();
-    });
-    t.hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
-    t.hls.loadSource(c.embed);
-    t.hls.attachMedia(video);
+    // A spot with an `alt` stream (same cam from another host) gets one
+    // more go on that before the tile is written off.
+    let src = c.embed;
+    const fail = () => {
+      if (c.alt && src !== c.alt) { src = c.alt; return load(); }
+      stopTile(c.id); t.dead = true;
+    };
+    const load = () => {
+      if (nativeHls) {
+        video.addEventListener('error', fail, { once: true });
+        video.src = src;
+        video.play().catch(() => {});
+        return;
+      }
+      if (!window.Hls || !Hls.isSupported()) { t.active = false; return; }
+      if (t.hls) { try { t.hls.destroy(); } catch {} }
+      t.hls = new Hls(TILE_HLS);
+      t.hls.on(Hls.Events.ERROR, (_, data) => {
+        if (!data.fatal) return;
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR && t.hls) return t.hls.recoverMediaError();
+        fail();
+      });
+      t.hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+      t.hls.loadSource(src);
+      t.hls.attachMedia(video);
+    };
+    load();
   }
 
   function stopTile(id) {
@@ -2119,20 +2128,30 @@
       await Promise.all(libs);
       if (gone()) return;
 
-      if (nativeHls) {
-        video.src = c.embed;
-        video.addEventListener('error', () => streamFailed(c, 'Stream unavailable right now.'), { once: true });
-      } else {
-        if (!window.Hls.isSupported()) return streamFailed(c, 'This browser can’t play live streams.');
-        hls = new Hls({ liveDurationInfinity: true, enableWorker: true });
-        hls.on(Hls.Events.ERROR, (_, data) => {
-          if (!data.fatal) return;
-          if (data.type === Hls.ErrorTypes.MEDIA_ERROR) return hls.recoverMediaError();
-          streamFailed(c, 'Stream unavailable right now.');
-        });
-        hls.loadSource(c.embed);
-        hls.attachMedia(video);
-      }
+      // Try the alternate host (same cam) once before giving up.
+      let src = c.embed;
+      const failed = () => {
+        if (c.alt && src !== c.alt && !gone()) { src = c.alt; return load(); }
+        streamFailed(c, 'Stream unavailable right now.');
+      };
+      const load = () => {
+        if (nativeHls) {
+          video.addEventListener('error', failed, { once: true });
+          video.src = src;
+        } else {
+          if (!window.Hls.isSupported()) return streamFailed(c, 'This browser can’t play live streams.');
+          if (hls) { try { hls.destroy(); } catch {} }
+          hls = new Hls({ liveDurationInfinity: true, enableWorker: true });
+          hls.on(Hls.Events.ERROR, (_, data) => {
+            if (!data.fatal) return;
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) return hls.recoverMediaError();
+            failed();
+          });
+          hls.loadSource(src);
+          hls.attachMedia(video);
+        }
+      };
+      load();
 
       player = new Plyr(video, {
         // Cams have no audio, so no mute / volume controls to confuse things.
