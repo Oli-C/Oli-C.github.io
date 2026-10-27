@@ -461,8 +461,13 @@
     grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
     gap: 14px;
   }
+  /* One area picked (or a search): let its few cams spread to fill the room.
+     Four become a 2×2 of big previews, two sit side by side, one is capped. */
+  .layout.filtered .cards { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+  .layout[data-view="grid"].filtered .cards { grid-template-columns: repeat(auto-fit, minmax(min(100%, 620px), 1fr)); gap: 16px; }
+  .layout.filtered .area[data-count="1"] .cards { grid-template-columns: minmax(0, 1100px); justify-content: center; }
   @media (max-width: 640px) {
-    .cards, .layout[data-view="grid"] .cards { grid-template-columns: 1fr; gap: 12px; }
+    .cards, .layout[data-view="grid"] .cards, .layout.filtered .cards { grid-template-columns: 1fr; gap: 12px; }
   }
 
   .cam {
@@ -1529,8 +1534,10 @@
         if (ok) n++;
       }
       sec.hidden = n === 0;
+      sec.dataset.count = n;
       shown += n;
     }
+    layout.classList.toggle('filtered', area !== 'All' || !!q.value.trim());
     empty.classList.toggle('show', shown === 0 && effectiveView() !== 'map');
     if (map) syncMarkers(true);
     syncTiles();
