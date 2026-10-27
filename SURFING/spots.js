@@ -54,7 +54,8 @@ const CAPARICA = {
   notes: 'Jetty-sheltered beach breaks with gentle banks, the surf-school stretch south of Lisbon. Takes most W/NW swell and works on every tide, best as it rises; above ~2 m it starts to wall up. E/NE wind cleans it; the summer nortada blows it side-on.',
 };
 
-// Both Nazaré cams look at the same beach.
+// Praia do Norte's local knowledge, kept separate so another cam on the
+// same beach can share it.
 const NAZARE = {
   swell: [260, 330], size: [0.6, 2.5], period: 9, exposure: 0.9, gain: 1.4, wind: [60, 150], tide: { range: [0.2, 0.8], dir: null, text: 'mid' },
   notes: 'The big-wave beach, the Nazaré Canyon focuses any W–NW swell into something far heavier than the numbers suggest. For paddling it’s a powerful, shifty beach break that’s best small (under ~2 m), mid tide, with an E/SE wind; above that it’s tow-in country and the rips are serious. Experienced surfers only. Praia da Vila, round the headland, is the gentler option.',
@@ -77,19 +78,6 @@ const CAMS = [
     thumb:   'https://films.viewsurf.com/BCnazareparadonorte_1_1.stream/media.jpg',
   },
   {
-    id:      'nazare-norte-panoramica',
-    name:    'Praia do Norte panorâmica',
-    town:    'Nazaré', area: 'Nazaré', zone: 'Praia do Norte',
-    country: 'Portugal',
-    tags:    ['beach break', 'big wave', 'canyon', 'heavy', 'panoramic', 'farol'],
-    lat: 39.6052, lng: -9.0852, faces: 290,   // the lighthouse fort, looking north over the whole beach
-    best: NAZARE,
-    type:    'hls',
-    embed:   'https://video-auth1.iol.pt/auth-beachcam/nazareparadonorte/playlist.m3u8',
-    link:    'https://beachcam.meo.pt/livecams/praia-do-norte/',
-    source:  'MEO Beachcam',
-  },
-  {
     id:      'peniche-lagide',
     name:    'Praia do Lagide',
     town:    'Peniche', area: 'Peniche', zone: 'Baleal',
@@ -107,22 +95,6 @@ const CAMS = [
     link:    'https://gosurf.fr/webcam/fr/102/Peniche-Praia-do-Lagide',
     source:  'MEO Beachcam via viewsurf',
     thumb:   'https://films.viewsurf.com/BClagide_1_1.stream/media.jpg',
-  },
-  {
-    id:      'baleal-panoramica',
-    name:    'Baleal panorâmica',
-    town:    'Peniche', area: 'Peniche', zone: 'Baleal',
-    country: 'Portugal',
-    tags:    ['beach break', 'beginner', 'baleal', 'cantinho da baía', 'panoramic'],
-    lat: 39.3712, lng: -9.3418, faces: 235,   // the Baleal isthmus, looking south over Cantinho da Baía and the bay
-    best: {
-      swell: [250, 330], size: [0.5, 2.0], period: 8, exposure: 0.55, wind: [330, 80], tide: { range: [0.3, 0.85], dir: 'rising', text: 'mid to high, on the push' },
-      notes: 'The sheltered south side of the Baleal isthmus: Cantinho da Baía and the long bay back towards Peniche. W–NW swell wraps in and loses size, so it stays surfable when Supertubos and the open beaches are maxed, and it’s the surf-school default when things are small. N/NE wind is offshore here while it blows the north side out. Mid to high on the push rounds out the beach-break banks; low tide gets weak and flat.',
-    },
-    type:    'hls',
-    embed:   'https://video-auth1.iol.pt/auth-beachcam/bcbalealgeral/playlist.m3u8',
-    link:    'https://beachcam.meo.pt/livecams/peniche-baleal-panoramica/',
-    source:  'MEO Beachcam',
   },
   {
     id:      'peniche-supertubos',
