@@ -999,6 +999,11 @@
   .src-row b { color: var(--fg); font-weight: 600; }
   .src-k { flex: 0 0 56px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
   .src-sum { color: var(--fg); }
+  .src-row small { font-size: 10px; color: var(--fg-muted); }
+  .src-out { opacity: 0.55; text-decoration: line-through; text-decoration-color: var(--fg-muted); }
+  .src-out small { text-decoration: none; }
+  .src-conf { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pin); }
+  .src-note { margin-top: 8px; font-size: 11px; color: var(--fg-muted); line-height: 1.4; }
   .factors { display: grid; gap: 8px; }
   .factor {
     display: grid;
@@ -1223,7 +1228,7 @@
     leaflet: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js',
   };
   const COND_TTL = 30 * 60 * 1000; // re-fetch conditions after 30 minutes
-  const COND_VER = 4;              // bump when the cached shape changes
+  const COND_VER = 5;              // bump when the cached shape changes
   // Tiles keep a short buffer and start on the lowest rendition — they're
   // small, and ten of them at once adds up.
   const TILE_HLS = {
@@ -1387,7 +1392,7 @@
         for (const h of hoursDesc) {
           const o = observations[h] && observations[h][id];
           if (!o || o.intensidadeVentoKM == null || o.intensidadeVentoKM < 0) continue;
-          best = { station: s.properties.localEstacao.replace(/\s*\(.*\)$/, ''), km: Math.round(d), t: h.slice(11, 16), ws: o.intensidadeVentoKM, wd: IPMA_DIR[o.idDireccVento] ?? null, temp: o.temperatura >= -50 ? o.temperatura : null };
+          best = { station: s.properties.localEstacao.replace(/\s*\(.*\)$/, ''), km: Math.round(d), day: h.slice(0, 10), t: h.slice(11, 16), ageH: +((Date.now() - new Date(h)) / 3.6e6).toFixed(1), ws: o.intensidadeVentoKM, wd: IPMA_DIR[o.idDireccVento] ?? null, temp: o.temperatura >= -50 ? o.temperatura : null };
           break;
         }
       }
@@ -1425,18 +1430,48 @@
       const next = {};
       let when = '';
       const nowMs = Date.now();
+      // Teach the wind models from any station hour we haven't scored before.
+      let seen = [];
+      try { seen = JSON.parse(localStorage.getItem('surf-skill-seen') || '[]'); } catch {}
+      let learned = false;
+      const marineW = MARINE_MODELS.map((mod) => mod.w);
       CAMS.forEach((c, i) => {
         const m = M[i], w = W[i];
         if (!m || !w || !m.hourly || !w.hourly) return;
+        const ob = obs[c.id] || null;
+        // A model's miss against this cam's station, if the hour lines up
+        // and we haven't counted this reading already.
+        // One lesson per station per hour (several cams share a station), and
+        // direction only counts once there's enough wind to have one.
+        if (ob) {
+          const stamp = `${ob.station}|${ob.day}T${ob.t}`;
+          const j = w.hourly.time.findIndex((t) => t.slice(0, 10) === ob.day && hourOf(t) === parseInt(ob.t, 10));
+          if (j >= 0 && !seen.includes(stamp)) {
+            WIND_MODELS.forEach((mod) => {
+              const r = modelRow(w.hourly, j, WIND, mod);
+              if (r.wind_speed_10m == null) return;
+              const dirErr = ob.wd != null && ob.ws >= 8 && r.wind_direction_10m != null ? angleDiff(r.wind_direction_10m, ob.wd) : null;
+              learn(mod.key, dirErr, Math.abs(r.wind_speed_10m - ob.ws));
+            });
+            seen.push(stamp); learned = true;
+          }
+        }
+        const windW = WIND_MODELS.map(modelWeight);
         const hours = [], srcAt = [];
         const n = Math.min(m.hourly.time.length, w.hourly.time.length);
         for (let j = 0; j < n; j++) {
           const mRows = MARINE_MODELS.map((mod) => modelRow(m.hourly, j, MARINE, mod));
           const wRows = WIND_MODELS.map((mod) => modelRow(w.hourly, j, WIND, mod));
-          const k = toK(blend(mRows, MARINE), blend(wRows, WIND));
+          const k = toK(blend(mRows, MARINE, marineW), blend(wRows, WIND, windW));
           if (!k) continue;
+          k.model = { ws: k.ws, wd: k.wd };
+          // A fresh station reading leans on the hours around it.
+          if (ob) {
+            const away = (new Date(m.hourly.time[j]) - new Date(`${ob.day}T${ob.t}`)) / 3.6e6;
+            if (away >= -0.5 && away <= 2.5) applyObs(k, ob, obsWeight(ob, Math.max(0, away)));
+          }
           hours.push({ t: m.hourly.time[j], ...k });
-          srcAt.push({ mRows, wRows });
+          srcAt.push({ mRows, wRows, windW });
         }
         if (!hours.length) return;
         hours.forEach((k, j) => addTide(hours, k, j));
@@ -1446,19 +1481,27 @@
         hours.forEach((k, j) => { const d = Math.abs(new Date(k.t) - nowMs); if (d < nearD) { nearD = d; near = j; } });
         const now = { ...hours[near] };
         const { mRows, wRows } = srcAt[near];
-        const windSrc = wRows.map((r, x) => ({ name: WIND_MODELS[x].name, ws: r.wind_speed_10m, wd: r.wind_direction_10m })).filter((r) => r.ws != null);
-        const swellSrc = mRows.map((r, x) => ({ name: MARINE_MODELS[x].name, h: r.swell_wave_height ?? r.wave_height, p: r.swell_wave_period ?? r.wave_period, d: r.swell_wave_direction ?? r.wave_direction })).filter((r) => r.h != null && r.h > 0.05);
-        const hs = swellSrc.map((r) => r.h);
+        const windSrc = wRows.map((r, x) => ({ name: WIND_MODELS[x].name, w: +srcAt[near].windW[x].toFixed(2), n: (skill[WIND_MODELS[x].key] || {}).n || 0, ws: r.wind_speed_10m, wd: r.wind_direction_10m })).filter((r) => r.ws != null);
+        const swellSrc = mRows.map((r, x) => ({ name: MARINE_MODELS[x].name, w: MARINE_MODELS[x].w, h: r.swell_wave_height ?? r.wave_height, p: r.swell_wave_period ?? r.wave_period, d: r.swell_wave_direction ?? r.wave_direction })).filter((r) => r.h != null && r.h > 0.05);
+        // Flag the ones the blend set aside, so the Sources panel can say so.
+        const wdOut = outliers(windSrc.map((r) => r.wd), true), wsOut = outliers(windSrc.map((r) => r.ws), false);
+        windSrc.forEach((r, x) => { r.out = wdOut.has(x) || wsOut.has(x); });
+        const hOut = outliers(swellSrc.map((r) => r.h), false), dOut = outliers(swellSrc.map((r) => r.d).filter((v) => v != null), true);
+        swellSrc.forEach((r, x) => { r.out = hOut.has(x) || dOut.has(x); });
+        const hs = swellSrc.map((r) => r.h), wss = windSrc.map((r) => r.ws);
         now.src = {
           wind: windSrc, swell: swellSrc,
           windSpread: dirSpread(windSrc.map((r) => r.wd).filter((v) => v != null)),
+          wsSpread: wss.length ? Math.max(...wss) - Math.min(...wss) : 0,
           hMin: hs.length ? Math.min(...hs) : null, hMax: hs.length ? Math.max(...hs) : null, hSpread: hs.length ? Math.max(...hs) - Math.min(...hs) : 0,
         };
-        if (obs[c.id]) now.obs = obs[c.id];
+        if (ob) now.obs = ob;
+        now.conf = confidence(now.src, ob, now);
         const sun = w.daily && w.daily.sunrise ? { rise: (w.daily.sunrise[0] || '').slice(11, 16), set: (w.daily.sunset[0] || '').slice(11, 16) } : null;
         next[c.id] = { now, hours, sun, tides: tideEvents(hours), t: now.t };
         when = when || (now.t || '').slice(11, 16);
       });
+      if (learned) { saveSkill(); try { localStorage.setItem('surf-skill-seen', JSON.stringify(seen.slice(-200))); } catch {} }
       conditions = next;
       condNote = when ? `Scores from Open-Meteo swell, wind and tide at ${when} local, judged against each spot’s usual best.` : 'Conditions unavailable right now';
       try { localStorage.setItem('surf-cond', JSON.stringify({ v: COND_VER, ids, day: today, t: Date.now(), data: conditions, note: condNote })); } catch {}
@@ -2087,15 +2130,19 @@
     const k = conditions[c.id] && conditions[c.id].now;
     const el = $('v-src');
     if (!k || !k.src) { el.hidden = true; el.innerHTML = ''; return; }
-    const wind = k.src.wind.map((s) => `<span><b>${esc(s.name)}</b> ${kts(s.ws)} kts${s.wd != null ? ' ' + dirName(s.wd) : ''}</span>`).join('');
-    const swell = k.src.swell.map((s) => `<span><b>${esc(s.name)}</b> ${hgt(s.h)}${s.p != null ? ' ' + Math.round(s.p) + ' s' : ''}${s.d != null ? ' ' + dirName(s.d) : ''}</span>`).join('');
-    const obs = k.obs ? `<div class="src-row"><span class="src-k">Measured</span><span><b>${esc(k.obs.station)}</b> (${k.obs.km} km, ${k.obs.t}) ${kts(k.obs.ws)} kts${k.obs.wd != null ? ' ' + dirName(k.obs.wd) : ''}${k.obs.temp != null ? ` · ${Math.round(k.obs.temp)}°C` : ''}</span></div>` : '';
+    const wt = (w) => `<small>×${w.toFixed(1)}</small>`;
+    const wind = k.src.wind.map((s) => `<span class="${s.out ? 'src-out' : ''}" title="${s.out ? 'Outlier, left out of the blend' : s.n ? `${s.n} station checks on this device` : 'base weight'}"><b>${esc(s.name)}</b> ${kts(s.ws)} kts${s.wd != null ? ' ' + dirName(s.wd) : ''} ${s.out ? '<small>ignored</small>' : wt(s.w)}</span>`).join('');
+    const swell = k.src.swell.map((s) => `<span class="${s.out ? 'src-out' : ''}" title="${s.out ? 'Outlier, left out of the blend' : 'base weight'}"><b>${esc(s.name)}</b> ${hgt(s.h)}${s.p != null ? ' ' + Math.round(s.p) + ' s' : ''}${s.d != null ? ' ' + dirName(s.d) : ''} ${s.out ? '<small>ignored</small>' : wt(s.w)}</span>`).join('');
+    const obs = k.obs ? `<div class="src-row"><span class="src-k">Measured</span><span><b>${esc(k.obs.station)}</b> (${k.obs.km} km, ${k.obs.t}) ${kts(k.obs.ws)} kts${k.obs.wd != null ? ' ' + dirName(k.obs.wd) : ''}${k.obs.temp != null ? ` · ${Math.round(k.obs.temp)}°C` : ''} ${k.obsW ? wt(k.obsW) : '<small>not used</small>'}</span></div>` : '';
+    const conf = k.conf != null ? `<span class="src-conf lvl-${k.conf >= 0.75 ? 3 : k.conf >= 0.45 ? 2 : 1}">${confWord(k.conf)} confidence</span>` : '';
+    const checks = k.src.wind.reduce((a, s) => a + (s.n || 0), 0);
     el.hidden = false;
     el.innerHTML = `
-      <span class="k">Sources</span>
-      <div class="src-row"><span class="src-k">Wind</span>${wind}<span class="src-sum">→ ${kts(k.ws)} kts ${dirName(k.wd)}${k.src.windSpread ? `, ${k.src.windSpread}° spread` : ''}</span></div>
+      <div class="today-head"><span class="k">Sources</span>${conf}</div>
+      <div class="src-row"><span class="src-k">Wind</span>${wind}<span class="src-sum">→ ${kts(k.model ? k.model.ws : k.ws)} kts ${dirName(k.model ? k.model.wd : k.wd)} from the models${k.obsW ? `, ${kts(k.ws)} kts ${dirName(k.wd)} with the station` : ''}${k.src.windSpread ? ` · ${k.src.windSpread}° spread` : ''}</span></div>
       <div class="src-row"><span class="src-k">Swell</span>${swell}<span class="src-sum">→ ${hgt(k.h)} ${Math.round(k.p)} s ${k.d != null ? dirName(k.d) : ''}</span></div>
-      ${obs}`;
+      ${obs}
+      <div class="src-note">Outliers are set aside, then models are blended by weight: grid resolution, and for wind how well each has matched the nearby station${checks ? ` (${checks} checks so far on this device)` : ''}. A fresh, close station reading is folded into the current wind.</div>`;
   }
 
   function renderNow(c) {

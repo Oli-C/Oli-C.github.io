@@ -164,8 +164,9 @@ function score(c, k) {
     if (k.src.hSpread >= 0.6) notes.push(`Models disagree on swell size (${hgt(k.src.hMin)}–${hgt(k.src.hMax)})`);
   }
   if (k.obs && k.obs.wd != null && k.obs.ws != null) {
-    const dOff = angleDiff(k.obs.wd, k.wd), sOff = Math.abs(k.obs.ws - ws);
-    if (dOff >= 60 || sOff >= 18) notes.push(`${k.obs.station} measured ${kts(k.obs.ws)} kts ${dirName(k.obs.wd)} at ${k.obs.t}; models say ${kts(ws)} kts ${dirName(k.wd)}`);
+    const m = k.model || k;   // compare with the models before the station was folded in
+    const dOff = angleDiff(k.obs.wd, m.wd), sOff = Math.abs(k.obs.ws - m.ws);
+    if (dOff >= 60 || sOff >= 18) notes.push(`${k.obs.station} measured ${kts(k.obs.ws)} kts ${dirName(k.obs.wd)} at ${k.obs.t}; models said ${kts(m.ws)} kts ${dirName(m.wd)}${k.obsW ? ' — the reading is weighted in' : ''}`);
   }
   return { total, level, label: dark ? 'Dark' : LEVELS[level], wind: rel, factors: f, cap, notes };
 }
@@ -195,45 +196,137 @@ const WIND = ['wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m', 'is_day'
 // them per hour (median for sizes and speeds, circular mean for directions)
 // and keep the individual values to show alongside. ECMWF's wave model is
 // left out: its 0.25° grid is blank at these coastal points.
+// `w` is a base weight for how much we trust the model here: finer grids
+// and the better global models count for more. Wind weights are then
+// adjusted by each model's measured track record against nearby stations
+// (see `learn`), because for wind we have ground truth; swell has none.
 const WIND_MODELS = [
-  { key: 'best_match', name: 'Best match' },
-  { key: 'ecmwf_ifs025', name: 'ECMWF' },
-  { key: 'gfs_seamless', name: 'GFS' },
-  { key: 'icon_seamless', name: 'ICON' },
-  { key: 'meteofrance_seamless', name: 'Météo-France' },
-  { key: 'ukmo_seamless', name: 'UKMO' },
+  { key: 'best_match', name: 'Best match', w: 1.0 },
+  { key: 'ecmwf_ifs025', name: 'ECMWF', w: 1.4 },
+  { key: 'gfs_seamless', name: 'GFS', w: 0.7 },
+  { key: 'icon_seamless', name: 'ICON', w: 1.2 },
+  { key: 'meteofrance_seamless', name: 'Météo-France', w: 1.2 },
+  { key: 'ukmo_seamless', name: 'UKMO', w: 1.0 },
 ];
 const MARINE_MODELS = [
-  { key: 'marine_best_match', id: 'best_match', name: 'Best match' },
-  { key: 'meteofrance_wave', name: 'Météo-France' },
-  { key: 'ncep_gfswave025', name: 'NCEP' },
-  { key: 'ewam', name: 'DWD EWAM' },
-  { key: 'gwam', name: 'DWD GWAM' },
+  { key: 'marine_best_match', id: 'best_match', name: 'Best match', w: 1.0 },
+  { key: 'meteofrance_wave', name: 'Météo-France', w: 1.3 },   // 0.1° MFWAM, good on this coast
+  { key: 'ncep_gfswave025', name: 'NCEP', w: 0.8 },           // 0.25° global
+  { key: 'ewam', name: 'DWD EWAM', w: 1.3 },                  // 0.05° European
+  { key: 'gwam', name: 'DWD GWAM', w: 0.8 },                  // 0.25° global
 ];
 const modelIds = (models) => models.map((m) => m.id || m.key).join();
-const median = (a) => { const s = a.slice().sort((x, y) => x - y), m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
-// Mean of bearings that respects the wrap at north.
-const meanDir = (ds) => {
+
+// Weighted median: the value where half the weight sits on either side.
+function wMedian(vals, ws) {
+  const idx = vals.map((_, i) => i).sort((a, b) => vals[a] - vals[b]);
+  const total = ws.reduce((a, x) => a + x, 0);
+  let acc = 0;
+  for (const i of idx) { acc += ws[i]; if (acc >= total / 2) return vals[i]; }
+  return vals[idx[idx.length - 1]];
+}
+// Weighted mean of bearings that respects the wrap at north.
+const meanDir = (ds, ws) => {
   let x = 0, y = 0;
-  for (const d of ds) { x += Math.cos(d * Math.PI / 180); y += Math.sin(d * Math.PI / 180); }
+  ds.forEach((d, i) => { const w = ws ? ws[i] : 1; x += w * Math.cos(d * Math.PI / 180); y += w * Math.sin(d * Math.PI / 180); });
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 };
 const dirSpread = (ds) => { if (ds.length < 2) return 0; const m = meanDir(ds); return Math.round(Math.max(...ds.map((d) => angleDiff(d, m)))); };
 // One model's values at hourly index i (nulls where it has none).
 const modelRow = (hourly, i, vars, m) => Object.fromEntries(vars.map((v) => { const s = hourly[`${v}_${m.key}`]; return [v, s ? s[i] : null]; }));
-// Blend several models' rows into one.
-function blend(rows, vars) {
+const median = (a) => { const s = a.slice().sort((x, y) => x - y), m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+// Which of these values are outliers (indices), given at least four to
+// judge by: a bearing 90°+ off the rest, or a size/speed well outside the
+// pack (2.5 median absolute deviations, or 25% of the median if tighter).
+function outliers(vals, isDir) {
+  if (vals.length < 4) return new Set();
+  let out;
+  if (isDir) { const m = meanDir(vals); out = vals.map((x, i) => (angleDiff(x, m) > 90 ? i : -1)); }
+  else {
+    const med = median(vals), mad = median(vals.map((x) => Math.abs(x - med)));
+    const tol = Math.max(2.5 * mad, 0.25 * Math.abs(med), 0.3);
+    out = vals.map((x, i) => (Math.abs(x - med) > tol ? i : -1));
+  }
+  const set = new Set(out.filter((i) => i >= 0));
+  return vals.length - set.size >= 3 ? set : new Set();   // never throw away the majority
+}
+// Blend several models' rows into one, each row counting `weights[i]`,
+// with outliers set aside first.
+function blend(rows, vars, weights) {
   const out = {};
   for (const v of vars) {
-    let vals = rows.map((r) => r[v]).filter((x) => x != null && !Number.isNaN(x));
+    let pairs = rows.map((r, i) => [r[v], weights ? weights[i] : 1]).filter(([x]) => x != null && !Number.isNaN(x));
     // A wave model with no coverage at a point reports 0, not null; don't
     // let that vote when other models see real swell.
-    if (v.endsWith('_height') && vals.some((x) => x > 0.05)) vals = vals.filter((x) => x > 0.05);
-    if (!vals.length) { out[v] = null; continue; }
-    out[v] = v.endsWith('_direction') ? Math.round(meanDir(vals)) : v === 'is_day' ? vals[0] : +median(vals).toFixed(2);
+    if (v.endsWith('_height') && pairs.some(([x]) => x > 0.05)) pairs = pairs.filter(([x]) => x > 0.05);
+    if (!pairs.length) { out[v] = null; continue; }
+    if (v !== 'is_day') { const drop = outliers(pairs.map((p) => p[0]), v.endsWith('_direction')); if (drop.size) pairs = pairs.filter((_, i) => !drop.has(i)); }
+    const vals = pairs.map((p) => p[0]), ws = pairs.map((p) => p[1]);
+    out[v] = v.endsWith('_direction') ? Math.round(meanDir(vals, ws)) : v === 'is_day' ? vals[0] : +wMedian(vals, ws).toFixed(2);
   }
   return out;
 }
+
+/* ---------- Learning which wind models are reliable here ----------
+   Every time a station reading lines up with a forecast hour, each model's
+   miss (degrees off, km/h off) nudges a running average kept on this
+   device. A model's weight is its base weight shrunk by its average miss,
+   so after a few days the blend leans on whichever models have actually
+   been right at these spots. */
+const SKILL_KEY = 'surf-skill';
+let skill = {};
+try { skill = JSON.parse(localStorage.getItem(SKILL_KEY) || '{}') || {}; } catch {}
+function modelWeight(m) {
+  const s = skill[m.key];
+  if (!s || s.n < 3) return m.w;
+  return m.w / (1 + s.dir / 90 + s.spd / 20);    // a 90° or 20 km/h average miss halves the weight
+}
+// dirErr may be null (light air, direction meaningless); then only speed counts.
+function learn(key, dirErr, spdErr) {
+  const s = skill[key] || { n: 0, dir: 45, spd: 8 };
+  const a = 0.1;
+  s.n++;
+  if (dirErr != null) s.dir += a * (dirErr - s.dir);
+  s.spd += a * (spdErr - s.spd);
+  skill[key] = s;
+}
+function saveSkill() { try { localStorage.setItem(SKILL_KEY, JSON.stringify(skill)); } catch {} }
+
+// Stations on capes and open coast read the sea breeze honestly; inland
+// ones are sheltered, so they count for less.
+const COASTAL_STATIONS = ['Cabo Raso', 'Cabo da Roca', 'Cabo Carvoeiro', 'Sagres', 'Sines', 'Santa Cruz', 'Pedro de Moel', 'Zambujeira', 'Milfontes', 'Colares', 'Setúbal'];
+// How much a station reading should count against the model blend (which
+// counts 1): fresh, close, well-sited readings count up to 2.5×.
+function obsWeight(obs, hoursAway) {
+  if (!obs || obs.ws == null) return 0;
+  const siting = COASTAL_STATIONS.some((n) => obs.station.includes(n)) ? 1 : 0.6;
+  const fresh = lerp(Math.abs(hoursAway), 0.5, 1, 3, 0);   // full at the reading's own hour, gone by 3 h
+  const near = lerp(obs.km, 5, 1, 25, 0.3);
+  return +(2.5 * siting * fresh * near).toFixed(2);
+}
+// Fold a station reading into a row's wind.
+function applyObs(k, obs, w) {
+  if (!w) return k;
+  k.ws = +((k.ws + obs.ws * w) / (1 + w)).toFixed(1);
+  if (obs.wd != null && k.wd != null) k.wd = Math.round(meanDir([k.wd, obs.wd], [1, w]));
+  k.obsW = +w.toFixed(2);
+  return k;
+}
+// 0–1: how much the sources agree. Spread between models costs; a station
+// that backs the models earns some back.
+function confidence(src, obs, k) {
+  if (!src) return null;
+  let c = 1;
+  c -= lerp(src.windSpread || 0, 30, 0, 120, 0.4);
+  c -= lerp(src.wsSpread || 0, 8, 0, 25, 0.2);
+  c -= lerp(src.hMax && src.hMin ? (src.hMax - src.hMin) / src.hMax : 0, 0.15, 0, 0.5, 0.3);
+  if (obs && obs.wd != null && k.model) {
+    const agree = angleDiff(obs.wd, k.model.wd) <= 45 && Math.abs(obs.ws - k.model.ws) <= 12;
+    c += agree ? 0.1 : -0.15;
+  }
+  return Math.max(0, Math.min(1, c));
+}
+const confWord = (c) => (c == null ? '' : c >= 0.75 ? 'High' : c >= 0.45 ? 'Medium' : 'Low');
 
 // IPMA (Portugal's met office) reports wind direction as a compass class.
 const IPMA_DIR = [null, 0, 45, 90, 135, 180, 225, 270, 315, 0];
