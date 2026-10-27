@@ -1665,8 +1665,8 @@
 
   function initMap() {
     map = L.map('map', { zoomControl: true, scrollWheelZoom: true });
-    // Plain OpenStreetMap streets by default — clean and keyless. Satellite
-    // (Esri imagery) is there as an option for reading the actual beach.
+    // Esri satellite by default — the imagery reads the beaches best — with
+    // plain OpenStreetMap streets as the alternative. Both keyless.
     const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19,
@@ -1676,9 +1676,9 @@
       attribution: 'Imagery &copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics, GIS User Community',
       maxZoom: 19,
     });
-    let base = 'osm';
-    try { base = localStorage.getItem('surf-base') || 'osm'; } catch {}
-    (base === 'sat' ? sat : osm).addTo(map);
+    let base = 'sat';
+    try { base = localStorage.getItem('surf-base2') || 'sat'; } catch {}
+    (base === 'osm' ? osm : sat).addTo(map);
     // Wind and swell overlays: animated particles plus labelled arrows, from
     // the same Open-Meteo data as the scores. Reduced-motion gets arrows only.
     windLayer = L.layerGroup();
@@ -1696,8 +1696,8 @@
     try { overlays = { ...overlays, ...JSON.parse(localStorage.getItem('surf-overlays2') || '{}') }; } catch {}
     if (overlays.wind) windLayer.addTo(map);
     if (overlays.swell) swellLayer.addTo(map);
-    L.control.layers({ 'Streets': osm, 'Satellite': sat }, { 'Wind': windLayer, 'Swell': swellLayer }, { position: 'topright', collapsed: false }).addTo(map);
-    map.on('baselayerchange', (e) => { try { localStorage.setItem('surf-base', e.layer === sat ? 'sat' : 'osm'); } catch {} });
+    L.control.layers({ 'Satellite': sat, 'Streets': osm }, { 'Wind': windLayer, 'Swell': swellLayer }, { position: 'topright', collapsed: false }).addTo(map);
+    map.on('baselayerchange', (e) => { try { localStorage.setItem('surf-base2', e.layer === sat ? 'sat' : 'osm'); } catch {} });
     const saveOverlays = () => { try { localStorage.setItem('surf-overlays2', JSON.stringify({ wind: map.hasLayer(windLayer), swell: map.hasLayer(swellLayer) })); } catch {} };
     map.on('overlayadd overlayremove', saveOverlays);
     // "Open in Windy" follows the map.
