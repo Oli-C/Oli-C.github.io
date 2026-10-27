@@ -1454,24 +1454,35 @@
     .brand svg { color: var(--fg-muted); margin-left: -3px; }
     .brand span { color: var(--accent-ink); }
     /* Search folds to an icon button; tapping it opens the field across the
-       bar. While a query is active the field stays open next to the toggle. */
+       bar, Enter folds it again. A folded search with a query in it gets an
+       accent ring and dot so the filter isn't forgotten. */
     /* One height, border and radius for every control in the bar. */
     .r1 { gap: 6px; align-items: center; }
     .search { flex: 0 0 36px; transition: flex-basis .2s var(--ease); }
     .search input { height: 36px; padding: 6px 8px 5px 34px; border-radius: 10px; }
     .search svg { left: 10px; width: 16px; height: 16px; color: var(--fg); }
-    .r1:not(:has(.search input:focus)):not(:has(.search input:not(:placeholder-shown))) .search input {
+    .r1:not(:has(.search input:focus)) .search input {
       padding-right: 0;   /* folded: 34px icon inset + borders = exactly 36px */
       color: transparent;
       cursor: pointer;
     }
     .r1:not(:has(.search input:focus)) .search input::placeholder { color: transparent; }
-    .r1:has(.search input:focus) .search,
-    .r1:has(.search input:not(:placeholder-shown)) .search { flex: 1 1 auto; }
+    .r1:has(.search input:focus) .search { flex: 1 1 auto; }
     .r1:has(.search input:focus) .brand,
-    .r1:has(.search input:focus) #view-seg,
-    .r1:has(.search input:not(:placeholder-shown)) .brand { display: none; }
+    .r1:has(.search input:focus) #view-seg { display: none; }
     .r1:has(.search input:not(:placeholder-shown)) .search input { border-color: var(--accent); }
+    .r1:not(:has(.search input:focus)):has(.search input:not(:placeholder-shown)) .search svg { color: var(--accent-ink); }
+    .r1:not(:has(.search input:focus)):has(.search input:not(:placeholder-shown)) .search::after {
+      content: "";
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      pointer-events: none;
+    }
     .brand { margin-right: auto; padding-right: 4px; }
     /* Cams / Map: labelled, high-contrast, the same 36px as its neighbours. */
     #view-seg { height: 36px; padding: 3px; gap: 2px; border-color: var(--border-2); border-radius: 10px; }
@@ -1619,7 +1630,7 @@
       <a class="brand" href="../" title="Back to allfield"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>surf cams<span>.</span></a>
       <label class="search">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
-        <input id="q" type="search" placeholder="Search spots, towns, areas…" autocomplete="off" aria-label="Search cams">
+        <input id="q" type="search" enterkeyhint="search" placeholder="Search spots, towns, areas…" autocomplete="off" aria-label="Search cams">
       </label>
       <div class="seg" id="view-seg" role="group" aria-label="View">
         <button type="button" id="seg-grid" data-view="grid" aria-pressed="false" title="Cams only">
@@ -3274,6 +3285,9 @@
     applyFilter();
   });
   q.addEventListener('input', applyFilter);
+  // Enter puts the keyboard away (and folds the field on phones); the cams
+  // and pins have already filtered as you typed.
+  q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); q.blur(); } });
   $('view-seg').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-view]');
     if (b) setView(b.dataset.view);
