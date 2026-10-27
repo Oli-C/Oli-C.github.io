@@ -320,7 +320,7 @@
       top, level: levelOf(top), label: LEVELS[levelOf(top)], best, blocks,
       hMin: Math.min(...hs), hMax: Math.max(...hs), p: Math.round(avg(ps)), dir,
       wsMin: kts(Math.min(...ws)), wsMax: kts(Math.max(...ws)), rel,
-      tides: day.tides, sun: day.sun,
+      tides: day.tides, sun: day.sun, conf: day.conf,
     };
   }
   const digestOf = (c, i) => (data[c.id] && data[c.id].days[i] ? digest(c, data[c.id].days[i]) : null);
