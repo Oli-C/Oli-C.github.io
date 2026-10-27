@@ -295,6 +295,20 @@ const CAMS = [
     thumb:   'https://films.viewsurf.com/BCcostacaparicacds_1_1.stream/media.jpg',
   },
   {
+    id:      'caparica-nova-praia',
+    name:    'Nova Praia',
+    town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'caparica', 'almada', 'barracuda'],
+    lat: 38.6408, lng: -9.2404, faces: 268,   // OSM: Nova Praia, the next cell south of CDS, cam at the Barracuda bar
+    best: { ...CAPARICA, notes: 'One jetty south of CDS, in front of the Barracuda bar. Same groomed beach-break banks as the rest of the town front, usually a touch less crowded than CDS. ' + CAPARICA.notes },
+    type:    'hls',
+    embed:   'https://video-auth1.iol.pt/auth-beachcam/bcbarracuda/playlist.m3u8',
+    fallback: 'https://beachcam.meo.pt/livecams/costa-da-caparica-nova-praia/',
+    link:    'https://beachcam.meo.pt/livecams/costa-da-caparica-nova-praia/',
+    source:  'MEO Beachcam',
+  },
+  {
     id:      'caparica-riviera',
     name:    'Riviera',
     town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
