@@ -994,6 +994,27 @@
   .src-out small { text-decoration: none; }
   .src-conf { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pin); }
   .src-note { margin-top: 8px; font-size: 11px; color: var(--fg-muted); line-height: 1.4; }
+
+  /* "Was it right?" feedback */
+  .fb-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+  .fb-btn {
+    font: inherit; font-size: 13px; letter-spacing: 0.02em; color: var(--fg);
+    background: var(--bg-3); border: 1px solid var(--border-2); border-radius: 999px; padding: 7px 13px 5px; cursor: pointer;
+    transition: border-color .2s var(--ease), background .2s var(--ease);
+  }
+  .fb-btn:hover { border-color: var(--accent); }
+  .fb-btn.sel { background: var(--accent); color: #101820; border-color: var(--accent); }
+  .fb-note { font-size: 12px; color: var(--fg-muted); }
+
+  /* Tune mode (?tune): sliders for the spot's local knowledge */
+  .tune-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 18px; margin-top: 10px; }
+  .tune-f { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; font-size: 12px; color: var(--fg-muted); }
+  .tune-f b { color: var(--fg); font-weight: 600; font-size: 12px; text-align: right; }
+  .tune-f input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+  .tune-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .tune-json { width: 100%; min-height: 90px; margin-top: 10px; font: 11px/1.4 ui-monospace, Menlo, Consolas, monospace; color: var(--fg); background: var(--bg-3); border: 1px solid var(--border-2); border-radius: 8px; padding: 8px; resize: vertical; }
+  .tune-sum { margin-top: 10px; font-size: 12px; color: var(--fg-muted); line-height: 1.5; }
+  .tune-sum b { color: var(--fg); font-weight: 600; }
   .factors { display: grid; gap: 8px; }
   .factor {
     display: grid;
@@ -1200,10 +1221,12 @@
     </div>
     <div class="frame" id="v-frame"></div>
     <div class="panel scorecard" id="v-score" hidden></div>
+    <div class="panel" id="v-fb" hidden></div>
     <div class="panel" id="v-src" hidden></div>
     <div class="panel" id="v-now" hidden></div>
     <div class="panel" id="v-today" hidden></div>
     <div class="panel" id="v-local"></div>
+    <div class="panel" id="v-tune" hidden></div>
     <div class="sheet-foot" id="v-foot"></div>
   </div>
 </div>
@@ -2176,6 +2199,115 @@
       <p class="today-sum">${esc(daySummary(c))}</p>`;
   }
 
+  /* ---------- "Was it right?" ---------- */
+
+  // Each verdict is stored with the factors behind that moment's score, so
+  // the spot's numbers can be fitted later instead of guessed.
+  const FB_KEY = 'surf-feedback';
+  const loadFb = () => { try { return JSON.parse(localStorage.getItem(FB_KEY) || '[]') || []; } catch { return []; } };
+  const saveFb = (list) => { try { localStorage.setItem(FB_KEY, JSON.stringify(list.slice(-2000))); } catch {} };
+  function logFeedback(c, verdict) {
+    const k = conditions[c.id] && conditions[c.id].now, r = scoreOf(c);
+    if (!k || !r) return;
+    const f = {};
+    for (const x of r.factors) f[x.label] = x.mult != null ? +x.mult.toFixed(2) : +x.pts.toFixed(2);
+    const list = loadFb();
+    list.push({ t: new Date().toISOString(), id: c.id, total: r.total, verdict, f, k: { h: k.h, p: k.p, d: k.d, ws: k.ws, wd: k.wd, tn: k.tn, tdir: k.tdir, wwh: k.wwh, th: k.th } });
+    saveFb(list);
+  }
+  function renderFb(c) {
+    const el = $('v-fb');
+    if (!scoreOf(c)) { el.hidden = true; el.innerHTML = ''; return; }
+    const mine = loadFb().filter((e) => e.id === c.id);
+    const last = mine[mine.length - 1], recent = last && Date.now() - new Date(last.t) < 60 * 60 * 1000;
+    el.hidden = false;
+    el.innerHTML = `
+      <span class="k">Was the score right?</span>
+      <div class="fb-row">
+        <button class="fb-btn${recent && last.verdict === 'high' ? ' sel' : ''}" type="button" data-fb="high">Too high</button>
+        <button class="fb-btn${recent && last.verdict === 'ok' ? ' sel' : ''}" type="button" data-fb="ok">About right</button>
+        <button class="fb-btn${recent && last.verdict === 'low' ? ' sel' : ''}" type="button" data-fb="low">Too low</button>
+        <span class="fb-note">${mine.length ? `${mine.length} verdict${mine.length === 1 ? '' : 's'} logged for this spot` : 'Logged on this device, with the factors behind the score'}</span>
+      </div>`;
+    el.querySelectorAll('[data-fb]').forEach((b) => b.addEventListener('click', () => { logFeedback(c, b.dataset.fb); renderFb(c); if (TUNE) renderTune(c); }));
+  }
+
+  /* ---------- Tune mode (?tune) ---------- */
+
+  const TUNE = /[?&]tune\b/.test(location.search);
+  const TUNE_FIELDS = [
+    { key: 'swell', i: 0, label: 'Swell window from', min: 0, max: 360, step: 5, unit: '°' },
+    { key: 'swell', i: 1, label: 'Swell window to', min: 0, max: 360, step: 5, unit: '°' },
+    { key: 'size', i: 0, label: 'Size min', min: 0.2, max: 4, step: 0.1, unit: ' m' },
+    { key: 'size', i: 1, label: 'Size max', min: 0.5, max: 6, step: 0.1, unit: ' m' },
+    { key: 'period', label: 'Gets good at', min: 6, max: 16, step: 0.5, unit: ' s' },
+    { key: 'exposure', label: 'Exposure floor', min: 0.2, max: 1, step: 0.05, unit: '', def: 0.85 },
+    { key: 'gain', label: 'Gain', min: 0.6, max: 1.8, step: 0.05, unit: '×', def: 1 },
+    { key: 'wind', i: 0, label: 'Offshore from', min: 0, max: 360, step: 5, unit: '°' },
+    { key: 'wind', i: 1, label: 'Offshore to', min: 0, max: 360, step: 5, unit: '°' },
+    { key: 'tide', sub: 'range', i: 0, label: 'Tide min', min: 0, max: 1, step: 0.05, unit: '' },
+    { key: 'tide', sub: 'range', i: 1, label: 'Tide max', min: 0, max: 1, step: 0.05, unit: '' },
+  ];
+  const getF = (b, f) => (f.sub ? b[f.key][f.sub][f.i] : f.i != null ? b[f.key][f.i] : (b[f.key] == null ? f.def : b[f.key]));
+  const setF = (b, f, v) => { if (f.sub) b[f.key][f.sub][f.i] = v; else if (f.i != null) b[f.key][f.i] = v; else b[f.key] = v; };
+  const tuneExport = () => { const o = {}; for (const c of CAMS) { const t = TUNE_OVERRIDES[c.id]; if (t && Object.keys(t).length) o[c.id] = t; } return JSON.stringify(o, null, 2); };
+  // Verdicts for this spot, summarised by what the sea was doing.
+  function fbSummary(c) {
+    const mine = loadFb().filter((e) => e.id === c.id);
+    if (!mine.length) return 'No verdicts yet for this spot. Use the buttons above as you watch the cam.';
+    const by = (v) => mine.filter((e) => e.verdict === v);
+    const mean = (arr, fn) => (arr.length ? arr.reduce((a, e) => a + fn(e), 0) / arr.length : null);
+    const line = (label, arr) => (arr.length ? `<b>${label}</b> ×${arr.length}: swell ${hgt(mean(arr, (e) => e.k.h))} at ${Math.round(mean(arr, (e) => e.k.p))} s, wind ${kts(mean(arr, (e) => e.k.ws))} kts, scored ${fmt(Math.round(mean(arr, (e) => e.total) * 2) / 2)}` : '');
+    const hints = [];
+    const hi = by('high'), lo = by('low');
+    if (hi.length >= 2 && lo.length >= 2) {
+      const hH = mean(hi, (e) => e.k.h), lH = mean(lo, (e) => e.k.h);
+      if (hH > lH + 0.3) hints.push('Marked too high mostly in bigger swell → try lowering Size max or the exposure floor.');
+      if (lH > hH + 0.3) hints.push('Marked too low mostly in bigger swell → try raising Size max or gain.');
+      const hP = mean(hi, (e) => e.k.p), lP = mean(lo, (e) => e.k.p);
+      if (lP > hP + 1.5) hints.push('Longer-period days read too low → try lowering "Gets good at".');
+    } else if (hi.length >= 3 && !lo.length) hints.push('Consistently too high → the spot likely needs a lower exposure floor or a narrower swell window.');
+    else if (lo.length >= 3 && !hi.length) hints.push('Consistently too low → the spot likely needs a wider swell window or higher exposure.');
+    return [line('Too high', hi), line('About right', by('ok')), line('Too low', lo), ...hints.map((h) => `→ ${h}`)].filter(Boolean).join('<br>');
+  }
+  function renderTune(c) {
+    const el = $('v-tune');
+    if (!TUNE) { el.hidden = true; return; }
+    const b = c.best;
+    el.hidden = false;
+    el.innerHTML = `
+      <div class="today-head"><span class="k">Tune ${esc(c.name)}</span><span class="fb-note">changes apply live and are kept on this device</span></div>
+      <div class="tune-grid">
+        ${TUNE_FIELDS.map((f, i) => `<label class="tune-f"><span>${f.label}</span><b data-out="${i}">${getF(b, f)}${f.unit}</b><input type="range" data-i="${i}" min="${f.min}" max="${f.max}" step="${f.step}" value="${getF(b, f)}"></label>`).join('')}
+      </div>
+      <div class="tune-actions">
+        <button class="fb-btn" type="button" data-act="copy">Copy overrides JSON</button>
+        <button class="fb-btn" type="button" data-act="reset">Reset this spot</button>
+        <button class="fb-btn" type="button" data-act="fb">Copy feedback log</button>
+      </div>
+      <textarea class="tune-json" readonly spellcheck="false">${esc(tuneExport())}</textarea>
+      <div class="tune-sum">${fbSummary(c)}</div>`;
+    el.querySelectorAll('input[type="range"]').forEach((inp) => inp.addEventListener('input', () => {
+      const f = TUNE_FIELDS[+inp.dataset.i], v = +inp.value;
+      setF(b, f, v);
+      el.querySelector(`[data-out="${inp.dataset.i}"]`).textContent = v + f.unit;
+      const o = TUNE_OVERRIDES[c.id] = TUNE_OVERRIDES[c.id] || {};
+      if (f.sub) { o[f.key] = o[f.key] || {}; o[f.key][f.sub] = b[f.key][f.sub].slice(); }
+      else if (f.i != null) o[f.key] = b[f.key].slice();
+      else o[f.key] = v;
+      saveTune();
+      el.querySelector('.tune-json').value = tuneExport();
+      patchConditions(); refreshPins(); renderScore(c); renderLocal(c);
+    }));
+    el.querySelector('[data-act="copy"]').addEventListener('click', () => navigator.clipboard && navigator.clipboard.writeText(tuneExport()));
+    el.querySelector('[data-act="fb"]').addEventListener('click', () => navigator.clipboard && navigator.clipboard.writeText(JSON.stringify(loadFb(), null, 1)));
+    el.querySelector('[data-act="reset"]').addEventListener('click', () => {
+      delete TUNE_OVERRIDES[c.id]; saveTune();
+      Object.assign(c.best, JSON.parse(JSON.stringify(BEST_DEFAULTS[c.id])));
+      patchConditions(); refreshPins(); renderScore(c); renderLocal(c); renderTune(c);
+    });
+  }
+
   function renderLocal(c) {
     const b = c.best;
     const item = (k, v) => `<span>${k} <b>${v}</b></span>`;
@@ -2201,10 +2333,12 @@
     $('v-open').href = c.link;
     $('v-foot').innerHTML = `Stream by ${esc(c.source)} · <a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">open original</a>`;
     renderScore(c);
+    renderFb(c);
     renderSrc(c);
     renderNow(c);
     renderToday(c);
     renderLocal(c);
+    renderTune(c);
     clearTimeout(hideTimer);
     stopPlayback();
     // Don't stream the same cam twice: the tile rests while the viewer plays.
@@ -2322,7 +2456,7 @@
     refreshPins();
     if (!viewer.hidden && location.hash) {
       const c = byId(location.hash.slice(1));
-      if (c) { renderScore(c); renderSrc(c); renderNow(c); renderToday(c); renderLocal(c); }
+      if (c) { renderScore(c); renderFb(c); renderSrc(c); renderNow(c); renderToday(c); renderLocal(c); renderTune(c); }
     }
   });
 </script>

@@ -326,3 +326,20 @@ const AREAS = [...new Set(CAMS.map((c) => c.area))]
 // rather than zoomed out to fit Nazaré and the Algarve too.
 const HOME_AREAS = ['Sintra', 'Cascais', 'Caparica'];
 
+
+/* ---------- Tune overrides ----------
+   The live page's ?tune mode saves adjusted numbers for a spot on this
+   device; both pages apply them over the defaults above. Paste the exported
+   JSON into the spot's `best` block to make a change permanent. */
+const BEST_DEFAULTS = Object.fromEntries(CAMS.map((c) => [c.id, JSON.parse(JSON.stringify(c.best))]));
+let TUNE_OVERRIDES = {};
+try { TUNE_OVERRIDES = JSON.parse(localStorage.getItem('surf-tune') || '{}') || {}; } catch {}
+for (const c of CAMS) {
+  const o = TUNE_OVERRIDES[c.id];
+  if (!o) continue;
+  for (const [k, v] of Object.entries(o)) {
+    if (k === 'tide') c.best.tide = { ...c.best.tide, ...v };
+    else c.best[k] = Array.isArray(v) ? v.slice() : v;
+  }
+}
+const saveTune = () => { try { localStorage.setItem('surf-tune', JSON.stringify(TUNE_OVERRIDES)); } catch {} };
