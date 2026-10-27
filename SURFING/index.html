@@ -1803,13 +1803,37 @@
     }
     return out;
   }
+  const fmtMins = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
   // "High 14:51 · Low 21:10": what's still to come today, or the whole day once it's over.
-  function tideTimes(cnd) {
-    if (!cnd || !cnd.tides || !cnd.tides.length) return '';
+  function tideTimes(src) {
+    const ev = Array.isArray(src) ? src : src && src.tides;
+    if (!ev || !ev.length) return '';
     const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
-    const ahead = cnd.tides.filter((e) => e.mins >= nowMins);
-    return (ahead.length ? ahead : cnd.tides).map((e) => `${e.kind} ${e.t}`).join(' · ');
+    const ahead = ev.filter((e) => e.mins >= nowMins);
+    return (ahead.length ? ahead : ev).map((e) => `${e.kind} ${fmtMins(e.mins)}`).join(' · ');
   }
+  // Tide times barely differ along this coast, so one averaged set serves
+  // everyone; an area only gets its own line if it strays by 20+ minutes.
+  function coastTides() {
+    const lists = CAMS.map((c) => conditions[c.id] && conditions[c.id].tides).filter((l) => l && l.length);
+    if (!lists.length) return null;
+    const tpl = lists.slice().sort((a, b) => b.length - a.length)[0];
+    return tpl.map((e) => {
+      const ms = lists.map((l) => {
+        const m = l.filter((x) => x.kind === e.kind).sort((a, b) => Math.abs(a.mins - e.mins) - Math.abs(b.mins - e.mins))[0];
+        return m && Math.abs(m.mins - e.mins) < 90 ? m.mins : null;
+      }).filter((v) => v != null);
+      const avg = Math.round(ms.reduce((a, x) => a + x, 0) / ms.length);
+      return { kind: e.kind, mins: avg, t: fmtMins(avg) };
+    });
+  }
+  const areaTides = (a) => { const c = CAMS.find((x) => x.area === a && conditions[x.id] && conditions[x.id].tides && conditions[x.id].tides.length); return c ? conditions[c.id].tides : null; };
+  const tidesDiffer = (ev, coast) => !!(ev && coast) && ev.some((e) => {
+    const m = coast.filter((x) => x.kind === e.kind).sort((a, b) => Math.abs(a.mins - e.mins) - Math.abs(b.mins - e.mins))[0];
+    return m && Math.abs(m.mins - e.mins) >= 20;
+  });
+  // The tide line a spot should show: the coast-wide one unless its area strays.
+  const tidesFor = (c) => { const ev = areaTides(c.area), coast = coastTides(); return tidesDiffer(ev, coast) ? ev : (coast || ev); };
   // Prefer `current`; fall back to the hourly row nearest to now.
   function pick(loc) {
     if (!loc) return null;
@@ -1956,25 +1980,24 @@
       el.querySelector('.cond-line').innerHTML = condText(c);
       el.querySelector('.mini-slot').innerHTML = miniBars(c);
     }
+    const coast = coastTides();
     for (const sec of grid.querySelectorAll('.area')) {
       const best = CAMS.filter((c) => c.area === sec.dataset.area)
         .map((c) => ({ c, r: scoreOf(c) })).filter((x) => x.r)
         .sort((x, y) => y.r.total - x.r.total)[0];
-      // Tide times are the same along an area's coast, so one cam's will do.
-      const withTide = CAMS.find((c) => c.area === sec.dataset.area && tideTimes(conditions[c.id]));
-      const tide = withTide ? tideTimes(conditions[withTide.id]) : '';
+      // Only areas whose tide strays from the coast-wide line get their own.
+      const ev = areaTides(sec.dataset.area);
+      const tide = tidesDiffer(ev, coast) ? tideTimes(ev) : '';
       sec.querySelector('.area-sum').innerHTML =
-        (tide ? `<span class="tide-sum">${esc(tide)}</span>` : '') +
+        (tide ? `<span class="tide-sum">Tide here: ${esc(tide)}</span>` : '') +
         (best ? `<span>Best now: <b>${esc(best.c.name)}</b> · ${fmt(best.r.total)}/10</span>` : '');
     }
-    // One coast-wide tide line in the header (times differ by minutes at most).
-    const tideCam = CAMS.find((c) => conditions[c.id] && conditions[c.id].tides && conditions[c.id].tides.length);
+    // One coast-wide tide line in the header, averaged across every cam.
     const tideEl = $('tide-now');
-    if (tideCam) {
-      const cnd = conditions[tideCam.id];
+    if (coast) {
       const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
-      const ahead = cnd.tides.filter((e) => e.mins >= nowMins);
-      const list = ahead.length ? ahead : cnd.tides;
+      const ahead = coast.filter((e) => e.mins >= nowMins);
+      const list = ahead.length ? ahead : coast;
       tideEl.hidden = false;
       tideEl.innerHTML = `<span class="k">${ahead.length ? 'Tide' : 'Tide today'}</span>` + list.map((e) => `<span>${e.kind} ${e.t}</span>`).join('');
     } else {
@@ -2110,7 +2133,7 @@
         ${badge(c)}
       </div>
       ${cond ? `<div class="pop-cond">Now ${cond} ${miniBars(c)}</div>` : ''}
-      ${tideTimes(conditions[c.id]) ? `<div class="pop-sum">Tide: ${esc(tideTimes(conditions[c.id]))}</div>` : ''}
+      ${tideTimes(tidesFor(c)) ? `<div class="pop-sum">Tide: ${esc(tideTimes(tidesFor(c)))}</div>` : ''}
       ${sum ? `<div class="pop-sum">${esc(sum)}</div>` : ''}
       <div class="pop-actions">
         <button class="pop-btn" type="button" data-open="${esc(c.id)}">
