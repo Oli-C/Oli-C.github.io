@@ -231,8 +231,8 @@ const CAMS = [
     tags:    ['reef break', 'right', 'south facing', 'linha de cascais', 'sao pedro', 'bafureira', 'bico'],
     lat: 38.6930, lng: -9.3712, faces: 180,
     best: {
-      swell: [200, 300], size: [1.0, 2.4], period: 10, exposure: 0.4, wind: [340, 60], tide: { range: [0, 0.55], dir: 'falling', text: 'low to mid, on the drop' },
-      notes: 'Reef and point setups, Bafureira’s right on the left of the bay, the Bico point next door. Needs at least a metre of SW–W swell to get going, with a N/NE wind; low to mid on a dropping tide is the usual call. Intermediate and up; less crowded than Bico.',
+      swell: [200, 300], size: [0.5, 2.2], period: 10, exposure: 0.45, wind: [340, 60], tide: { range: [0, 0.7], dir: 'falling', text: 'low to mid, on the drop' },
+      notes: 'Reef and point setups, Bafureira’s right on the left of the bay, the Bico point next door. A decent NW groundswell wraps into the Linha at roughly half size, so there’s usually something small and rideable here; the reefs line up properly from about a metre of SW–W swell, with a N/NE wind. Low to mid on a dropping tide is the usual call. Intermediate and up; less crowded than Bico.',
     },
     type:    'hls',
     embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/5fcf6d21-f52c-422a-3035-3530-6d61-63-98fa-626cced74f41d/master.m3u8',

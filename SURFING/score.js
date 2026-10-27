@@ -150,14 +150,15 @@ function score(c, k) {
   const dir = k.d != null ? lerp(dd, 0, 3, 60, 0) : 2;
   f.push({ label: 'Direction', pts: dir, max: 3, now: k.d != null ? `from ${dirName(k.d)}` : 'unknown', likes: windowText(b.swell) });
 
-  // Speeds are km/h. Under ~5 kt the direction hardly shows on the face;
-  // onshore only really wrecks it from ~12 kt, and wipes it out past 20.
+  // Speeds are km/h. Under ~4 kt it's glassy whatever the direction; a
+  // light onshore already textures the face (Surfline calls 5-6 kt onshore
+  // "Fair" at best), and from ~12 kt it wrecks it.
   const rel = windRel(c, k), ws = k.ws;
   let wind;
-  if (ws < 10)            wind = 1;                                                   // glassy
+  if (ws < 7)             wind = 1;                                                   // glassy
   else if (rel === 'offshore') wind = ws < 25 ? 1 : ws < 35 ? 0.9 : ws < 45 ? 0.75 : 0.6;
-  else if (rel === 'onshore')  wind = ws < 15 ? 0.8 : ws < 22 ? 0.6 : ws < 30 ? 0.4 : ws < 40 ? 0.25 : 0.12;
-  else                         wind = ws < 18 ? 0.9 : ws < 28 ? 0.7 : ws < 40 ? 0.5 : 0.3;
+  else if (rel === 'onshore')  wind = ws < 15 ? 0.7 : ws < 22 ? 0.5 : ws < 30 ? 0.35 : ws < 40 ? 0.2 : 0.1;
+  else                         wind = ws < 15 ? 0.85 : ws < 25 ? 0.7 : ws < 35 ? 0.5 : 0.3;
   const gusty = k.wg != null && k.wg > 25 && k.wg > ws * 1.5;
   if (gusty) wind *= 0.85;
   f.push({ label: 'Wind', mult: wind, now: `${kts(ws)} kts ${dirName(k.wd)}, ${rel}${gusty ? `, gusting ${kts(k.wg)}` : ''}`, likes: `${windowText(b.wind)} offshore` });

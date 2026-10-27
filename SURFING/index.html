@@ -328,6 +328,11 @@
   .switch[aria-checked="true"] i { background: var(--accent); border-color: var(--accent); }
   .switch[aria-checked="true"] i::after { background: #101820; transform: translateX(10px); }
 
+  /* Phone-only toolbar pieces; on wider screens the ⋯ menu's contents sit
+     inline in the second row as before. */
+  .brand, .more-btn, .m-info { display: none; }
+  .more { display: contents; }
+
   /* Wide: search · areas · view · saver on one line */
   @media (min-width: 1100px) {
     .controls { display: flex; align-items: center; gap: 10px; }
@@ -335,7 +340,7 @@
     .search { flex: 0 1 340px; order: 1; }
     .chips { order: 2; }
     .seg { order: 3; }
-    .r2 > .nav { order: 4; }
+    .more > .nav { order: 4; }
     .seg.sm { order: 5; }
     .switch { order: 6; }
   }
@@ -343,6 +348,7 @@
   @media (max-width: 640px) {
     .search input { font-size: 16px; padding: 8px 10px 6px 32px; }
   }
+
 
   /* ---------- Score badge (shared by tiles, pins, popups, viewer) ---------- */
   .lvl-0 { --pin: var(--lvl-0); --ink: #fff; }
@@ -542,6 +548,28 @@
   }
   /* The dot only goes red once the tile is really streaming. */
   .cam.streaming .live i { background: var(--live); animation: pulse 2s infinite; }
+  /* Offline: last snapshot greyed out (or the plain card), a clear label,
+     conditions still on the bottom overlay. */
+  .cam .off { display: none; }
+  .cam.offline .off {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding-bottom: 18%;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .cam.offline .off svg { width: 22px; height: 22px; opacity: .8; }
+  .cam.offline img { filter: grayscale(1) brightness(.4); }
+  .cam.offline video, .cam.offline .live { display: none; }
   @keyframes pulse {
     0%   { box-shadow: 0 0 0 0 rgba(229, 72, 77, .6); }
     70%  { box-shadow: 0 0 0 6px rgba(229, 72, 77, 0); }
@@ -1156,6 +1184,117 @@
     .seg button { padding: 8px 10px 6px; }
     .tbar span { font-size: 10px; }
   }
+
+  /* ---------- Phones: one compact top toolbar ----------
+     Brand · search · Cams/Map · ⋯, area chips underneath, then a single
+     scrolling line with the tide and the best spots right now. The big
+     header goes; the ⋯ menu holds 7-day, units and data saver. */
+  @media (max-width: 700px) {
+    .page { padding-top: 0; padding-bottom: 24px; }
+    header { display: none; }
+    .controls {
+      margin: 0 -16px 10px;
+      padding: max(8px, env(safe-area-inset-top)) 12px 7px;
+    }
+    .r1 { gap: 6px; }
+    .r2 { margin-top: 7px; }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 1px;
+      flex: none;
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--fg);
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .brand svg { color: var(--fg-muted); margin-left: -3px; }
+    .brand span { color: var(--accent-ink); }
+    .search input { padding: 6px 8px 5px 30px; }
+    .search svg { left: 9px; }
+    /* Searching takes the whole bar. */
+    .r1:has(.search input:focus) .brand,
+    .r1:has(.search input:not(:placeholder-shown)) .brand { display: none; }
+    /* The view toggle: icons, with the active one labelled. */
+    #view-seg button { padding: 6px 8px 4px; }
+    #view-seg button:not([aria-pressed="true"]) span { display: none; }
+    #view-seg svg { width: 15px; height: 15px; }
+    .more-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+      width: 34px;
+      height: 32px;
+      color: var(--fg);
+      background: var(--bg-3);
+      border: 1px solid var(--border-2);
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .more-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent-ink); }
+    .more { display: none; }
+    .controls.more-open .more {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+      position: absolute;
+      right: 12px;
+      top: calc(max(8px, env(safe-area-inset-top)) + 40px);
+      z-index: 10;
+      min-width: 200px;
+      padding: 12px;
+      background: var(--bg-3);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+    }
+    .more .nav { justify-content: center; font-size: 14px; padding: 8px 12px 6px; }
+    .more .seg.sm { align-self: stretch; }
+    .more .seg.sm button { flex: 1; font-size: 13px; padding: 6px 8px 4px; }
+    .more .switch { font-size: 13px; justify-content: space-between; flex-direction: row-reverse; }
+    .chip { font-size: 12px; padding: 4px 10px 2px; }
+    .m-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 7px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      white-space: nowrap;
+    }
+    .m-info::-webkit-scrollbar { display: none; }
+    .m-info:not(:has(> :not([hidden]))) { display: none; }
+    .m-info .tide-now { flex: none; flex-wrap: nowrap; gap: 6px; margin: 0; font-size: 12px; }
+    .m-info .tide-now span + span::before { margin-right: 6px; }
+    .m-info .best { flex: none; flex-wrap: nowrap; gap: 6px; margin: 0; }
+    .m-info .best-label { font-size: 10px; margin-right: 0; }
+    .m-info .best-chip { font-size: 12px; gap: 6px; padding: 2px 9px 2px 2px; }
+    .m-info .best-chip .score { padding: 2px 5px 1px; border-radius: 6px; }
+    .m-info .best-chip .score b { font-size: 11px; }
+    .m-info .best-chip .score small { display: none; }
+    .area { margin-bottom: 18px; }
+    .area-head { margin-bottom: 8px; }
+    .area-head h2 { font-size: 17px; white-space: nowrap; }
+    .area-head h2 small { font-size: 12px; }
+    .area-sum { font-size: 12px; }
+    /* Map view fills the screen under the toolbar. */
+    .page:has(.layout[data-view="map"]) { padding-bottom: 0; }
+    .layout[data-view="map"] #map {
+      height: calc(100vh - var(--controls-h) - 12px);
+      height: calc(100dvh - var(--controls-h) - 12px);
+      min-height: 320px;
+      border-radius: 12px;
+    }
+    .layout[data-view="map"] .map-hint { display: none; }
+    .legend { font-size: 9px; padding: 5px 8px 3px; left: 8px; bottom: 8px; }
+    .lg-row { gap: 7px; }
+    .lg-k { min-width: 28px; }
+    .legend i { width: 7px; height: 7px; }
+  }
 </style>
 </head>
 <body>
@@ -1175,12 +1314,13 @@
   </header>
 
   <div class="controls" id="controls">
-    <div class="row">
+    <div class="row r1">
+      <a class="brand" href="../" title="Back to allfield"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>surf cams<span>.</span></a>
       <label class="search">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
         <input id="q" type="search" placeholder="Search spots, towns, areas…" autocomplete="off" aria-label="Search cams">
       </label>
-      <div class="seg" role="group" aria-label="View">
+      <div class="seg" id="view-seg" role="group" aria-label="View">
         <button type="button" id="seg-grid" data-view="grid" aria-pressed="false" title="Cams only">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
           <span>Cams</span>
@@ -1194,18 +1334,26 @@
           <span>Map</span>
         </button>
       </div>
+      <button class="more-btn" id="more-btn" type="button" aria-expanded="false" aria-controls="more" aria-label="More options" title="More options">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+      </button>
     </div>
     <div class="row r2">
       <div class="chips" id="chips" role="group" aria-label="Filter by area"></div>
-      <a class="nav" href="week.html" title="Seven-day outlook for every spot">7-day</a>
-      <div class="seg sm" id="units" role="group" aria-label="Height units">
-        <button type="button" data-units="m" aria-pressed="true">m</button>
-        <button type="button" data-units="ft" aria-pressed="false">ft</button>
+      <!-- Inline on wider screens; a drop-down from the ⋯ button on phones. -->
+      <div class="more" id="more">
+        <a class="nav" href="week.html" title="Seven-day outlook for every spot">7-day</a>
+        <div class="seg sm" id="units" role="group" aria-label="Height units">
+          <button type="button" data-units="m" aria-pressed="true">m</button>
+          <button type="button" data-units="ft" aria-pressed="false">ft</button>
+        </div>
+        <button class="switch" id="saver" type="button" role="switch" aria-checked="false" title="Don’t auto-play the tiles; only stream the cam you open">
+          <i aria-hidden="true"></i>Data saver
+        </button>
       </div>
-      <button class="switch" id="saver" type="button" role="switch" aria-checked="false" title="Don’t auto-play the tiles; only stream the cam you open">
-        <i aria-hidden="true"></i>Data saver
-      </button>
     </div>
+    <!-- Phones: the header's tide line and best-right-now move up here. -->
+    <div class="m-info" id="m-info"></div>
   </div>
 
   <div class="layout" id="layout" data-view="split">
@@ -1293,6 +1441,10 @@
   // one scrolls away.
   const MAX_TILES = matchMedia('(max-width: 640px)').matches ? 6 : 12;
   const wide = matchMedia('(min-width: 1000px)');
+  // Phones get the compact toolbar and open on the map; their view choice
+  // is remembered separately from the desktop one.
+  const phone = matchMedia('(max-width: 700px)');
+  const viewKey = () => (phone.matches ? 'surf-view-m' : 'surf-view');
 
   const $ = (id) => document.getElementById(id);
   const grid = $('grid'), chips = $('chips'), q = $('q'), empty = $('empty');
@@ -1604,6 +1756,7 @@
       ${c.thumb ? `<img src="${esc(thumbUrl(c.thumb))}" alt="" loading="lazy" decoding="async" onload="this.classList.add('ready')" onerror="this.remove()">` : ''}
       ${c.type === 'hls' ? `<video muted playsinline preload="none"${c.poster ? ` poster="${esc(c.poster)}"` : ''} aria-hidden="true"></video>` : ''}
       <span class="live"><i></i>Live</span>
+      <span class="off" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M15 15v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h2m4 0h4a1 1 0 0 1 1 1v3l5-3v9"/></svg>Camera offline</span>
       <span class="score-slot">${badge(c)}</span>
       <div class="overlay">
         <div class="name">${esc(c.name)}</div>
@@ -1700,16 +1853,21 @@
     t.active = true;
     video.muted = true;
     const card = video.closest('.cam');
-    const onPlaying = () => { video.classList.add('ready'); card.classList.add('streaming'); };
+    // A stream that never gets to playing counts as a failure too.
+    let stall = 0;
+    const arm = () => { clearTimeout(stall); stall = setTimeout(() => fail(), 30000); };
+    const onPlaying = () => { clearTimeout(stall); video.classList.add('ready'); card.classList.add('streaming'); };
     video.addEventListener('playing', onPlaying);
-    t.cleanup = () => video.removeEventListener('playing', onPlaying);
+    t.cleanup = () => { clearTimeout(stall); video.removeEventListener('playing', onPlaying); };
     // A spot with an `alt` stream (same cam from another host) gets one
     // more go on that before the tile is written off.
     let src = c.embed;
     const fail = () => {
-      if (c.alt && src !== c.alt) { src = c.alt; return load(); }
-      stopTile(c.id); t.dead = true;
+      if (!t.active) return;
+      if (c.alt && src !== c.alt) { src = c.alt; arm(); return load(); }
+      markOffline(c.id, 'play');
     };
+    arm();
     const load = () => {
       if (nativeHls) {
         video.addEventListener('error', fail, { once: true });
@@ -1757,6 +1915,84 @@
     }
   }
 
+  /* ---------- Offline cams ----------
+     Every stream's playlist is checked on load (a few hundred bytes each),
+     so dead cams are known even in map view or with data saver on. A dead
+     cam drops to the end of its area with an offline card; an area with
+     nothing live drops to the end of the list. Cams found down by the check
+     are re-checked every few minutes; one whose tile failed to play stays
+     down until reload, so it can't flap. */
+  const offline = new Map();   // id -> 'probe' | 'play'
+
+  function reorder() {
+    const rank = (c) => CAMS.indexOf(c) + (offline.has(c.id) ? 1000 : 0);
+    for (const sec of grid.querySelectorAll('.area')) {
+      const box = sec.querySelector('.cards');
+      [...box.children].sort((a, b) => rank(byId(a.dataset.id)) - rank(byId(b.dataset.id))).forEach((el) => box.appendChild(el));
+    }
+    const dead = (sec) => [...sec.querySelectorAll('.cam')].every((el) => offline.has(el.dataset.id));
+    [...grid.querySelectorAll('.area')]
+      .sort((a, b) => (dead(a) - dead(b)) || (AREAS.indexOf(a.dataset.area) - AREAS.indexOf(b.dataset.area)))
+      .forEach((sec) => grid.appendChild(sec));
+  }
+
+  function markOffline(id, why) {
+    if (offline.get(id) === 'play' || offline.get(id) === why) return;
+    offline.set(id, why);
+    const t = tiles[id];
+    if (t) { stopTile(id); t.dead = true; }
+    const el = grid.querySelector(`.cam[data-id="${CSS.escape(id)}"]`);
+    if (el) { el.classList.add('offline'); el.title = 'Camera offline right now'; }
+    reorder();
+    syncTiles();
+  }
+
+  function markOnline(id) {
+    if (offline.get(id) !== 'probe') return;
+    offline.delete(id);
+    if (tiles[id]) tiles[id].dead = false;
+    const el = grid.querySelector(`.cam[data-id="${CSS.escape(id)}"]`);
+    if (el) { el.classList.remove('offline'); el.removeAttribute('title'); }
+    reorder();
+    syncTiles();
+  }
+
+  // Is the stream up? A readable error or a non-playlist means down. A CORS
+  // block only settles it where hls.js would hit the same wall: Safari plays
+  // HLS natively without CORS, so there a hidden <video> gets the last word.
+  async function probe(url) {
+    try {
+      const r = await fetch(url, { cache: 'no-store' });
+      return r.ok && (await r.text()).includes('#EXTM3U');
+    } catch {
+      if (!nativeHls) return false;
+      return new Promise((res) => {
+        const v = document.createElement('video');
+        let settled = false;
+        const done = (ok) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          v.removeAttribute('src');
+          v.load();
+          res(ok);
+        };
+        const timer = setTimeout(() => done(false), 15000);
+        v.muted = true;
+        v.preload = 'metadata';
+        v.addEventListener('loadedmetadata', () => done(true), { once: true });
+        v.addEventListener('error', () => done(false), { once: true });
+        v.src = url;
+      });
+    }
+  }
+
+  async function checkCam(c) {
+    if (c.type !== 'hls' || offline.get(c.id) === 'play') return;
+    const up = (await probe(c.embed)) || (c.alt ? await probe(c.alt) : false);
+    if (up) markOnline(c.id); else markOffline(c.id, 'probe');
+  }
+
   function setupTiles() {
     const io = new IntersectionObserver((entries) => {
       for (const e of entries) {
@@ -1768,7 +2004,7 @@
     for (const el of cards()) {
       const video = el.querySelector('video');
       if (!video) continue;
-      tiles[el.dataset.id] = { video, hls: null, visible: false, active: false, hold: false, dead: false };
+      tiles[el.dataset.id] = { video, hls: null, visible: false, active: false, hold: false, dead: offline.has(el.dataset.id) };
       io.observe(el);
     }
     document.addEventListener('visibilitychange', syncTiles);
@@ -2082,8 +2318,8 @@
     view = v;
     const ev = effectiveView();
     layout.dataset.view = ev;
-    for (const b of document.querySelectorAll('.seg button')) b.setAttribute('aria-pressed', b.dataset.view === view);
-    try { localStorage.setItem('surf-view', v); } catch {}
+    for (const b of $('view-seg').querySelectorAll('button')) b.setAttribute('aria-pressed', b.dataset.view === ev);
+    try { localStorage.setItem(viewKey(), v); } catch {}
     applyFilter();
     if (ev !== 'grid') showMap();
   }
@@ -2527,7 +2763,7 @@
     applyFilter();
   });
   q.addEventListener('input', applyFilter);
-  document.querySelector('.seg').addEventListener('click', (e) => {
+  $('view-seg').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-view]');
     if (b) setView(b.dataset.view);
   });
@@ -2573,15 +2809,38 @@
     if (map) map.invalidateSize();
   }).observe(controls);
 
+  // Phones: the ⋯ menu (7-day, units, data saver).
+  const moreBtn = $('more-btn');
+  function setMore(on) {
+    controls.classList.toggle('more-open', on);
+    moreBtn.setAttribute('aria-expanded', on);
+  }
+  moreBtn.addEventListener('click', () => setMore(!controls.classList.contains('more-open')));
+  document.addEventListener('click', (e) => { if (!e.target.closest('#more, #more-btn')) setMore(false); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setMore(false); });
+
+  // Phones hide the header, so its tide line and best-right-now ride in
+  // the toolbar instead.
+  const headAside = document.querySelector('header .aside');
+  function placeInfo() {
+    (phone.matches ? $('m-info') : headAside).append($('tide-now'), $('best'));
+  }
+  phone.addEventListener('change', () => { placeInfo(); setMore(false); });
+  placeInfo();
+
   renderChips();
   renderGrid();
   let savedView = '';
-  try { savedView = localStorage.getItem('surf-view') || ''; } catch {}
-  setView(['grid', 'split', 'map'].includes(savedView) ? savedView : (wide.matches ? 'split' : 'grid'));
+  try { savedView = localStorage.getItem(viewKey()) || ''; } catch {}
+  setView(['grid', 'split', 'map'].includes(savedView) ? savedView : phone.matches ? 'map' : wide.matches ? 'split' : 'grid');
   if (location.hash) open(location.hash.slice(1), false);
 
   // Tiles start streaming as soon as hls.js is in (Safari needs nothing).
   (nativeHls ? Promise.resolve() : loadScript(LIBS.hls)).then(setupTiles, setupTiles);
+
+  // Which cams are actually up; down ones are re-checked every 5 minutes.
+  CAMS.forEach(checkCam);
+  setInterval(() => { for (const [id, why] of offline) if (why === 'probe') checkCam(byId(id)); }, 5 * 60 * 1000);
 
   // Shared model skill first (so the blend is weighted), then conditions;
   // both arrive after first paint and patch what depends on them.
