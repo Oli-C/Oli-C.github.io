@@ -225,7 +225,10 @@ const modelRow = (hourly, i, vars, m) => Object.fromEntries(vars.map((v) => { co
 function blend(rows, vars) {
   const out = {};
   for (const v of vars) {
-    const vals = rows.map((r) => r[v]).filter((x) => x != null && !Number.isNaN(x));
+    let vals = rows.map((r) => r[v]).filter((x) => x != null && !Number.isNaN(x));
+    // A wave model with no coverage at a point reports 0, not null; don't
+    // let that vote when other models see real swell.
+    if (v.endsWith('_height') && vals.some((x) => x > 0.05)) vals = vals.filter((x) => x > 0.05);
     if (!vals.length) { out[v] = null; continue; }
     out[v] = v.endsWith('_direction') ? Math.round(meanDir(vals)) : v === 'is_day' ? vals[0] : +median(vals).toFixed(2);
   }

@@ -1447,7 +1447,7 @@
         const now = { ...hours[near] };
         const { mRows, wRows } = srcAt[near];
         const windSrc = wRows.map((r, x) => ({ name: WIND_MODELS[x].name, ws: r.wind_speed_10m, wd: r.wind_direction_10m })).filter((r) => r.ws != null);
-        const swellSrc = mRows.map((r, x) => ({ name: MARINE_MODELS[x].name, h: r.swell_wave_height ?? r.wave_height, p: r.swell_wave_period ?? r.wave_period, d: r.swell_wave_direction ?? r.wave_direction })).filter((r) => r.h != null);
+        const swellSrc = mRows.map((r, x) => ({ name: MARINE_MODELS[x].name, h: r.swell_wave_height ?? r.wave_height, p: r.swell_wave_period ?? r.wave_period, d: r.swell_wave_direction ?? r.wave_direction })).filter((r) => r.h != null && r.h > 0.05);
         const hs = swellSrc.map((r) => r.h);
         now.src = {
           wind: windSrc, swell: swellSrc,
