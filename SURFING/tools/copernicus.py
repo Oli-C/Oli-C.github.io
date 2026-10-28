@@ -114,8 +114,8 @@ def main():
         open(out_path, 'w', encoding='utf-8').write(body)
     if '--post' in args:
         url, key = os.environ['FEEDBACK_URL'].rstrip('/'), os.environ['FEEDBACK_KEY']
-        req = urllib.request.Request(f'{url}/ibi?key={key}', data=body.encode(), method='POST',
-                                     headers={'Content-Type': 'application/json', 'User-Agent': 'allfield-surfcams/1.0'})
+        req = urllib.request.Request(f'{url}/ibi', data=body.encode(), method='POST',
+                                     headers={'Content-Type': 'application/json', 'User-Agent': 'allfield-surfcams/1.0', 'X-Surf-Key': key})
         with urllib.request.urlopen(req, timeout=120) as r:
             print('worker:', r.read().decode()[:300], file=sys.stderr)
 

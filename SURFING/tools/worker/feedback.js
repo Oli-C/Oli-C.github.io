@@ -41,6 +41,16 @@ async function readSecret(b) {
   return '';
 }
 
+// Is this request Oli's own (scripts, admin links)? The export key, sent as
+// an X-Surf-Key header by the scheduled jobs; a ?key= in the address still
+// works for links opened by hand (/a/admin/reset, /forecast/refresh), but
+// stays out of anything automated, so it doesn't land in logs.
+async function isAdmin(req, env) {
+  const key = await readSecret(env.EXPORT_KEY);
+  const given = (req.headers.get('X-Surf-Key') || new URL(req.url).searchParams.get('key') || '').trim();
+  return !!key && given.length === key.length && given === key;
+}
+
 // A forecast hour as the page blends it. Physical ranges; anything else goes.
 const K_RANGES = {
   h: [0, 20], p: [0, 30], d: [0, 360], ws: [0, 200], wd: [0, 360], wg: [0, 250], day: [0, 1],
@@ -188,8 +198,7 @@ async function handleFeedback(req, env, url, json, ipTag) {
 
   if (req.method !== 'GET') return null;
   if (url.pathname === '/export' || url.pathname === '/people' || url.pathname === '/stats') {
-    const exportKey = await readSecret(env.EXPORT_KEY);
-    if (!exportKey || (url.searchParams.get('key') || '').trim() !== exportKey) return json({ error: 'no' }, 403);
+    if (!(await isAdmin(req, env))) return json({ error: 'no' }, 403);
   }
   if (url.pathname === '/export') {
     const since = url.searchParams.get('since') || '';

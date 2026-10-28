@@ -32,7 +32,7 @@ async function guard(env, cls, ip) {
   return ++h.n <= limit;
 }
 function classOf(req, url) {
-  if (url.searchParams.has('key')) return 'admin';
+  if (url.searchParams.has('key') || req.headers.has('X-Surf-Key')) return 'admin';
   if (req.method !== 'POST') return 'read';
   return /^\/a\/(signup|login|recover)$/.test(url.pathname) ? 'auth' : 'write';
 }
@@ -46,7 +46,7 @@ export default {
     const cors = {
       'Access-Control-Allow-Origin': origin && SITE_ORIGIN.test(origin) ? origin : '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Surf-Key',
       'Access-Control-Max-Age': '86400',
       Vary: 'Origin',
     };
@@ -68,10 +68,11 @@ export default {
     // The IP is only ever kept as this keyed hash.
     const ipTag = await senderTag(ip, await readSecret(env.EXPORT_KEY));
     return (await handleForecast(req, env, url, json))
+      || (await handleSkill(req, env, url, json))
       || (await handleHistory(req, env, url, json))
       || (await handleAccounts(req, env, url, json, ipTag))
       || (await handleFeedback(req, env, url, json, ipTag))
-      || json({ routes: ['GET /forecast', 'GET /forecast/day?d=', 'GET /health', 'POST /a/signup', 'POST /a/login', 'POST /a/recover', 'POST /a/password', 'POST /a/logout', 'GET /a/me', 'POST /s', 'GET /skill/waves?days=', 'GET /obs?src=&since=', 'GET /history/status', 'POST /ibi?key='] }, 404);
+      || json({ routes: ['GET /forecast', 'GET /forecast/day?d=', 'GET /health', 'POST /a/signup', 'POST /a/login', 'POST /a/recover', 'POST /a/password', 'POST /a/logout', 'GET /a/me', 'POST /s', 'GET /skill/waves?days=', 'GET /obs?src=&since=', 'GET /history/status', 'GET /skill', 'POST /skill', 'POST /ibi'] }, 404);
   },
 
   async scheduled(event, env, ctx) {

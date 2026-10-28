@@ -351,27 +351,10 @@
     ]);
     if (marine.error || wind.error) throw new Error(marine.reason || wind.reason);
     const M = asList(marine), W = asList(wind);
-    // Weights by days ahead: models are trusted by their record that far out.
-    const windWL = leadWeights(WIND_MODELS, modelWeight), marineWL = leadWeights(MARINE_MODELS, waveWeight);
     const next = {};
     CAMS.forEach((c, i) => {
       const m = M[i], w = W[i];
-      if (!m || !w || !m.hourly || !w.hourly) return;
-      const n = Math.min(m.hourly.time.length, w.hourly.time.length);
-      const byDate = {};
-      const offset = w.utc_offset_seconds || 0;
-      for (let j = 0; j < n; j++) {
-        const t = m.hourly.time[j], date = t.slice(0, 10), lead = leadOf(t, offset);
-        const bh = blendHour(m.hourly, w.hourly, j, windWL[lead], marineWL[lead]);
-        if (!bh) continue;
-        (byDate[date] = byDate[date] || []).push({ t, ...bh.k });
-      }
-      const days = Object.keys(byDate).sort().map((date, di) => {
-        const hours = byDate[date];
-        hours.forEach((k, j) => addTide(hours, k, j));   // tide relative to that day's range
-        return { date, hours, tides: tideEvents(hours), sun: sunOf(w, di), conf: dayConfidence(hours, di) };
-      });
-      next[c.id] = { days };
+      if (m && w && m.hourly && w.hourly) next[c.id] = { days: blendSpot(c, m, w).days };   // score.js
     });
     keep(next);
   }

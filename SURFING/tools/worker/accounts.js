@@ -105,8 +105,7 @@ async function handleAccounts(req, env, url, json, ipTag) {
   // Oli's own: reset a password (hands back a new recovery code to pass
   // on), or shut an account off / back on. Need the export key.
   if (req.method === 'GET' && path.startsWith('admin/')) {
-    const key = await readSecret(env.EXPORT_KEY);
-    if (!key || (url.searchParams.get('key') || '').trim() !== key) return json({ error: 'no' }, 403);
+    if (!(await isAdmin(req, env))) return json({ error: 'no' }, 403);
     const u = await userByName(env, url.searchParams.get('name'));
     if (!u) return json({ error: 'no such account' }, 404);
     if (path === 'admin/reset') {

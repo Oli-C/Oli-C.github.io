@@ -1830,7 +1830,6 @@
       fetch(base + 'observations.json').then((r) => r.json()),
     ]);
     const hoursDesc = Object.keys(observations).sort().reverse().slice(0, 3);
-    const km = (a, b, c, d) => { const R = 6371, t = (x) => x * Math.PI / 180; const x = Math.sin(t(c - a) / 2) ** 2 + Math.cos(t(a)) * Math.cos(t(c)) * Math.sin(t(d - b) / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
     const out = {};
     for (const c of CAMS) {
       let best = null;
@@ -1932,7 +1931,6 @@
       let seen = [];
       try { seen = JSON.parse(localStorage.getItem('surf-skill-seen') || '[]'); } catch {}
       let learned = false;
-      const marineW = MARINE_MODELS.map((m) => waveWeight(m));
       CAMS.forEach((c, i) => {
         const m = M[i], w = W[i];
         if (!m || !w || !m.hourly || !w.hourly) return;
@@ -1954,47 +1952,19 @@
             seen.push(stamp); learned = true;
           }
         }
-        const windW = WIND_MODELS.map((m) => modelWeight(m));
-        const hours = [], srcAt = [];
-        const n = Math.min(m.hourly.time.length, w.hourly.time.length);
-        for (let j = 0; j < n; j++) {
-          const bh = blendHour(m.hourly, w.hourly, j, windW, marineW);
-          if (!bh) continue;
-          const { k, mRows, wRows } = bh;
-          // A fresh station reading leans on the hours around it.
-          if (ob) {
-            const away = (new Date(m.hourly.time[j]) - new Date(`${ob.day}T${ob.t}`)) / 3.6e6;
-            if (away >= -0.5 && away <= 2.5) applyObs(k, ob, obsWeight(ob, Math.max(0, away)));
-          }
-          hours.push({ t: m.hourly.time[j], ...k });
-          srcAt.push({ mRows, wRows, windW });
-        }
-        if (!hours.length) return;
-        hours.forEach((k, j) => addTide(hours, k, j));
-        // "Now" is the hourly row nearest the clock, with the per-model
-        // values behind it kept for the Sources panel.
+        // Today, blended (score.js), keeping each hour's per-model values
+        // for the Sources panel; "now" is the hour nearest the clock.
+        const counts = Object.fromEntries(Object.entries(skill).map(([key, s]) => [key, s.n]));
+        const f = blendSpot(c, m, w, { obs: ob && { ob, at: `${ob.day}T${ob.t}` }, keep: () => true, counts });
+        const day = f.days[0];
+        if (!day || !day.hours.length) return;
+        const hours = day.hours;
         let near = 0, nearD = Infinity;
         hours.forEach((k, j) => { const d = Math.abs(new Date(k.t) - nowMs); if (d < nearD) { nearD = d; near = j; } });
-        const now = { ...hours[near] };
-        const { mRows, wRows } = srcAt[near];
-        const windSrc = wRows.map((r, x) => ({ name: WIND_MODELS[x].name, w: +srcAt[near].windW[x].toFixed(2), n: (skill[WIND_MODELS[x].key] || {}).n || 0, ws: r.wind_speed_10m, wd: r.wind_direction_10m })).filter((r) => r.ws != null);
-        const swellSrc = mRows.map((r, x) => ({ name: MARINE_MODELS[x].name, w: +waveWeight(MARINE_MODELS[x]).toFixed(2), h: r.swell_wave_height ?? r.wave_height, p: r.swell_wave_period ?? r.wave_period, d: r.swell_wave_direction ?? r.wave_direction })).filter((r) => r.h != null && r.h > 0.05);
-        // Flag the ones the blend set aside, so the Sources panel can say so.
-        const wdOut = outliers(windSrc.map((r) => r.wd), true), wsOut = outliers(windSrc.map((r) => r.ws), false);
-        windSrc.forEach((r, x) => { r.out = wdOut.has(x) || wsOut.has(x); });
-        const hOut = outliers(swellSrc.map((r) => r.h), false), dOut = outliers(swellSrc.map((r) => r.d).filter((v) => v != null), true);
-        swellSrc.forEach((r, x) => { r.out = hOut.has(x) || dOut.has(x); });
-        const hs = swellSrc.map((r) => r.h), wss = windSrc.map((r) => r.ws);
-        now.src = {
-          wind: windSrc, swell: swellSrc,
-          windSpread: dirSpread(windSrc.map((r) => r.wd).filter((v) => v != null)),
-          wsSpread: wss.length ? Math.max(...wss) - Math.min(...wss) : 0,
-          hMin: hs.length ? Math.min(...hs) : null, hMax: hs.length ? Math.max(...hs) : null, hSpread: hs.length ? Math.max(...hs) - Math.min(...hs) : 0,
-        };
+        const now = { ...hours[near], src: f.kept[hours[near].t].src };
         if (ob) now.obs = ob;
         now.conf = confidence(now.src, ob, now);
-        const sun = sunOf(w, 0);
-        next[c.id] = { now, hours, sun, tides: tideEvents(hours), t: now.t };
+        next[c.id] = { now, hours, sun: day.sun, tides: day.tides, t: now.t };
         when = when || (now.t || '').slice(11, 16);
       });
       if (learned) { saveSkill(); try { localStorage.setItem('surf-skill-seen', JSON.stringify(seen.slice(-200))); } catch {} }
@@ -2064,11 +2034,7 @@
 
   // Where you are, once known (Order: nearest).
   let here = null;
-  const kmFrom = (c) => {
-    if (!here) return null;
-    const r = Math.PI / 180, x = (c.lng - here.lng) * r * Math.cos((c.lat + here.lat) / 2 * r), y = (c.lat - here.lat) * r;
-    return Math.hypot(x, y) * 6371;
-  };
+  const kmFrom = (c) => (here ? km(here.lat, here.lng, c.lat, c.lng) : null);
 
   // Built once; conditions are patched in later so the tiles keep streaming.
   function renderGrid() {
@@ -3311,20 +3277,9 @@
       fetch(`https://api.open-meteo.com/v1/forecast?${q}&hourly=${WIND.join()}&models=${modelIds(WIND_MODELS)}&daily=sunrise,sunset`).then((r) => r.json()),
     ]);
     if (m.error || w.error || !m.hourly || !w.hourly) throw new Error(m.reason || w.reason || 'no forecast');
-    const windW = WIND_MODELS.map((m) => modelWeight(m)), marineW = MARINE_MODELS.map((m) => waveWeight(m));
-    const byDate = {};
-    const n = Math.min(m.hourly.time.length, w.hourly.time.length);
-    for (let j = 0; j < n; j++) {
-      const bh = blendHour(m.hourly, w.hourly, j, windW, marineW);
-      if (!bh) continue;
-      const t = m.hourly.time[j];
-      (byDate[t.slice(0, 10)] = byDate[t.slice(0, 10)] || []).push({ t, ...bh.k });
-    }
-    for (const hrs of Object.values(byDate)) hrs.forEach((k, j) => addTide(hrs, k, j));
-    const sun = {};
-    ((w.daily && w.daily.time) || []).forEach((d, i) => { const s = sunOf(w, i); if (s) sun[d] = s; });
-    const offset = w.utc_offset_seconds != null ? w.utc_offset_seconds : (m.utc_offset_seconds || 0);
-    return (pastCache[c.id] = { at: Date.now(), byDate, sun, offset });
+    const f = blendSpot(c, m, w), byDate = {}, sun = {};   // score.js
+    for (const d of f.days) { byDate[d.date] = d.hours; if (d.sun) sun[d.date] = d.sun; }
+    return (pastCache[c.id] = { at: Date.now(), byDate, sun, offset: f.offset });
   }
   const spotNow = (offset) => new Date(Date.now() + offset * 1000).toISOString().slice(0, 16);   // spot-local "YYYY-MM-DDTHH:MM"
   const addMins = (local, mins) => new Date(Date.parse(local + ':00Z') + mins * 60000).toISOString().slice(0, 16);
@@ -3672,16 +3627,12 @@
   // Where a spot has no camera, the frame shows a quiet swell line and
   // offers the nearest cams.
   const NOCAM_ART = '<svg class="nocam-art" viewBox="0 0 120 40" preserveAspectRatio="none" aria-hidden="true"><path d="M0 26c10 0 10-10 20-10s10 10 20 10 10-10 20-10 10 10 20 10 10-10 20-10 10 10 20 10" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
-  const kmBetween = (a, b) => {
-    const r = Math.PI / 180, x = (b.lng - a.lng) * r * Math.cos((a.lat + b.lat) / 2 * r), y = (b.lat - a.lat) * r;
-    return Math.hypot(x, y) * 6371;
-  };
   function noCamHtml(c) {
-    const near = CAMS.filter((o) => !noCam(o) && o.id !== c.id).map((o) => ({ o, km: kmBetween(c, o) }))
+    const near = CAMS.filter((o) => !noCam(o) && o.id !== c.id).map((o) => ({ o, km: km(c.lat, c.lng, o.lat, o.lng) }))
       .sort((a, b) => a.km - b.km).slice(0, 2).filter((x) => x.km < 25);
-    const km = (d) => (d < 0.95 ? `${Math.round(d * 1000 / 50) * 50} m` : `${d.toFixed(d < 10 ? 1 : 0)} km`);
+    const dist = (d) => (d < 0.95 ? `${Math.round(d * 1000 / 50) * 50} m` : `${d.toFixed(d < 10 ? 1 : 0)} km`);
     return `<div class="frame-msg">${NOCAM_ART}<div><b>No camera at ${esc(c.name)} yet</b>${near.length ? `<span>Nearest cams</span><span class="near">${near.map((x) =>
-      `<button class="pop-btn" type="button" data-near="${esc(x.o.id)}">${esc(x.o.name)} <small>${km(x.km)}</small></button>`).join('')}</span>` : ''}</div></div>`;
+      `<button class="pop-btn" type="button" data-near="${esc(x.o.id)}">${esc(x.o.name)} <small>${dist(x.km)}</small></button>`).join('')}</span>` : ''}</div></div>`;
   }
   frame.addEventListener('click', (e) => { const b = e.target.closest('[data-near]'); if (b) open(b.dataset.near); });
 

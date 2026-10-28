@@ -26,13 +26,14 @@
    hand:  node SURFING/tools/skill.mjs [--backfill] */
 import fs from 'node:fs';
 import { createHmac } from 'node:crypto';
+import { loadSite } from './site.mjs';
 
 const UA = 'allfield-surfcams/1.0 (oclarke@routeware.com)';
 const OUT = new URL('../data/skill.json', import.meta.url);
-const read = (u) => fs.readFileSync(new URL(u, import.meta.url), 'utf8');
-const { CAMS } = new Function(read('../spots.js') + '; return { CAMS };')();
-const { WIND_MODELS, MARINE_MODELS, angleDiff } = new Function(read('../score.js') + '; return { WIND_MODELS, MARINE_MODELS, angleDiff };')();
-const WORKER = (process.env.FEEDBACK_URL || 'https://surf-feedback.odj-clarke.workers.dev').replace(/\/+$/, '');
+// The spots, stations and scoring exactly as the pages have them.
+const site = loadSite();
+const { CAMS, WIND_MODELS, MARINE_MODELS, angleDiff, km, IPMA_DIR, BUOYS, ERDDAP, BUOY_WIND_10M } = site;
+const WORKER = (process.env.FEEDBACK_URL || site.SURF_WORKER).replace(/\/+$/, '');
 
 const VERSION = 2;
 const prev = (() => { try { const p = JSON.parse(fs.readFileSync(OUT, 'utf8')); return p; } catch { return null; } })();
@@ -45,14 +46,12 @@ const out = {
 };
 const LEADS = 7;            // 0 = today … 6 days ahead
 const TAU = 21 * 24;        // hours: old evidence fades with a three-week time constant
-const BUOY_WIND_10M = 1.09; // buoy anemometers sit ~3–4 m up; a log profile over sea puts 10 m ~9% higher
 
 async function getJson(url, init) {
   const r = await fetch(url, { ...init, headers: { 'User-Agent': UA, ...(init && init.headers) } });
   if (!r.ok) throw new Error(`${r.status} ${url.slice(0, 90)}`);
   return r.json();
 }
-const km = (a, b, c, d) => { const R = 6371, t = (x) => x * Math.PI / 180; const x = Math.sin(t(c - a) / 2) ** 2 + Math.cos(t(a)) * Math.cos(t(c)) * Math.sin(t(d - b) / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
 const hourKey = (iso) => iso.slice(0, 13);   // "2026-10-27T10"
 const daysAgo = (n) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 19) + 'Z';
 
@@ -94,12 +93,7 @@ function foldAll(kind, a, main) {
 }
 
 /* ---------- Wind ---------- */
-const IPMA_DIR = [null, 0, 45, 90, 135, 180, 225, 270, 315, 0];
-const WIND_BUOYS = [
-  { id: 'nazare', ds: 'TS_70_6200199_MO_UND', lat: 39.56, lng: -9.21 },
-  { id: 'silleiro', ds: 'TS_70_6200084_MO_UND', lat: 42.12, lng: -9.43 },
-  { id: 'cadiz', ds: 'TS_70_6200085_MO_UND', lat: 36.49, lng: -6.96 },
-];
+const WIND_BUOYS = BUOYS.filter((b) => b.wind);   // stations.js
 // Every model's speed and direction for these points, as forecast 0–6 days
 // before each hour: { [pointIndex]: { [hourKey]: { [model]: [[ws, wd] per lead] } } }.
 async function windForecasts(points, pastDays) {
@@ -134,7 +128,7 @@ function scoreWind(a, fcAt, obsWs, obsWd) {
   }
 }
 async function erddap(ds, vars, since) {
-  const r = await fetch(`https://platform-erddap.emodnet-physics.eu/erddap/tabledap/${ds}.json?time,${vars.join(',')}&time%3E${since}&orderBy(%22time%22)`, { headers: { 'User-Agent': UA } });
+  const r = await fetch(`${ERDDAP}${ds}.json?time,${vars.join(',')}&time%3E${since}&orderBy(%22time%22)`, { headers: { 'User-Agent': UA } });
   if (r.status === 404) return {};
   if (!r.ok) throw new Error(String(r.status));
   const byHour = {};
@@ -196,14 +190,7 @@ async function verifyWind() {
 }
 
 /* ---------- Waves ---------- */
-const BUOYS = [
-  { id: 'nazare', name: 'Nazaré coastal buoy (IH)', ds: 'TS_70_6200199_MO_UND', lat: 39.56, lng: -9.21 },
-  { id: 'sines', name: 'Sines coastal buoy (IH)', ds: 'TS_70_Sines-coast-buoy_MO_UND', lat: 37.9211, lng: -8.9289 },
-  { id: 'leixoes', name: 'Leixões coastal buoy (IH)', ds: 'TS_70_Leixoes-coast-buoy_MO_UND', lat: 41.3167, lng: -8.9833 },
-  { id: 'faro', name: 'Faro coastal buoy (IH)', ds: 'TS_70_Faro-coast-buoy_MO_UND', lat: 36.9047, lng: -7.8983 },
-  { id: 'silleiro', name: 'Cabo Silleiro buoy (Puertos del Estado)', ds: 'TS_70_6200084_MO_UND', lat: 42.12, lng: -9.43 },
-  { id: 'cadiz', name: 'Golfo de Cádiz buoy (Puertos del Estado)', ds: 'TS_70_6200085_MO_UND', lat: 36.49, lng: -6.96 },
-];
+// The wave buoys: stations.js.
 async function verifyWaves() {
   const a = acc();
   const since = (b) => (fresh ? daysAgo(60) : (out.lastWave[b.id] && out.lastWave[b.id] > daysAgo(10) ? out.lastWave[b.id] : daysAgo(10)));
@@ -283,7 +270,7 @@ async function pullFeedback() {
     // One export since the newest report of either kind we already hold.
     const since = [...list, ...sessions].map((e) => e.t).sort().pop() || '';
     try {
-      const j = await getJson(`${url.replace(/\/$/, '')}/export?key=${encodeURIComponent(key)}&since=${encodeURIComponent(since)}`);
+      const j = await getJson(`${url.replace(/\/$/, '')}/export?since=${encodeURIComponent(since)}`, { headers: { 'X-Surf-Key': key } });
       // This repo is public: names, accounts and devices stay in the
       // worker. What lands here is the report plus a keyed hash of the
       // account id (older reports: the device id), so one person's reports
@@ -343,7 +330,7 @@ async function pullFeedback() {
    spot, wrong day, or a wind-up); the rest are clipped at ±4. Each
    sender's reports on a spot share one vote's weight as they pile up
    (1/√n each), and a report loses half its weight per year of age. */
-const SC = new Function(read('../score.js') + '; return { score, features, faceRange, FEATURES, SESSION_TARGET, SIZE_FACE };')();
+const SC = site;   // score, features, faceRange, FEATURES, SESSION_TARGET, SIZE_FACE
 const LAMBDA_COAST = 8, LAMBDA_SPOT = 5, OUTLIER = 6, CLIP = 4;
 
 // Solve A·x = b (small, symmetric positive definite) by Gaussian elimination.
@@ -479,6 +466,13 @@ function trainSessions(sessions) {
   out.wind = round(out.wind); out.wave = round(out.wave);
   fs.mkdirSync(new URL('../data/', import.meta.url), { recursive: true });
   fs.writeFileSync(OUT, JSON.stringify(out, null, 1) + '\n');
+  // And straight to the worker, which builds with it at its next run.
+  if (process.env.FEEDBACK_KEY) {
+    try {
+      const r = await fetch(`${WORKER}/skill`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'User-Agent': UA, 'X-Surf-Key': process.env.FEEDBACK_KEY }, body: JSON.stringify(out) });
+      console.log('worker skill:', r.status, (await r.text()).slice(0, 100));
+    } catch (e) { console.log('worker skill: not sent (' + e.message + ')'); }
+  }
   const byLead = (s, f, fmt) => (s.lead || []).map((l) => (l && l[f] != null ? fmt(l[f]) : '-')).join('/');
   console.log('wind km/h miss by day ahead:\n ' + Object.entries(out.wind).map(([k, s]) => `${k.padEnd(22)} ${byLead(s, 'spd', (v) => v.toFixed(1))}  dir ${s.dir == null ? '-' : Math.round(s.dir)}°  n${s.n}`).join('\n '));
   console.log('wave height miss % (after bias) by day ahead:\n ' + Object.entries(out.wave).map(([k, s]) => `${k.padEnd(18)} ${byLead(s, 'hRel', (v) => Math.round(v * 100))}  bias ${s.hBias == null ? '-' : (s.hBias > 0 ? '+' : '') + Math.round(s.hBias * 100) + '%'}  Tp ${s.p == null ? '-' : s.p.toFixed(1)}s  dir ${s.dir == null ? '-' : Math.round(s.dir)}°  n${s.n}`).join('\n '));

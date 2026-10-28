@@ -1,9 +1,11 @@
 name: worker bundle
 
 # Keeps SURFING/tools/surf-worker.js in step with its sources: spots.js,
-# score.js and tools/worker/*. Rebuilds on any change to them, commits the
-# bundle if it moved, then deploys it to the surf-feedback Cloudflare worker
-# when the live build (GET /health) differs from the file's WORKER_BUILD.
+# stations.js, score.js and tools/worker/*. Rebuilds on any change to them,
+# runs the tests (SURFING/tools/test: the scoring and the worker against a
+# faked network), commits the bundle if it moved, then deploys it to the
+# surf-feedback Cloudflare worker when the live build (GET /health) differs
+# from the file's WORKER_BUILD.
 #
 # The deploy uploads code only (PUT …/content), so the worker's bindings
 # (FEEDBACK KV, EXPORT_KEY secret) and its cron trigger are left untouched.
@@ -15,6 +17,9 @@ on:
     branches: [master]
     paths:
       - 'SURFING/spots.js'
+      - 'SURFING/stations.js'
+      - 'SURFING/tools/site.mjs'
+      - 'SURFING/tools/test/**'
       - 'SURFING/score.js'
       - 'SURFING/tools/worker/**'
       - 'SURFING/tools/build-worker.mjs'
@@ -38,6 +43,8 @@ jobs:
           node-version: 20
       - name: Build the worker bundle
         run: node SURFING/tools/build-worker.mjs
+      - name: Test (nothing ships if these fail)
+        run: node --test SURFING/tools/test/*.test.mjs
       - name: Commit if changed
         run: |
           git config user.name "surf-skill bot"

@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build 16b5a26b38. */
-const WORKER_BUILD = '16b5a26b38';
+   Build c72157dfac. */
+const WORKER_BUILD = 'c72157dfac';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (7-day outlook).
@@ -388,6 +388,39 @@ for (const c of CAMS) {
 const saveTune = () => { try { localStorage.setItem('surf-tune', JSON.stringify(TUNE_OVERRIDES)); } catch {} };
 
 
+/* ===== stations.js ===== */
+/* Where the forecasts are checked against measurements: the wave buoys
+   and tide gauges, all read from EMODnet Physics ERDDAP (open data).
+   Plain script like spots.js, shared by the worker (tools/worker/history.js,
+   bundled in), tools/skill.mjs and tools/points.mjs (via tools/site.mjs).
+
+     id     short name, used in the history database (buoy:<id>, tide:<id>)
+     ds     the ERDDAP dataset
+     wind   the buoy has an anemometer (and mean wave direction); the IH
+            coastal buoys carry waves and sea temperature only, and ERDDAP
+            refuses a request naming a variable the dataset lacks */
+
+const BUOYS = [
+  { id: 'nazare', name: 'Nazaré coastal buoy (IH)', ds: 'TS_70_6200199_MO_UND', lat: 39.56, lng: -9.21, wind: true },
+  { id: 'sines', name: 'Sines coastal buoy (IH)', ds: 'TS_70_Sines-coast-buoy_MO_UND', lat: 37.9211, lng: -8.9289 },
+  { id: 'leixoes', name: 'Leixões coastal buoy (IH)', ds: 'TS_70_Leixoes-coast-buoy_MO_UND', lat: 41.3167, lng: -8.9833 },
+  { id: 'faro', name: 'Faro coastal buoy (IH)', ds: 'TS_70_Faro-coast-buoy_MO_UND', lat: 36.9047, lng: -7.8983 },
+  { id: 'silleiro', name: 'Cabo Silleiro buoy (Puertos del Estado)', ds: 'TS_70_6200084_MO_UND', lat: 42.12, lng: -9.43, wind: true },
+  { id: 'cadiz', name: 'Golfo de Cádiz buoy (Puertos del Estado)', ds: 'TS_70_6200085_MO_UND', lat: 36.49, lng: -6.96, wind: true },
+];
+const GAUGES = [
+  { id: 'cascais', name: 'Cascais tide gauge', ds: 'TS_70_CascaisTG_TG_UND', lat: 38.6833, lng: -9.4167 },
+  { id: 'nazare', name: 'Nazaré tide gauge', ds: 'TS_70_NazareTG_TG_UND', lat: 39.586, lng: -9.074 },
+  { id: 'lagos', name: 'Lagos tide gauge', ds: 'TS_70_LagosTG_TG_UND', lat: 37.1, lng: -8.6667 },
+  { id: 'leixoes', name: 'Leixões tide gauge', ds: 'TS_70_LeixoesTG_TG_UND', lat: 41.1867, lng: -8.7045 },
+];
+const ERDDAP = 'https://platform-erddap.emodnet-physics.eu/erddap/tabledap/';
+// What to ask a buoy for (see `wind` above).
+const buoyVars = (b) => (b.wind ? ['VHM0', 'VTPK', 'VPED', 'VMDR', 'WSPD', 'WDIR', 'TEMP'] : ['VHM0', 'VTPK', 'VPED', 'TEMP']);
+// Buoy anemometers sit ~3–4 m up; a log profile over sea puts 10 m ~9% higher.
+const BUOY_WIND_10M = 1.09;
+
+
 /* ===== score.js ===== */
 /* Scoring engine, units, Open-Meteo field mapping and tide helpers — shared by index.html (live cams) and week.html (7-day outlook).
    Plain script, no modules, so file:// and GitHub Pages both work. */
@@ -418,6 +451,8 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 
 /* ---------- Conditions + score ---------- */
 
+// Great-circle distance in km between two points.
+const km = (lat1, lng1, lat2, lng2) => { const R = 6371, t = (x) => x * Math.PI / 180; const x = Math.sin(t(lat2 - lat1) / 2) ** 2 + Math.cos(t(lat1)) * Math.cos(t(lat2)) * Math.sin(t(lng2 - lng1) / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
 // Smallest angle between two bearings, 0–180.
 const angleDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
 // Compass windows are [from, to] clockwise and may wrap through north.
@@ -964,8 +999,12 @@ try { skill = JSON.parse(localStorage.getItem(SKILL_KEY) || '{}') || {}; } catch
 // model's running miss against IPMA stations (wind) and IH buoys (waves),
 // measured continuously for everyone. Device-local learning nudges it.
 let sharedSkill = null;
-async function loadSharedSkill(url = 'data/skill.json') {
-  try { const r = await fetch(url, { cache: 'no-cache' }); if (r.ok) sharedSkill = await r.json(); } catch {}
+// The worker's copy first (it has a new record within minutes), then the
+// site's data/skill.json.
+async function loadSharedSkill(urls = [SURF_WORKER + '/skill', 'data/skill.json']) {
+  for (const url of [].concat(urls)) {
+    try { const r = await fetch(url, { cache: 'no-cache' }); if (r.ok) { sharedSkill = await r.json(); break; } } catch {}
+  }
   return sharedSkill;
 }
 // `lead` is how many days ahead the hour is (0 = today): models age at
@@ -1116,6 +1155,68 @@ function splitSwell(rows) {
       r.swell_wave_peak_period = r.wave_peak_period;
     }
   }
+}
+
+// The Sources panel's per-model values for one hour: each wind and wave
+// model's numbers and weight, the ones the blend set aside flagged, and
+// how far apart they are. `counts`: model key → hours this device has
+// checked it against a station (the live page shows them).
+function sourcesOf(bh, windW, counts = {}) {
+  const wind = bh.wRows.map((r, x) => ({ name: WIND_MODELS[x].name, w: +windW[x].toFixed(2), n: counts[WIND_MODELS[x].key] || 0, ws: r.wind_speed_10m, wd: r.wind_direction_10m })).filter((r) => r.ws != null);
+  const swell = bh.mRows.map((r, x) => ({ name: bh.mModels[x].name, w: +bh.mW[x].toFixed(2), h: r.swell_wave_height ?? r.wave_height, p: r.swell_wave_period ?? r.wave_period, d: r.swell_wave_direction ?? r.wave_direction })).filter((r) => r.h != null && r.h > 0.05);
+  const wdOut = outliers(wind.map((r) => r.wd), true), wsOut = outliers(wind.map((r) => r.ws), false);
+  wind.forEach((r, x) => { r.out = wdOut.has(x) || wsOut.has(x); });
+  const hOut = outliers(swell.map((r) => r.h), false), dOut = outliers(swell.map((r) => r.d).filter((v) => v != null), true);
+  swell.forEach((r, x) => { r.out = hOut.has(x) || dOut.has(x); });
+  const hs = swell.map((r) => r.h), wss = wind.map((r) => r.ws);
+  return {
+    wind, swell,
+    windSpread: dirSpread(wind.map((r) => r.wd).filter((v) => v != null)),
+    wsSpread: wss.length ? Math.max(...wss) - Math.min(...wss) : 0,
+    hMin: hs.length ? Math.min(...hs) : null, hMax: hs.length ? Math.max(...hs) : null, hSpread: hs.length ? Math.max(...hs) - Math.min(...hs) : 0,
+  };
+}
+
+/* One spot's forecast, start to finish: every model's hourly series (one
+   location's Open-Meteo marine and forecast responses) blended hour by
+   hour, each model weighted for how far ahead the hour is; a fresh
+   station reading folded into the hours around it; then grouped into
+   days, each with its tide range, highs and lows, light and confidence.
+   The worker's hourly build, the live page and the 7-day page all use it.
+     opts.obs    { ob, at }  a station reading and its spot-local time
+     opts.extra  (utcHour, lead) => [{ model, row, w }]  wave rows from
+                 elsewhere (the worker's Copernicus IBI)
+     opts.keep   (t) => true for hours whose per-model values to keep, for
+                 the Sources panel (kept[t] = { src, model })
+     opts.counts model key → station checks on this device (sourcesOf)
+   Returns { offset, days: [{ date, hours, tides, sun, conf }], kept }. */
+function blendSpot(c, m, w, opts = {}) {
+  const offset = w.utc_offset_seconds ?? m.utc_offset_seconds ?? 0;
+  const windWL = leadWeights(WIND_MODELS, modelWeight), marineWL = leadWeights(MARINE_MODELS, waveWeight);
+  const byDate = {}, kept = {};
+  const n = Math.min(m.hourly.time.length, w.hourly.time.length);
+  for (let j = 0; j < n; j++) {
+    const t = m.hourly.time[j], lead = leadOf(t, offset);
+    const extra = opts.extra ? opts.extra(new Date(Date.parse(t + ':00Z') - offset * 1000).toISOString().slice(0, 16), lead) : null;
+    const bh = blendHour(m.hourly, w.hourly, j, windWL[lead], marineWL[lead], extra);
+    if (!bh) continue;
+    const k = { t, ...bh.k };
+    if (opts.obs) {
+      const away = (Date.parse(t + ':00Z') - Date.parse(opts.obs.at + ':00Z')) / 3.6e6;
+      if (away >= -0.5 && away <= 2.5) applyObs(k, opts.obs.ob, obsWeight(opts.obs.ob, Math.max(0, away)));
+    }
+    (byDate[t.slice(0, 10)] = byDate[t.slice(0, 10)] || []).push(k);
+    if (opts.keep && opts.keep(t)) kept[t] = { src: sourcesOf(bh, windWL[lead], opts.counts), model: bh.k.model };
+  }
+  const today = new Date(Date.now() + offset * 1000).toISOString().slice(0, 10);
+  const sunDays = (w.daily && w.daily.time) || [];
+  const days = Object.keys(byDate).sort().map((date) => {
+    const hours = byDate[date];
+    hours.forEach((k, j) => addTide(hours, k, j));   // tide relative to that day's range
+    const ahead = Math.max(0, Math.round((Date.parse(date) - Date.parse(today)) / 864e5));
+    return { date, hours, tides: tideEvents(hours), sun: sunOf(w, sunDays.indexOf(date)), conf: dayConfidence(hours, ahead) };
+  });
+  return { offset, days, kept };
 }
 
 // 0–1 confidence for a forecast day: model spread (averaged over its
@@ -1326,8 +1427,7 @@ async function handleAccounts(req, env, url, json, ipTag) {
   // Oli's own: reset a password (hands back a new recovery code to pass
   // on), or shut an account off / back on. Need the export key.
   if (req.method === 'GET' && path.startsWith('admin/')) {
-    const key = await readSecret(env.EXPORT_KEY);
-    if (!key || (url.searchParams.get('key') || '').trim() !== key) return json({ error: 'no' }, 403);
+    if (!(await isAdmin(req, env))) return json({ error: 'no' }, 403);
     const u = await userByName(env, url.searchParams.get('name'));
     if (!u) return json({ error: 'no such account' }, 404);
     if (path === 'admin/reset') {
@@ -1480,6 +1580,16 @@ async function readSecret(b) {
   return '';
 }
 
+// Is this request Oli's own (scripts, admin links)? The export key, sent as
+// an X-Surf-Key header by the scheduled jobs; a ?key= in the address still
+// works for links opened by hand (/a/admin/reset, /forecast/refresh), but
+// stays out of anything automated, so it doesn't land in logs.
+async function isAdmin(req, env) {
+  const key = await readSecret(env.EXPORT_KEY);
+  const given = (req.headers.get('X-Surf-Key') || new URL(req.url).searchParams.get('key') || '').trim();
+  return !!key && given.length === key.length && given === key;
+}
+
 // A forecast hour as the page blends it. Physical ranges; anything else goes.
 const K_RANGES = {
   h: [0, 20], p: [0, 30], d: [0, 360], ws: [0, 200], wd: [0, 360], wg: [0, 250], day: [0, 1],
@@ -1627,8 +1737,7 @@ async function handleFeedback(req, env, url, json, ipTag) {
 
   if (req.method !== 'GET') return null;
   if (url.pathname === '/export' || url.pathname === '/people' || url.pathname === '/stats') {
-    const exportKey = await readSecret(env.EXPORT_KEY);
-    if (!exportKey || (url.searchParams.get('key') || '').trim() !== exportKey) return json({ error: 'no' }, 403);
+    if (!(await isAdmin(req, env))) return json({ error: 'no' }, 403);
   }
   if (url.pathname === '/export') {
     const since = url.searchParams.get('since') || '';
@@ -1709,7 +1818,6 @@ async function fcObs() {
     fetch(base + 'observations.json').then((r) => r.json()),
   ]);
   const hoursDesc = Object.keys(observations).sort().reverse().slice(0, 3);
-  const km = (a, b, c, d) => { const R = 6371, t = (x) => x * Math.PI / 180; const x = Math.sin(t(c - a) / 2) ** 2 + Math.cos(t(a)) * Math.cos(t(c)) * Math.sin(t(d - b) / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
   const out = {};
   for (const c of CAMS) {
     let best = null;
@@ -1729,26 +1837,11 @@ async function fcObs() {
   return out;
 }
 
-// The Sources panel's per-model values for one hour (as the page builds them).
-function fcSrc(mRows, wRows, windW, marineW, mModels = MARINE_MODELS) {
-  const wind = wRows.map((r, x) => ({ name: WIND_MODELS[x].name, w: +windW[x].toFixed(2), n: 0, ws: r.wind_speed_10m, wd: r.wind_direction_10m })).filter((r) => r.ws != null);
-  const swell = mRows.map((r, x) => ({ name: mModels[x].name, w: +marineW[x].toFixed(2), h: r.swell_wave_height ?? r.wave_height, p: r.swell_wave_period ?? r.wave_period, d: r.swell_wave_direction ?? r.wave_direction })).filter((r) => r.h != null && r.h > 0.05);
-  const wdOut = outliers(wind.map((r) => r.wd), true), wsOut = outliers(wind.map((r) => r.ws), false);
-  wind.forEach((r, x) => { r.out = wdOut.has(x) || wsOut.has(x); });
-  const hOut = outliers(swell.map((r) => r.h), false), dOut = outliers(swell.map((r) => r.d).filter((v) => v != null), true);
-  swell.forEach((r, x) => { r.out = hOut.has(x) || dOut.has(x); });
-  const hs = swell.map((r) => r.h), wss = wind.map((r) => r.ws);
-  return {
-    wind, swell,
-    windSpread: dirSpread(wind.map((r) => r.wd).filter((v) => v != null)),
-    wsSpread: wss.length ? Math.max(...wss) - Math.min(...wss) : 0,
-    hMin: hs.length ? Math.min(...hs) : null, hMax: hs.length ? Math.max(...hs) : null, hSpread: hs.length ? Math.max(...hs) - Math.min(...hs) : 0,
-  };
-}
-
 async function buildForecast(env) {
   const started = Date.now();
-  try { const r = await fetch(SITE + 'data/skill.json', { cf: { cacheTtl: 300 } }); if (r.ok) sharedSkill = await r.json(); } catch {}
+  // The models' record: as tools/skill.mjs last posted it, else the site's copy.
+  try { sharedSkill = JSON.parse((await env.FEEDBACK.get('skill:latest')) || 'null'); } catch {}
+  if (!sharedSkill) try { const r = await fetch(SITE + 'data/skill.json', { cf: { cacheTtl: 300 } }); if (r.ok) sharedSkill = await r.json(); } catch {}
   const pts = CAMS.map(offshore);
   const lat = pts.map((p) => p[0]).join(','), lng = pts.map((p) => p[1]).join(',');
   const q = `latitude=${lat}&longitude=${lng}&past_days=${FC_PAST}&forecast_days=${FC_DAYS}&timezone=auto`;
@@ -1766,8 +1859,6 @@ async function buildForecast(env) {
   const ibiAt = ibi ? Object.fromEntries(ibi.times.map((t, i) => [t, i])) : null;
   const ibiWL = leadWeights([IBI_MODEL], waveWeight);
   const ibiRow = (s, i) => Object.fromEntries(MARINE.map((v) => [v, s[v] ? s[v][i] : null]));
-  // Weights by days ahead: models are trusted by their record that far out.
-  const windWL = leadWeights(WIND_MODELS, modelWeight), marineWL = leadWeights(MARINE_MODELS, waveWeight);
   const spots = {}, byDay = {};
   CAMS.forEach((c, i) => {
     const m = M[i], w = W[i];
@@ -1778,36 +1869,20 @@ async function buildForecast(env) {
     const ob = obs[c.id] || null;
     const obLocal = ob ? local(Date.parse(ob.utc + ':00Z')) : null;
     if (ob) { ob.day = obLocal.slice(0, 10); ob.t = obLocal.slice(11, 16); ob.ageH = +((Date.now() - Date.parse(ob.utc + ':00Z')) / 3.6e6).toFixed(1); }
-    const byDate = {}, src = {};
-    const n = Math.min(m.hourly.time.length, w.hourly.time.length);
     const ib = ibi && ibi.spots[c.id];
-    for (let j = 0; j < n; j++) {
-      const t = m.hourly.time[j], lead = leadOf(t, offset);
-      const ii = ib ? ibiAt[new Date(Date.parse(t + ':00Z') - offset * 1000).toISOString().slice(0, 16)] : null;
-      const extra = ii != null && ib.wave_height[ii] != null ? [{ model: IBI_MODEL, row: ibiRow(ib, ii), w: ibiWL[lead][0] }] : null;
-      const bh = blendHour(m.hourly, w.hourly, j, windWL[lead], marineWL[lead], extra);
-      if (!bh) continue;
-      const k = { t, ...bh.k };
-      // A fresh station reading leans on the hours around it.
-      if (ob) {
-        const away = (Date.parse(t + ':00Z') - Date.parse(obLocal + ':00Z')) / 3.6e6;
-        if (away >= -0.5 && away <= 2.5) applyObs(k, ob, obsWeight(ob, Math.max(0, away)));
-      }
-      (byDate[t.slice(0, 10)] = byDate[t.slice(0, 10)] || []).push(k);
+    const f = blendSpot(c, m, w, {
+      obs: ob && { ob, at: obLocal },
+      // Copernicus IBI's hour, as one more wave model.
+      extra: ib && ((utc, lead) => { const ii = ibiAt[utc]; return ii != null && ib.wave_height[ii] != null ? [{ model: IBI_MODEL, row: ibiRow(ib, ii), w: ibiWL[lead][0] }] : null; }),
       // Per-model values for the hours a page might call "now" before the next run.
-      const dh = (Date.parse(t + ':00Z') - Date.parse(nowLocal + ':00Z')) / 3.6e6;
-      if (dh >= -1.5 && dh <= 2.5) src[t] = { src: fcSrc(bh.mRows, bh.wRows, windWL[lead], bh.mW, bh.mModels), model: bh.k.model };
-    }
-    const dates = Object.keys(byDate).sort(), todayIdx = dates.indexOf(today);
-    const days = dates.map((date, di) => {
-      const hours = byDate[date];
-      hours.forEach((k, j) => addTide(hours, k, j));
-      const dayFromToday = todayIdx >= 0 ? di - todayIdx : di;
-      const day = { date, hours: hours.map(roundK), tides: tideEvents(hours), sun: sunOf(w, (w.daily && w.daily.time || []).indexOf(date)), conf: dayConfidence(hours, Math.max(0, dayFromToday)) };
-      if (date <= today) (byDay[date] = byDay[date] || {})[c.id] = day;
+      keep: (t) => { const dh = (Date.parse(t + ':00Z') - Date.parse(nowLocal + ':00Z')) / 3.6e6; return dh >= -1.5 && dh <= 2.5; },
+    });
+    const days = f.days.map((d) => {
+      const day = { ...d, hours: d.hours.map(roundK) };
+      if (d.date <= today) (byDay[d.date] = byDay[d.date] || {})[c.id] = day;
       return day;
     });
-    spots[c.id] = { offset, days, src, obs: ob };
+    spots[c.id] = { offset, days, src: f.kept, obs: ob };
   });
   const built = new Date().toISOString();
   const payload = { v: FC_VER, built, skill: (sharedSkill && sharedSkill.updated) || null, ibi: ibi ? ibi.built : null, ms: Date.now() - started, spots };
@@ -1819,6 +1894,29 @@ async function buildForecast(env) {
 // The latest build, held in this isolate for a minute so a burst of page
 // loads (or someone hammering it) costs one KV read, not one each.
 let fcMemo = { at: 0, body: null };
+
+// GET /skill: the models' record (tools/skill.mjs posts it with POST /skill).
+// The pages read it here first, so a new record counts within minutes
+// rather than after GitHub Pages republishes data/skill.json.
+let skillMemo = { at: 0, body: null };
+async function handleSkill(req, env, url, json) {
+  if (url.pathname !== '/skill') return null;
+  if (req.method === 'POST') {
+    if (!(await isAdmin(req, env))) return json({ error: 'no' }, 403);
+    if ((req.headers.get('Content-Length') | 0) > 500000) return json({ error: 'too big' }, 413);
+    let b;
+    try { b = await req.json(); } catch { return json({ error: 'bad json' }, 400); }
+    if (!b || typeof b !== 'object' || !b.wind || !b.wave || typeof b.updated !== 'string') return json({ error: 'not a skill record' }, 400);
+    await env.FEEDBACK.put('skill:latest', JSON.stringify(b));
+    skillMemo = { at: 0, body: null };
+    return json({ ok: true, updated: b.updated });
+  }
+  if (req.method !== 'GET') return null;
+  if (Date.now() - skillMemo.at > 60000) skillMemo = { at: Date.now(), body: await env.FEEDBACK.get('skill:latest') };
+  return skillMemo.body
+    ? new Response(skillMemo.body, { headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' } })
+    : json({ error: 'no record yet' }, 404);
+}
 
 // Routes: GET /forecast, GET /forecast/day?d=YYYY-MM-DD, GET /forecast/refresh?key=.
 async function handleForecast(req, env, url, json) {
@@ -1837,8 +1935,7 @@ async function handleForecast(req, env, url, json) {
     return body ? new Response(body, { headers: { ...cors, 'Cache-Control': 'public, max-age=3600' } }) : json({ error: 'no archive for that day' }, 404);
   }
   if (url.pathname === '/forecast/refresh') {
-    const key = await readSecret(env.EXPORT_KEY);
-    if (!key || (url.searchParams.get('key') || '').trim() !== key) return json({ error: 'no' }, 403);
+    if (!(await isAdmin(req, env))) return json({ error: 'no' }, 403);
     try { return json({ ok: true, ...(await buildForecast(env)) }); } catch (e) { return json({ error: String(e && e.message || e) }, 502); }
   }
   return null;
@@ -1878,24 +1975,7 @@ async function handleForecast(req, env, url, json) {
    GET /skill/waves?days=60  every wave model's miss at the buoys by lead day
    GET /obs?src=&since=      stored measurements (one source, ≤ 31 days) */
 
-const HIST_BUOYS = [
-  { id: 'nazare', ds: 'TS_70_6200199_MO_UND', lat: 39.56, lng: -9.21, wind: true },
-  { id: 'sines', ds: 'TS_70_Sines-coast-buoy_MO_UND', lat: 37.9211, lng: -8.9289 },
-  { id: 'leixoes', ds: 'TS_70_Leixoes-coast-buoy_MO_UND', lat: 41.3167, lng: -8.9833 },
-  { id: 'faro', ds: 'TS_70_Faro-coast-buoy_MO_UND', lat: 36.9047, lng: -7.8983 },
-  { id: 'silleiro', ds: 'TS_70_6200084_MO_UND', lat: 42.12, lng: -9.43, wind: true },
-  { id: 'cadiz', ds: 'TS_70_6200085_MO_UND', lat: 36.49, lng: -6.96, wind: true },
-];
-// ERDDAP refuses a request naming a variable the dataset lacks: the IH coastal
-// buoys carry waves and sea temperature only, the others wind and mean direction too.
-const buoyVars = (b) => (b.wind ? ['VHM0', 'VTPK', 'VPED', 'VMDR', 'WSPD', 'WDIR', 'TEMP'] : ['VHM0', 'VTPK', 'VPED', 'TEMP']);
-const HIST_GAUGES = [
-  { id: 'cascais', ds: 'TS_70_CascaisTG_TG_UND' },
-  { id: 'nazare', ds: 'TS_70_NazareTG_TG_UND' },
-  { id: 'lagos', ds: 'TS_70_LagosTG_TG_UND' },
-  { id: 'leixoes', ds: 'TS_70_LeixoesTG_TG_UND' },
-];
-const ERDDAP = 'https://platform-erddap.emodnet-physics.eu/erddap/tabledap/';
+// The buoys and gauges: stations.js (bundled in).
 const HIST_UA = { 'User-Agent': 'allfield-surfcams/1.0' };
 
 // SQL literals for our own numbers and ids (no user input reaches these).
@@ -1919,7 +1999,6 @@ const hourIso = (t) => t.slice(0, 13) + ':00';   // "2026-10-28T14:00"
 async function archiveIpma(db) {
   const base = 'https://api.ipma.pt/open-data/observation/meteorology/stations/';
   const [stations, observations] = await Promise.all([fetch(base + 'stations.json').then((r) => r.json()), fetch(base + 'observations.json').then((r) => r.json())]);
-  const km = (a, b, c, d) => { const R = 6371, t = (x) => x * Math.PI / 180; const x = Math.sin(t(c - a) / 2) ** 2 + Math.cos(t(a)) * Math.cos(t(c)) * Math.sin(t(d - b) / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
   const near = new Set(stations.filter((s) => { const [lon, lat] = s.geometry.coordinates; return CAMS.some((c) => km(c.lat, c.lng, lat, lon) <= 60); }).map((s) => String(s.properties.idEstacao)));
   const rows = [];
   for (const [h, byId] of Object.entries(observations)) {
@@ -1952,7 +2031,7 @@ async function lastObs(db, src) {
 }
 async function archiveBuoys(db) {
   let n = 0;
-  for (const b of HIST_BUOYS) {
+  for (const b of BUOYS) {
     try {
       const since = await lastObs(db, 'buoy:' + b.id);
       const hours = await erddapHours(b.ds, buoyVars(b), since);
@@ -1960,7 +2039,7 @@ async function archiveBuoys(db) {
         [sqlStr('buoy:' + b.id), sqlStr(t), sqlNum(o.VHM0), sqlNum(o.VTPK), sqlNum(o.VPED ?? o.VMDR), sqlNum(o.WSPD != null ? o.WSPD * 3.6 : null), sqlNum(o.WDIR), sqlNum(o.TEMP)]));
     } catch (e) { console.log('buoy', b.id, e.message); }
   }
-  for (const g of HIST_GAUGES) {
+  for (const g of GAUGES) {
     try {
       const since = await lastObs(db, 'tide:' + g.id);
       const hours = await erddapHours(g.ds, ['SLEV'], since);
@@ -1972,7 +2051,7 @@ async function archiveBuoys(db) {
 
 // Every wave model at every buoy, 0–7 days ahead, filed by lead day.
 async function archiveWaveForecasts(db) {
-  const lat = HIST_BUOYS.map((b) => b.lat).join(','), lng = HIST_BUOYS.map((b) => b.lng).join(',');
+  const lat = BUOYS.map((b) => b.lat).join(','), lng = BUOYS.map((b) => b.lng).join(',');
   const j = await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&hourly=wave_height,wave_peak_period,swell_wave_peak_period,wave_direction&models=${modelIds(MARINE_MODELS)}&forecast_days=8&timezone=GMT`).then((r) => r.json());
   if (j.error) throw new Error(j.reason);
   const now = Date.now(), issued = new Date(now).toISOString().slice(0, 16), rows = [];
@@ -1986,7 +2065,7 @@ async function archiveWaveForecasts(db) {
         const id = m.id || m.key, hv = (h[`wave_height_${m.key}`] || [])[i];
         if (hv == null || !(hv > 0.05)) continue;
         const pv = (h[`wave_peak_period_${m.key}`] || [])[i] ?? (h[`swell_wave_peak_period_${m.key}`] || [])[i];
-        rows.push([sqlStr(HIST_BUOYS[bi].id), sqlStr(id), sqlStr(t), lead, sqlNum(hv), sqlNum(pv), sqlNum((h[`wave_direction_${m.key}`] || [])[i]), sqlStr(issued)]);
+        rows.push([sqlStr(BUOYS[bi].id), sqlStr(id), sqlStr(t), lead, sqlNum(hv), sqlNum(pv), sqlNum((h[`wave_direction_${m.key}`] || [])[i]), sqlStr(issued)]);
       }
     });
   });
@@ -2009,8 +2088,7 @@ async function archiveHistory(env, force) {
 
 // A Copernicus IBI run: { built, times: [UTC hours], spots: { id: { <marine var>: [..] } }, buoys: {...} }.
 async function receiveIbi(req, env, json) {
-  const key = await readSecret(env.EXPORT_KEY);
-  if (!key || (new URL(req.url).searchParams.get('key') || '').trim() !== key) return json({ error: 'no' }, 403);
+  if (!(await isAdmin(req, env))) return json({ error: 'no' }, 403);
   if ((req.headers.get('Content-Length') | 0) > 3e6) return json({ error: 'too big' }, 413);
   let b;
   try { b = await req.json(); } catch { return json({ error: 'bad json' }, 400); }
@@ -2021,7 +2099,7 @@ async function receiveIbi(req, env, json) {
   const known = new Set(CAMS.map((c) => c.id));
   const run = { v: 1, built: b.built, source: String(b.source || '').slice(0, 60), times: b.times, spots: {}, buoys: {} };
   for (const [id, rec] of Object.entries(b.spots)) if (known.has(id)) run.spots[id] = clean(rec);
-  for (const [id, rec] of Object.entries(b.buoys || {})) if (HIST_BUOYS.some((x) => x.id === id)) run.buoys[id] = clean(rec);
+  for (const [id, rec] of Object.entries(b.buoys || {})) if (BUOYS.some((x) => x.id === id)) run.buoys[id] = clean(rec);
   await env.FEEDBACK.put('ibi:latest', JSON.stringify(run));
   // Its forecasts at the buoys, by lead day, for its record (as archiveWaveForecasts).
   let filed = 0;
@@ -2045,8 +2123,7 @@ async function handleHistory(req, env, url, json) {
   if (req.method !== 'GET' || !['/skill/waves', '/obs', '/history/status', '/history/refresh'].includes(url.pathname)) return null;
   if (!env.DB) return json({ error: 'no history database bound' }, 503);
   if (url.pathname === '/history/refresh') {
-    const key = await readSecret(env.EXPORT_KEY);
-    if (!key || (url.searchParams.get('key') || '').trim() !== key) return json({ error: 'no' }, 403);
+    if (!(await isAdmin(req, env))) return json({ error: 'no' }, 403);
     return json({ ok: true, ...(await archiveHistory(env, true)) });
   }
   if (url.pathname === '/history/status') {
@@ -2119,7 +2196,7 @@ async function guard(env, cls, ip) {
   return ++h.n <= limit;
 }
 function classOf(req, url) {
-  if (url.searchParams.has('key')) return 'admin';
+  if (url.searchParams.has('key') || req.headers.has('X-Surf-Key')) return 'admin';
   if (req.method !== 'POST') return 'read';
   return /^\/a\/(signup|login|recover)$/.test(url.pathname) ? 'auth' : 'write';
 }
@@ -2133,7 +2210,7 @@ export default {
     const cors = {
       'Access-Control-Allow-Origin': origin && SITE_ORIGIN.test(origin) ? origin : '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Surf-Key',
       'Access-Control-Max-Age': '86400',
       Vary: 'Origin',
     };
@@ -2155,10 +2232,11 @@ export default {
     // The IP is only ever kept as this keyed hash.
     const ipTag = await senderTag(ip, await readSecret(env.EXPORT_KEY));
     return (await handleForecast(req, env, url, json))
+      || (await handleSkill(req, env, url, json))
       || (await handleHistory(req, env, url, json))
       || (await handleAccounts(req, env, url, json, ipTag))
       || (await handleFeedback(req, env, url, json, ipTag))
-      || json({ routes: ['GET /forecast', 'GET /forecast/day?d=', 'GET /health', 'POST /a/signup', 'POST /a/login', 'POST /a/recover', 'POST /a/password', 'POST /a/logout', 'GET /a/me', 'POST /s', 'GET /skill/waves?days=', 'GET /obs?src=&since=', 'GET /history/status', 'POST /ibi?key='] }, 404);
+      || json({ routes: ['GET /forecast', 'GET /forecast/day?d=', 'GET /health', 'POST /a/signup', 'POST /a/login', 'POST /a/recover', 'POST /a/password', 'POST /a/logout', 'GET /a/me', 'POST /s', 'GET /skill/waves?days=', 'GET /obs?src=&since=', 'GET /history/status', 'GET /skill', 'POST /skill', 'POST /ibi'] }, 404);
   },
 
   async scheduled(event, env, ctx) {

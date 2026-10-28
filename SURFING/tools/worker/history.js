@@ -30,24 +30,7 @@
    GET /skill/waves?days=60  every wave model's miss at the buoys by lead day
    GET /obs?src=&since=      stored measurements (one source, ≤ 31 days) */
 
-const HIST_BUOYS = [
-  { id: 'nazare', ds: 'TS_70_6200199_MO_UND', lat: 39.56, lng: -9.21, wind: true },
-  { id: 'sines', ds: 'TS_70_Sines-coast-buoy_MO_UND', lat: 37.9211, lng: -8.9289 },
-  { id: 'leixoes', ds: 'TS_70_Leixoes-coast-buoy_MO_UND', lat: 41.3167, lng: -8.9833 },
-  { id: 'faro', ds: 'TS_70_Faro-coast-buoy_MO_UND', lat: 36.9047, lng: -7.8983 },
-  { id: 'silleiro', ds: 'TS_70_6200084_MO_UND', lat: 42.12, lng: -9.43, wind: true },
-  { id: 'cadiz', ds: 'TS_70_6200085_MO_UND', lat: 36.49, lng: -6.96, wind: true },
-];
-// ERDDAP refuses a request naming a variable the dataset lacks: the IH coastal
-// buoys carry waves and sea temperature only, the others wind and mean direction too.
-const buoyVars = (b) => (b.wind ? ['VHM0', 'VTPK', 'VPED', 'VMDR', 'WSPD', 'WDIR', 'TEMP'] : ['VHM0', 'VTPK', 'VPED', 'TEMP']);
-const HIST_GAUGES = [
-  { id: 'cascais', ds: 'TS_70_CascaisTG_TG_UND' },
-  { id: 'nazare', ds: 'TS_70_NazareTG_TG_UND' },
-  { id: 'lagos', ds: 'TS_70_LagosTG_TG_UND' },
-  { id: 'leixoes', ds: 'TS_70_LeixoesTG_TG_UND' },
-];
-const ERDDAP = 'https://platform-erddap.emodnet-physics.eu/erddap/tabledap/';
+// The buoys and gauges: stations.js (bundled in).
 const HIST_UA = { 'User-Agent': 'allfield-surfcams/1.0' };
 
 // SQL literals for our own numbers and ids (no user input reaches these).
@@ -71,7 +54,6 @@ const hourIso = (t) => t.slice(0, 13) + ':00';   // "2026-10-28T14:00"
 async function archiveIpma(db) {
   const base = 'https://api.ipma.pt/open-data/observation/meteorology/stations/';
   const [stations, observations] = await Promise.all([fetch(base + 'stations.json').then((r) => r.json()), fetch(base + 'observations.json').then((r) => r.json())]);
-  const km = (a, b, c, d) => { const R = 6371, t = (x) => x * Math.PI / 180; const x = Math.sin(t(c - a) / 2) ** 2 + Math.cos(t(a)) * Math.cos(t(c)) * Math.sin(t(d - b) / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
   const near = new Set(stations.filter((s) => { const [lon, lat] = s.geometry.coordinates; return CAMS.some((c) => km(c.lat, c.lng, lat, lon) <= 60); }).map((s) => String(s.properties.idEstacao)));
   const rows = [];
   for (const [h, byId] of Object.entries(observations)) {
@@ -104,7 +86,7 @@ async function lastObs(db, src) {
 }
 async function archiveBuoys(db) {
   let n = 0;
-  for (const b of HIST_BUOYS) {
+  for (const b of BUOYS) {
     try {
       const since = await lastObs(db, 'buoy:' + b.id);
       const hours = await erddapHours(b.ds, buoyVars(b), since);
@@ -112,7 +94,7 @@ async function archiveBuoys(db) {
         [sqlStr('buoy:' + b.id), sqlStr(t), sqlNum(o.VHM0), sqlNum(o.VTPK), sqlNum(o.VPED ?? o.VMDR), sqlNum(o.WSPD != null ? o.WSPD * 3.6 : null), sqlNum(o.WDIR), sqlNum(o.TEMP)]));
     } catch (e) { console.log('buoy', b.id, e.message); }
   }
-  for (const g of HIST_GAUGES) {
+  for (const g of GAUGES) {
     try {
       const since = await lastObs(db, 'tide:' + g.id);
       const hours = await erddapHours(g.ds, ['SLEV'], since);
@@ -124,7 +106,7 @@ async function archiveBuoys(db) {
 
 // Every wave model at every buoy, 0–7 days ahead, filed by lead day.
 async function archiveWaveForecasts(db) {
-  const lat = HIST_BUOYS.map((b) => b.lat).join(','), lng = HIST_BUOYS.map((b) => b.lng).join(',');
+  const lat = BUOYS.map((b) => b.lat).join(','), lng = BUOYS.map((b) => b.lng).join(',');
   const j = await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&hourly=wave_height,wave_peak_period,swell_wave_peak_period,wave_direction&models=${modelIds(MARINE_MODELS)}&forecast_days=8&timezone=GMT`).then((r) => r.json());
   if (j.error) throw new Error(j.reason);
   const now = Date.now(), issued = new Date(now).toISOString().slice(0, 16), rows = [];
@@ -138,7 +120,7 @@ async function archiveWaveForecasts(db) {
         const id = m.id || m.key, hv = (h[`wave_height_${m.key}`] || [])[i];
         if (hv == null || !(hv > 0.05)) continue;
         const pv = (h[`wave_peak_period_${m.key}`] || [])[i] ?? (h[`swell_wave_peak_period_${m.key}`] || [])[i];
-        rows.push([sqlStr(HIST_BUOYS[bi].id), sqlStr(id), sqlStr(t), lead, sqlNum(hv), sqlNum(pv), sqlNum((h[`wave_direction_${m.key}`] || [])[i]), sqlStr(issued)]);
+        rows.push([sqlStr(BUOYS[bi].id), sqlStr(id), sqlStr(t), lead, sqlNum(hv), sqlNum(pv), sqlNum((h[`wave_direction_${m.key}`] || [])[i]), sqlStr(issued)]);
       }
     });
   });
@@ -161,8 +143,7 @@ async function archiveHistory(env, force) {
 
 // A Copernicus IBI run: { built, times: [UTC hours], spots: { id: { <marine var>: [..] } }, buoys: {...} }.
 async function receiveIbi(req, env, json) {
-  const key = await readSecret(env.EXPORT_KEY);
-  if (!key || (new URL(req.url).searchParams.get('key') || '').trim() !== key) return json({ error: 'no' }, 403);
+  if (!(await isAdmin(req, env))) return json({ error: 'no' }, 403);
   if ((req.headers.get('Content-Length') | 0) > 3e6) return json({ error: 'too big' }, 413);
   let b;
   try { b = await req.json(); } catch { return json({ error: 'bad json' }, 400); }
@@ -173,7 +154,7 @@ async function receiveIbi(req, env, json) {
   const known = new Set(CAMS.map((c) => c.id));
   const run = { v: 1, built: b.built, source: String(b.source || '').slice(0, 60), times: b.times, spots: {}, buoys: {} };
   for (const [id, rec] of Object.entries(b.spots)) if (known.has(id)) run.spots[id] = clean(rec);
-  for (const [id, rec] of Object.entries(b.buoys || {})) if (HIST_BUOYS.some((x) => x.id === id)) run.buoys[id] = clean(rec);
+  for (const [id, rec] of Object.entries(b.buoys || {})) if (BUOYS.some((x) => x.id === id)) run.buoys[id] = clean(rec);
   await env.FEEDBACK.put('ibi:latest', JSON.stringify(run));
   // Its forecasts at the buoys, by lead day, for its record (as archiveWaveForecasts).
   let filed = 0;
@@ -197,8 +178,7 @@ async function handleHistory(req, env, url, json) {
   if (req.method !== 'GET' || !['/skill/waves', '/obs', '/history/status', '/history/refresh'].includes(url.pathname)) return null;
   if (!env.DB) return json({ error: 'no history database bound' }, 503);
   if (url.pathname === '/history/refresh') {
-    const key = await readSecret(env.EXPORT_KEY);
-    if (!key || (url.searchParams.get('key') || '').trim() !== key) return json({ error: 'no' }, 403);
+    if (!(await isAdmin(req, env))) return json({ error: 'no' }, 403);
     return json({ ok: true, ...(await archiveHistory(env, true)) });
   }
   if (url.pathname === '/history/status') {

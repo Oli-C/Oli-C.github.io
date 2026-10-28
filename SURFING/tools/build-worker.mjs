@@ -15,6 +15,7 @@ import crypto from 'node:crypto';
 const at = (p) => new URL(p, import.meta.url);
 const parts = [
   ['spots.js', '../spots.js'],
+  ['stations.js', '../stations.js'],
   ['score.js', '../score.js'],
   ['worker/accounts.js', './worker/accounts.js'],
   ['worker/feedback.js', './worker/feedback.js'],

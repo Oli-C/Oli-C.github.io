@@ -27,6 +27,8 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 
 /* ---------- Conditions + score ---------- */
 
+// Great-circle distance in km between two points.
+const km = (lat1, lng1, lat2, lng2) => { const R = 6371, t = (x) => x * Math.PI / 180; const x = Math.sin(t(lat2 - lat1) / 2) ** 2 + Math.cos(t(lat1)) * Math.cos(t(lat2)) * Math.sin(t(lng2 - lng1) / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
 // Smallest angle between two bearings, 0–180.
 const angleDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
 // Compass windows are [from, to] clockwise and may wrap through north.
@@ -573,8 +575,12 @@ try { skill = JSON.parse(localStorage.getItem(SKILL_KEY) || '{}') || {}; } catch
 // model's running miss against IPMA stations (wind) and IH buoys (waves),
 // measured continuously for everyone. Device-local learning nudges it.
 let sharedSkill = null;
-async function loadSharedSkill(url = 'data/skill.json') {
-  try { const r = await fetch(url, { cache: 'no-cache' }); if (r.ok) sharedSkill = await r.json(); } catch {}
+// The worker's copy first (it has a new record within minutes), then the
+// site's data/skill.json.
+async function loadSharedSkill(urls = [SURF_WORKER + '/skill', 'data/skill.json']) {
+  for (const url of [].concat(urls)) {
+    try { const r = await fetch(url, { cache: 'no-cache' }); if (r.ok) { sharedSkill = await r.json(); break; } } catch {}
+  }
   return sharedSkill;
 }
 // `lead` is how many days ahead the hour is (0 = today): models age at
@@ -725,6 +731,68 @@ function splitSwell(rows) {
       r.swell_wave_peak_period = r.wave_peak_period;
     }
   }
+}
+
+// The Sources panel's per-model values for one hour: each wind and wave
+// model's numbers and weight, the ones the blend set aside flagged, and
+// how far apart they are. `counts`: model key → hours this device has
+// checked it against a station (the live page shows them).
+function sourcesOf(bh, windW, counts = {}) {
+  const wind = bh.wRows.map((r, x) => ({ name: WIND_MODELS[x].name, w: +windW[x].toFixed(2), n: counts[WIND_MODELS[x].key] || 0, ws: r.wind_speed_10m, wd: r.wind_direction_10m })).filter((r) => r.ws != null);
+  const swell = bh.mRows.map((r, x) => ({ name: bh.mModels[x].name, w: +bh.mW[x].toFixed(2), h: r.swell_wave_height ?? r.wave_height, p: r.swell_wave_period ?? r.wave_period, d: r.swell_wave_direction ?? r.wave_direction })).filter((r) => r.h != null && r.h > 0.05);
+  const wdOut = outliers(wind.map((r) => r.wd), true), wsOut = outliers(wind.map((r) => r.ws), false);
+  wind.forEach((r, x) => { r.out = wdOut.has(x) || wsOut.has(x); });
+  const hOut = outliers(swell.map((r) => r.h), false), dOut = outliers(swell.map((r) => r.d).filter((v) => v != null), true);
+  swell.forEach((r, x) => { r.out = hOut.has(x) || dOut.has(x); });
+  const hs = swell.map((r) => r.h), wss = wind.map((r) => r.ws);
+  return {
+    wind, swell,
+    windSpread: dirSpread(wind.map((r) => r.wd).filter((v) => v != null)),
+    wsSpread: wss.length ? Math.max(...wss) - Math.min(...wss) : 0,
+    hMin: hs.length ? Math.min(...hs) : null, hMax: hs.length ? Math.max(...hs) : null, hSpread: hs.length ? Math.max(...hs) - Math.min(...hs) : 0,
+  };
+}
+
+/* One spot's forecast, start to finish: every model's hourly series (one
+   location's Open-Meteo marine and forecast responses) blended hour by
+   hour, each model weighted for how far ahead the hour is; a fresh
+   station reading folded into the hours around it; then grouped into
+   days, each with its tide range, highs and lows, light and confidence.
+   The worker's hourly build, the live page and the 7-day page all use it.
+     opts.obs    { ob, at }  a station reading and its spot-local time
+     opts.extra  (utcHour, lead) => [{ model, row, w }]  wave rows from
+                 elsewhere (the worker's Copernicus IBI)
+     opts.keep   (t) => true for hours whose per-model values to keep, for
+                 the Sources panel (kept[t] = { src, model })
+     opts.counts model key → station checks on this device (sourcesOf)
+   Returns { offset, days: [{ date, hours, tides, sun, conf }], kept }. */
+function blendSpot(c, m, w, opts = {}) {
+  const offset = w.utc_offset_seconds ?? m.utc_offset_seconds ?? 0;
+  const windWL = leadWeights(WIND_MODELS, modelWeight), marineWL = leadWeights(MARINE_MODELS, waveWeight);
+  const byDate = {}, kept = {};
+  const n = Math.min(m.hourly.time.length, w.hourly.time.length);
+  for (let j = 0; j < n; j++) {
+    const t = m.hourly.time[j], lead = leadOf(t, offset);
+    const extra = opts.extra ? opts.extra(new Date(Date.parse(t + ':00Z') - offset * 1000).toISOString().slice(0, 16), lead) : null;
+    const bh = blendHour(m.hourly, w.hourly, j, windWL[lead], marineWL[lead], extra);
+    if (!bh) continue;
+    const k = { t, ...bh.k };
+    if (opts.obs) {
+      const away = (Date.parse(t + ':00Z') - Date.parse(opts.obs.at + ':00Z')) / 3.6e6;
+      if (away >= -0.5 && away <= 2.5) applyObs(k, opts.obs.ob, obsWeight(opts.obs.ob, Math.max(0, away)));
+    }
+    (byDate[t.slice(0, 10)] = byDate[t.slice(0, 10)] || []).push(k);
+    if (opts.keep && opts.keep(t)) kept[t] = { src: sourcesOf(bh, windWL[lead], opts.counts), model: bh.k.model };
+  }
+  const today = new Date(Date.now() + offset * 1000).toISOString().slice(0, 10);
+  const sunDays = (w.daily && w.daily.time) || [];
+  const days = Object.keys(byDate).sort().map((date) => {
+    const hours = byDate[date];
+    hours.forEach((k, j) => addTide(hours, k, j));   // tide relative to that day's range
+    const ahead = Math.max(0, Math.round((Date.parse(date) - Date.parse(today)) / 864e5));
+    return { date, hours, tides: tideEvents(hours), sun: sunOf(w, sunDays.indexOf(date)), conf: dayConfidence(hours, ahead) };
+  });
+  return { offset, days, kept };
 }
 
 // 0–1 confidence for a forecast day: model spread (averaged over its
