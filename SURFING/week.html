@@ -290,7 +290,7 @@
   let area = 'All';
   let scope = store.get('surf-week-scope') === 'all' ? 'all' : 'mine';
   let sel = null;       // the opened tile: { id, i }
-  let editing = false;
+  let editing = location.hash === '#edit';   // the cams page's "Edit my spots" lands here
   let data = {};        // cam id -> { days: [{ date, hours:[k], tides:[], sun, conf }] }
 
   const byId = (id) => CAMS.find((x) => x.id === id);

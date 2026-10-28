@@ -338,16 +338,17 @@
     .cards, .layout[data-view="grid"] .cards, .layout.filtered .cards { grid-template-columns: 1fr; gap: 12px; }
   }
 
+  /* A card: the live picture on top, the spot and its conditions under it. */
   .cam {
     position: relative;
-    display: block;
+    display: flex;
+    flex-direction: column;
     width: 100%;
-    aspect-ratio: 16 / 9;
+    padding: 0;
     font: inherit;
-    color: #fff;
-    background:
-      radial-gradient(120% 90% at 20% 110%, color-mix(in srgb, var(--sea) 70%, transparent), transparent 60%),
-      linear-gradient(160deg, var(--bg-2), var(--bg));
+    text-align: left;
+    color: var(--fg);
+    background: var(--bg-3);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     overflow: hidden;
@@ -362,6 +363,16 @@
   .cam:focus-visible { border-color: var(--accent); }
   .cam.flash { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
 
+  .cam .media {
+    position: relative;
+    display: block;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    color: #fff;
+    background:
+      radial-gradient(120% 90% at 20% 110%, color-mix(in srgb, var(--sea) 70%, transparent), transparent 60%),
+      linear-gradient(160deg, var(--bg-2), var(--bg));
+  }
   /* Snapshot underneath, live video on top once it's actually playing. */
   .cam img, .cam video {
     position: absolute;
@@ -373,16 +384,9 @@
     transition: opacity .4s var(--ease);
   }
   .cam img.ready, .cam video.ready { opacity: 1; }
-  .cam .score {
-    position: absolute;
-    z-index: 2;
-    right: 8px;
-    top: 8px;
-    padding: 2.5px 6px 2.5px;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.35);
-  }
-  .cam .score b { font-size: 12px; }
-  .cam .score small { font-size: 9px; }
+  .cam .score { padding: 3px 8px 3px; }
+  .cam .score b { font-size: 15px; }
+  .cam .score small { font-size: 10px; }
   .live {
     position: absolute;
     z-index: 2;
@@ -453,47 +457,48 @@
     .cam, .cam img, .cam video { transition: none; }
   }
 
-  /* Small text overlay along the bottom of the picture */
-  /* Kept to a thin strip so the picture stays the point. */
-  .overlay {
-    position: absolute;
-    z-index: 1;
-    left: 0; right: 0; bottom: 0;
-    padding: 14px 8px 6px;
-    text-align: left;
-    background: linear-gradient(to top, rgba(0,0,0,0.72), rgba(0,0,0,0));
+  /* Under the picture: name and score, where, then the conditions now as
+     arrows and numbers (swell from, wind from and how it sits on the
+     beach, the surface, the tide) beside the day's four bars. */
+  .info {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 10px;
+    padding: 9px 12px 11px;
   }
-  .overlay .name {
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 1.1;
-    letter-spacing: -0.01em;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  .info .name { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; align-self: center; }
+  .info .score-slot { align-self: center; }
+  .info .where { grid-column: 1 / -1; font-size: 12px; color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .info .where .dist::before { content: " · "; }
+  .info .where .dist:empty::before { content: none; }
+  .info .cond-line { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 13px; color: var(--fg-muted); min-width: 0; }
+  .info .mini-slot { align-self: end; }
+  .info .mini { height: 22px; gap: 3px; }
+  .info .mini i { width: 8px; border-radius: 2px; }
+  .cr { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .cr b { color: var(--fg); font-weight: 600; }
+  .cr .arr { display: inline-flex; width: 14px; height: 14px; }
+  .cr .arr svg { width: 14px; height: 14px; fill: currentColor; transform: rotate(var(--rot)); }
+  .cr.swell .arr { color: var(--fg); }
+  .cr.wind.w-off .arr, .cr.wind.w-off em { color: #9eb05c; }
+  .cr.wind.w-cross .arr, .cr.wind.w-cross em { color: #9fb3c8; }
+  .cr.wind.w-on .arr, .cr.wind.w-on em { color: #ff5a5a; }
+  [data-theme="light"] .cr.wind.w-off .arr, [data-theme="light"] .cr.wind.w-off em { color: #5f7a1f; }
+  [data-theme="light"] .cr.wind.w-cross .arr, [data-theme="light"] .cr.wind.w-cross em { color: #4f6a85; }
+  [data-theme="light"] .cr.wind.w-on .arr, [data-theme="light"] .cr.wind.w-on em { color: #c0392b; }
+  .cr em { font-style: normal; }
+  /* Beside the map, cards are narrower: a touch smaller. */
+  .layout[data-view="split"] .info .name { font-size: 15px; }
+  .layout[data-view="split"] .info .cond-line { font-size: 12px; gap: 3px 10px; }
+  /* The Order menu (toolbar options). */
+  .order { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-muted); order: 4; }
+  .order select {
+    font: inherit; font-size: 12px; color: var(--fg); background: var(--bg-3);
+    border: 1px solid var(--border-2); border-radius: 8px; padding: 4px 8px; cursor: pointer;
   }
-  .overlay .sub {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 6px;
-    margin-top: 1px;
-  }
-  .overlay .cond-line {
-    flex: 1;
-    font-size: 10px;
-    letter-spacing: 0.02em;
-    color: rgba(255,255,255,0.75);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
-  }
-  .overlay .cond-line b { color: #fff; font-weight: 600; }
-  .overlay .sub .mini-slot { flex: none; }
-  .overlay .mini { height: 18px; gap: 3px; }
-  .overlay .mini i { width: 7px; border-radius: 2px; }
+  .order select:focus { outline: none; border-color: var(--accent); }
+  @media (max-width: 700px) { .order { justify-content: space-between; font-size: 13px; } .order select { font-size: 14px; padding: 6px 8px; } }
+  .area-sum .edit-mine { color: var(--accent-ink); text-decoration: none; }
 
   .tags {
     display: flex;
@@ -1559,6 +1564,14 @@
       <div class="chips" id="chips" role="group" aria-label="Filter by area"></div>
       <!-- Inline on wider screens; a drop-down from the ⋯ button on phones. -->
       <div class="more" id="more">
+        <label class="order" title="How the cams are ordered"><span>Order</span>
+          <select id="order">
+            <option value="area">Areas</option>
+            <option value="near">Nearest to me</option>
+            <option value="best">Best now</option>
+            <option value="mine">My spots first</option>
+          </select>
+        </label>
         <div class="seg sm" id="units" role="group" aria-label="Height units">
           <button type="button" data-units="m" aria-pressed="true">m</button>
           <button type="button" data-units="ft" aria-pressed="false">ft</button>
@@ -2024,29 +2037,59 @@
     ).join('');
   }
 
-  // The tile is the preview; name, place and conditions overlay the bottom.
-  // Spots without a camera (type 'none') stay out of the grid; they're on
+  // A card: the live picture, and under it the spot, its score and the
+  // conditions now. Spots without a camera (type 'none') stay out of the grid; they're on
   // the map, in Best right now and on the 7-day page.
   const noCam = (c) => c.type === 'none';
   const cardHtml = (c) => `
     <button class="cam" type="button" data-id="${esc(c.id)}" aria-label="Watch ${esc(c.name)}, ${esc(c.town)}">
+      <span class="media">
       ${c.thumb ? `<img src="${esc(thumbUrl(c.thumb))}" alt="" loading="lazy" decoding="async" onload="this.classList.add('ready')" onerror="this.remove()">` : ''}
       ${c.type === 'hls' ? `<video muted playsinline preload="none"${c.poster ? ` poster="${esc(c.poster)}"` : ''} aria-hidden="true"></video>` : ''}
       <span class="live"><i></i>Live</span>
       <span class="off" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M15 15v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h2m4 0h4a1 1 0 0 1 1 1v3l5-3v9"/></svg><span class="t-off">Camera offline</span><span class="t-blk">Plays on ${esc(sourceName(c))} only</span></span>
-      <span class="score-slot">${badge(c)}</span>
-      <div class="overlay">
-        <div class="name">${esc(c.name)}</div>
-        <div class="sub">
-          <span class="cond-line">${condText(c)}</span>
-          <span class="mini-slot">${miniBars(c)}</span>
-        </div>
-      </div>
+      </span>
+      <span class="info">
+        <span class="name">${esc(c.name)}</span>
+        <span class="score-slot">${badge(c)}</span>
+        <span class="where">${esc(c.zone && c.zone !== c.name ? c.zone : c.town)}<span class="dist">${distText(c)}</span></span>
+        <span class="cond-line">${condRows(c)}</span>
+        <span class="mini-slot">${miniBars(c)}</span>
+      </span>
     </button>`;
+
+  // The conditions now, for a card: swell (arrow = the way it's travelling,
+  // height offshore, period, from), wind (arrow, knots, from, and how it
+  // sits on this beach, coloured), the surface and the tide.
+  const condRows = (c) => {
+    const k = conditions[c.id] && conditions[c.id].now, r = scoreOf(c);
+    if (!k || !r) return '';
+    const arr = (deg) => (deg == null ? '' : `<span class="arr" style="--rot:${Math.round(deg + 180)}deg">${GLYPH}</span>`);
+    const rel = REL_SHORT[r.wind];
+    return `<span class="cr swell">${arr(k.d)}<b>${hgt(k.h)}</b> ${Math.round(k.p)} s${k.d != null ? ' ' + dirName(k.d) : ''}</span>`
+      + `<span class="cr wind w-${rel}">${arr(k.wd)}<b>${kts(k.ws)} kts</b> ${dirName(k.wd)} <em>${rel === 'cross' ? 'cross' : rel + 'shore'}</em></span>`
+      + (r.surface ? `<span class="cr surf-word surf-${r.surface.i}">${esc(r.surface.label)}</span>` : '')
+      + (k.tn != null ? `<span class="cr">${tideWord(k.tn)} tide${k.tdir ? (k.tdir === 'rising' ? ' ▲' : ' ▼') : ''}</span>` : '');
+  };
+  // How far, once we know where you are (Order: nearest).
+  let here = null;
+  const kmFrom = (c) => {
+    if (!here) return null;
+    const r = Math.PI / 180, x = (c.lng - here.lng) * r * Math.cos((c.lat + here.lat) / 2 * r), y = (c.lat - here.lat) * r;
+    return Math.hypot(x, y) * 6371;
+  };
+  const distText = (c) => { const d = kmFrom(c); return d == null ? '' : d < 1 ? 'here' : `${d < 10 ? d.toFixed(1) : Math.round(d)} km`; };
 
   // Built once; conditions are patched in later so the tiles keep streaming.
   function renderGrid() {
-    grid.innerHTML = AREAS.map((a) => {
+    grid.innerHTML = `
+      <section class="area" data-area="__mine" hidden>
+        <div class="area-head">
+          <h2>My spots<small></small></h2>
+          <div class="area-sum"><a class="edit-mine" href="week.html#edit">Edit my spots</a></div>
+        </div>
+        <div class="cards"></div>
+      </section>` + AREAS.map((a) => {
       const list = CAMS.filter((c) => c.area === a && !noCam(c));
       if (!list.length) return '';
       return `
@@ -2064,11 +2107,13 @@
     for (const el of cards()) {
       const c = byId(el.dataset.id);
       el.querySelector('.score-slot').innerHTML = badge(c);
-      el.querySelector('.cond-line').innerHTML = condText(c);
+      el.querySelector('.cond-line').innerHTML = condRows(c);
       el.querySelector('.mini-slot').innerHTML = miniBars(c);
+      el.querySelector('.dist').textContent = distText(c);
     }
+    if (order === 'best') { reorder(); applyFilter(); }
     const coast = coastTides();
-    for (const sec of grid.querySelectorAll('.area')) {
+    for (const sec of grid.querySelectorAll('.area:not([data-area="__mine"])')) {
       const best = CAMS.filter((c) => c.area === sec.dataset.area && !noCam(c))
         .map((c) => ({ c, r: scoreOf(c) })).filter((x) => x.r && !x.r.dark)
         .sort((x, y) => y.r.total - x.r.total)[0];
@@ -2126,6 +2171,7 @@
       }
       sec.hidden = n === 0;
       sec.dataset.count = n;
+      sec.querySelector('h2 small').textContent = `${n} cam${n === 1 ? '' : 's'}`;
       shown += n;
     }
     layout.classList.toggle('filtered', area !== 'All' || !!q.value.trim());
@@ -2225,17 +2271,70 @@
      their own player fetches), so the card says where it does play. */
   const offline = new Map();   // id -> 'probe' | 'play' | 'blocked'
 
-  function reorder() {
-    const rank = (c) => CAMS.indexOf(c) + (offline.has(c.id) ? 1000 : 0);
-    for (const sec of grid.querySelectorAll('.area')) {
-      const box = sec.querySelector('.cards');
-      [...box.children].sort((a, b) => rank(byId(a.dataset.id)) - rank(byId(b.dataset.id))).forEach((el) => box.appendChild(el));
-    }
-    const dead = (sec) => [...sec.querySelectorAll('.cam')].every((el) => offline.has(el.dataset.id));
-    [...grid.querySelectorAll('.area')]
-      .sort((a, b) => (dead(a) - dead(b)) || (AREAS.indexOf(a.dataset.area) - AREAS.indexOf(b.dataset.area)))
-      .forEach((sec) => grid.appendChild(sec));
+  /* How the cams are ordered (Order, in the toolbar's options): by area
+     (the list's own order), nearest to you (asks for your location once),
+     best right now, or your spots first, in your order (account.js; set on
+     the 7-day page), in a section of their own. Dead cams sink to the end
+     of their group whatever the order; an area with nothing live, to the
+     end of the list. Cards only move when the order really changes, as
+     moving a playing video stops it. */
+  let order = (() => { try { return localStorage.getItem('surf-order') || ''; } catch { return ''; } })() || (Account.favs.list().length ? 'mine' : 'area');
+  function spotRank(c) {
+    const dead = offline.has(c.id) ? 1e6 : 0;
+    if (order === 'near' && here) return dead + kmFrom(c);
+    if (order === 'best') { const r = scoreOf(c); return dead - (r ? (r.dark ? r.lit || 0 : r.total) : -1); }
+    if (order === 'mine') { const i = Account.favs.list().indexOf(c.id); if (i >= 0) return dead + i; }
+    return dead + 1000 + CAMS.indexOf(c);
   }
+  // Put `els` in `box` in that order, touching only what's out of place.
+  function arrange(box, els) {
+    els.forEach((el, i) => { if (box.children[i] !== el) box.insertBefore(el, box.children[i] || null); });
+  }
+  function reorder() {
+    const favs = order === 'mine' ? Account.favs.list() : [];
+    const secOf = (c) => grid.querySelector(favs.includes(c.id) ? '.area[data-area="__mine"]' : `.area[data-area="${CSS.escape(c.area)}"]`);
+    const bySec = new Map();
+    for (const el of cards()) { const sec = secOf(byId(el.dataset.id)); if (!bySec.has(sec)) bySec.set(sec, []); bySec.get(sec).push(el); }
+    for (const sec of grid.querySelectorAll('.area')) {
+      const els = (bySec.get(sec) || []).sort((a, b) => spotRank(byId(a.dataset.id)) - spotRank(byId(b.dataset.id)));
+      arrange(sec.querySelector('.cards'), els);
+    }
+    const secRank = (sec) => {
+      if (sec.dataset.area === '__mine') return -1e9;
+      const cs = (bySec.get(sec) || []).map((el) => byId(el.dataset.id));
+      if (!cs.length) return 1e9;
+      const live = cs.some((c) => !offline.has(c.id)) ? 0 : 1e7;
+      return live + (order === 'near' && here || order === 'best' ? Math.min(...cs.map(spotRank)) : AREAS.indexOf(sec.dataset.area));
+    };
+    arrange(grid, [...grid.querySelectorAll(':scope > .area')].sort((a, b) => secRank(a) - secRank(b)));
+  }
+  // Where you are, for Order: nearest. Remembered for half an hour.
+  function locate() {
+    try { const l = JSON.parse(localStorage.getItem('surf-here') || 'null'); if (l && Date.now() - l.t < 30 * 60e3) return Promise.resolve(l); } catch {}
+    return new Promise((ok, no) => {
+      if (!navigator.geolocation) return no(new Error('no location here'));
+      navigator.geolocation.getCurrentPosition((p) => {
+        const l = { lat: p.coords.latitude, lng: p.coords.longitude, t: Date.now() };
+        try { localStorage.setItem('surf-here', JSON.stringify(l)); } catch {}
+        ok(l);
+      }, no, { maximumAge: 10 * 60e3, timeout: 15000 });
+    });
+  }
+  function setOrder(o) {
+    order = o;
+    $('order').value = o;
+    try { localStorage.setItem('surf-order', o); } catch {}
+    if (o === 'near' && !here) {
+      const opt = $('order').querySelector('option[value="near"]');
+      opt.textContent = 'Nearest (finding you…)';
+      locate().then((l) => { here = l; opt.textContent = 'Nearest to me'; patchConditions(); reorder(); applyFilter(); })
+        .catch(() => { opt.textContent = 'Nearest (location off)'; setOrder('area'); });
+    }
+    reorder();
+    applyFilter();
+  }
+  $('order').addEventListener('change', (e) => setOrder(e.target.value));
+  Account.favs.onChange(() => { if (order === 'mine') { reorder(); applyFilter(); } });
 
   function markOffline(id, why) {
     const cur = offline.get(id);
@@ -3708,6 +3807,7 @@
 
   renderChips();
   renderGrid();
+  setOrder(order);
   const VIEWS = ['grid', 'split', 'map'];
   let tabView = '', savedView = '';
   try { tabView = sessionStorage.getItem('surf-view') || ''; savedView = localStorage.getItem('surf-view') || ''; } catch {}
