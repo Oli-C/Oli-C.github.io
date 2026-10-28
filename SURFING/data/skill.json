@@ -1,6 +1,6 @@
 {
  "v": 2,
- "updated": "2026-10-28T17:34:35.205Z",
+ "updated": "2026-10-28T17:36:06.927Z",
  "wind": {
   "icon_seamless": {
    "lead": [
@@ -637,7 +637,7 @@
   "silleiro": "2026-10-28T12:00:00Z",
   "cadiz": "2026-10-28T12:00:00Z"
  },
- "runs": 11,
+ "runs": 12,
  "stations": [
   "Alcobaça",
   "Cabo Carvoeiro",
@@ -699,7 +699,7 @@
   }
  ],
  "learned": {
-  "updated": "2026-10-28T17:34:59.638Z",
+  "updated": "2026-10-28T17:36:40.945Z",
   "sessions": 0,
   "used": 0,
   "setAside": 0,
