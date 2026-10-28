@@ -22,7 +22,19 @@
    If /export says {"error":"no"} with the right key, /health shows why:
    EXPORT_KEY missing means it was added as a *build* variable, on another
    worker, or not deployed yet (the dashboard holds changes until Deploy).
+   A plain secret or a Secrets Store binding named EXPORT_KEY both work.
 */
+// EXPORT_KEY can be a plain worker secret (a string) or a binding from
+// Cloudflare's Secrets Store (an object whose get() returns the value).
+// Pasted values often pick up a trailing space or newline; ignore them.
+async function readSecret(b) {
+  if (typeof b === 'string') return b.trim();
+  if (b && typeof b.get === 'function') {
+    try { return String(await b.get()).trim(); } catch { return ''; }
+  }
+  return '';
+}
+
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
@@ -34,10 +46,8 @@ export default {
     if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
     const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
-    // Pasted secrets often pick up a trailing space or newline; ignore them.
-    const exportKey = (env.EXPORT_KEY || '').trim();
-
     if (req.method === 'GET' && url.pathname === '/health') {
+      const exportKey = await readSecret(env.EXPORT_KEY);
       return json({ ok: true, kv: !!env.FEEDBACK, exportKey: exportKey ? `set, ${exportKey.length} characters` : 'missing' });
     }
 
@@ -62,7 +72,10 @@ export default {
 
     if (req.method === 'GET' && (url.pathname === '/export' || url.pathname === '/stats')) {
       const isExport = url.pathname === '/export';
-      if (isExport && (!exportKey || (url.searchParams.get('key') || '').trim() !== exportKey)) return json({ error: 'no' }, 403);
+      if (isExport) {
+        const exportKey = await readSecret(env.EXPORT_KEY);
+        if (!exportKey || (url.searchParams.get('key') || '').trim() !== exportKey) return json({ error: 'no' }, 403);
+      }
       const since = url.searchParams.get('since') || '';
       const out = [], stats = {};
       let cursor;
