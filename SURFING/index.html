@@ -328,16 +328,60 @@
   .switch[aria-checked="true"] i { background: var(--accent); border-color: var(--accent); }
   .switch[aria-checked="true"] i::after { background: #101820; transform: translateX(10px); }
 
-  /* Phone-only toolbar pieces; on wider screens the ⋯ menu's contents sit
-     inline in the second row as before. */
-  .brand, .more-btn, .m-info { display: none; }
+  /* One sticky toolbar at every width. The big header goes: the brand
+     (also the way back to allfield) leads the bar, and the tide and the
+     best spots right now ride on a slim line beneath, so the cams and the
+     map start at the top of the window. Phones fold the options into ⋯;
+     wider screens keep them inline. */
+  header { display: none; }
+  .page { padding-top: 0; }
+  .controls { margin-top: 0; padding-top: max(10px, env(safe-area-inset-top)); }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    flex: none;
+    margin-right: 6px;
+    font-size: 21px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--fg);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .brand svg { color: var(--fg-muted); margin-left: -3px; transition: transform .2s var(--ease), color .2s var(--ease); }
+  .brand:hover svg, .brand:focus-visible svg { color: var(--accent-ink); transform: translateX(-2px); }
+  .brand span { color: var(--accent-ink); }
+  .more-btn { display: none; }
   .more { display: contents; }
+  .m-info {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    margin-top: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    white-space: nowrap;
+  }
+  .m-info::-webkit-scrollbar { display: none; }
+  .m-info:not(:has(> :not([hidden]))) { display: none; }
+  .m-info .tide-now { flex: none; flex-wrap: nowrap; margin: 0; font-size: 13px; }
+  .m-info .best { flex: none; flex-wrap: nowrap; gap: 6px; margin: 0; }
+  .m-info .best-label { font-size: 10px; }
+  .m-info .best-chip { font-size: 13px; padding: 2px 10px 2px 2px; }
+  .m-info .best-chip .score { padding: 2px 6px 1px; }
 
-  /* Wide: search · areas · view · saver on one line */
+  /* Wide: brand · search · areas · view · options on one line, the info
+     line under it. */
   @media (min-width: 1100px) {
-    .controls { display: flex; align-items: center; gap: 10px; }
+    .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
     .row { display: contents; }
-    .search { flex: 0 1 340px; order: 1; }
+    .brand { order: 0; }
+    .m-info { order: 10; flex: 1 0 100%; margin-top: -2px; }
+    /* Where the areas run out of room they fade at the edge and scroll. */
+    .chips { mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); padding-right: 28px; }
+    .search { flex: 0 1 300px; order: 1; }
     .chips { order: 2; }
     .seg { order: 3; }
     .more > .nav { order: 4; }
@@ -400,12 +444,15 @@
   .layout[data-view="split"] { grid-template-columns: minmax(0, 1fr) minmax(340px, 38%); }
   .layout[data-view="grid"] .map-pane { display: none; }
   .layout[data-view="map"] .list { display: none; }
+  /* The map runs from just under the sticky toolbar to the bottom of the
+     window, whichever view it's in. */
   .map-pane {
     position: sticky;
-    top: calc(var(--controls-h) + 12px);
+    top: calc(var(--controls-h) + 14px);
   }
   #map {
-    height: calc(100vh - var(--controls-h) - 44px);
+    height: calc(100vh - var(--controls-h) - 28px);
+    height: calc(100dvh - var(--controls-h) - 28px);
     min-height: 380px;
     border: 1px solid var(--border-2);
     border-radius: var(--radius-lg);
@@ -413,8 +460,8 @@
     overflow: hidden;
     z-index: 0;
   }
-  .layout[data-view="map"] .map-pane { position: static; }
-  .layout[data-view="map"] #map { height: clamp(420px, 72vh, 860px); }
+  .layout[data-view="map"] .map-pane { position: relative; top: 0; }
+  .page:has(.layout[data-view="map"]) { padding-bottom: 14px; }
   @media (max-width: 999px) {
     .layout[data-view="split"] { grid-template-columns: 1fr; }
     .layout[data-view="split"] .map-pane { display: none; }
@@ -674,13 +721,55 @@
   .lg-k { color: var(--fg-muted); min-width: 34px; }
   .legend span { display: inline-flex; align-items: center; gap: 5px; }
   .legend i { width: 9px; height: 9px; border-radius: 50%; background: var(--pin); }
+  /* The legend says what the pins mean; just the Windy link floats on the
+     map, under the zoom buttons. */
   .map-hint {
-    color: var(--fg-muted);
-    font-size: 12px;
-    margin-top: 8px;
+    position: absolute;
+    left: 10px;
+    top: 84px;
+    z-index: 500;
+    margin: 0;
+    font-size: 11px;
     letter-spacing: 0.02em;
   }
-  .map-hint a { color: var(--accent-ink); white-space: nowrap; }
+  .map-hint .hint-txt { display: none; }
+  .map-hint a {
+    display: inline-block;
+    padding: 4px 10px 3px;
+    color: var(--accent-ink);
+    white-space: nowrap;
+    text-decoration: none;
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--border-2);
+    border-radius: 999px;
+  }
+  .map-hint a:hover { border-color: var(--accent); }
+  /* A pin slid off an overlapping neighbour keeps a leader to its spot. */
+  .leaflet-marker-icon.moved::before {
+    content: "";
+    position: absolute;
+    left: -1px;
+    top: 0;
+    width: 2px;
+    height: max(0px, calc(var(--dy) - 10px));
+    background: rgba(255, 255, 255, 0.75);
+    border-radius: 1px;
+    pointer-events: none;
+  }
+  .leaflet-marker-icon.moved::after {
+    content: "";
+    position: absolute;
+    left: -3px;
+    top: -3px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+    pointer-events: none;
+  }
 
   /* OSM's street tiles are light; in the charcoal theme we invert them.
      Satellite imagery is left alone. */
@@ -1747,7 +1836,7 @@
           </div>
         </div>
       </div>
-      <p class="map-hint" id="map-hint">Pins show each spot’s score; arrows show wind and swell. Tap a pin for details, directions and the cam. <a id="windy" href="https://www.windy.com/-Wind-wind?38.70,-9.40,9" target="_blank" rel="noopener noreferrer">Open this view in Windy ↗</a></p>
+      <p class="map-hint" id="map-hint"><span class="hint-txt">Pins show each spot’s score; arrows show wind and swell. Tap a pin for details, directions and the cam. </span><a id="windy" href="https://www.windy.com/-Wind-wind?38.70,-9.40,9" target="_blank" rel="noopener noreferrer">Open this view in Windy ↗</a></p>
     </aside>
   </div>
   <p class="empty" id="empty">No cams match that. Try another spot or clear the filter.</p>
@@ -2503,8 +2592,11 @@
     map.on('moveend', syncWindy);
     // Pins show their data segment only once there's room for it.
     const labels = () => map.getContainer().classList.toggle('labels', map.getZoom() >= 11);
-    map.on('zoomend', labels);
+    map.on('zoomend', () => { labels(); declutter(); });
     labels();
+    // Keep the map's idea of its size right whenever its box changes
+    // (view switches, the toolbar wrapping, the window resizing).
+    new ResizeObserver(() => map.invalidateSize()).observe(map.getContainer());
     buildArrows();
 
     // Phones get the bottom card; wider screens the usual popup on the pin.
@@ -2571,12 +2663,48 @@
       const target = unfiltered && home.length ? home : shown;
       map.fitBounds(target, { paddingTopLeft: [40, mapTop() + 30], paddingBottomRight: [40, 40], maxZoom: 14 });
     }
+    declutter();
   }
 
   function refreshPins() {
     if (!map) return;
     for (const c of CAMS) markers[c.id].setIcon(pinIcon(c));
     buildArrows();
+    declutter();
+  }
+
+  // Cams on the same stretch of beach (Guincho Norte and Sul, the Caparica
+  // run) put their pins on top of each other. Working down the map, any pin
+  // that would overlap one already placed slides down just below it, and
+  // gets a short leader back to its real spot.
+  let declutterRaf = 0;
+  function declutter() {
+    cancelAnimationFrame(declutterRaf);
+    declutterRaf = requestAnimationFrame(() => {
+      const items = [];
+      for (const c of CAMS) {
+        const m = markers[c.id], el = map.hasLayer(m) && m.getElement(), pin = el && el.querySelector('.pin');
+        if (!pin) continue;
+        pin.style.translate = '';
+        const p = map.latLngToLayerPoint(m.getLatLng());
+        items.push({ el, pin, x: p.x, y0: p.y, w: pin.offsetWidth, h: pin.offsetHeight });
+      }
+      items.sort((a, b) => a.y0 - b.y0 || a.x - b.x);
+      const placed = [];
+      for (const it of items) {
+        it.y = it.y0;
+        for (let n = 0; n < items.length; n++) {
+          const hit = placed.find((o) => Math.abs(o.x - it.x) < (o.w + it.w) / 2 + 2 && Math.abs(o.y - it.y) < (o.h + it.h) / 2 + 2);
+          if (!hit) break;
+          it.y = hit.y + (hit.h + it.h) / 2 + 3;
+        }
+        placed.push(it);
+        const dy = Math.round(it.y - it.y0);
+        it.pin.style.translate = dy ? `0 ${dy}px` : '';
+        it.el.classList.toggle('moved', dy > 0);
+        it.el.style.setProperty('--dy', dy + 'px');
+      }
+    });
   }
 
   /* ---------- Animated particle field ----------
@@ -2985,7 +3113,9 @@
       return `<span class="${cls(h)}" title="${pad(h)}:00 · ${rng(f[0], f[1])}"><i style="height:${Math.max(4, top).toFixed(1)}%"></i>` +
         (h === fPeak ? `<em style="bottom:${top.toFixed(1)}%">${short(f[1])}</em>` : '') + '</span>';
     }).join('') + '</span>';
-    const swellTxt = (k) => `swell <b>${hgt(k.h)}</b> ${Math.round(k.p)} s${k.d != null ? ' from ' + dirName(k.d) : ''}`;
+    // Main swell, plus the secondary when there's one worth surfing or crossing it.
+    const swellTxt = (k) => `swell <b>${hgt(k.h)}</b> ${Math.round(k.p)} s${k.d != null ? ' ' + dirName(k.d) : ''}` +
+      (k.h2 != null && k.h2 >= 0.2 && k.p2 >= 6 && k.d2 != null ? ` + <b>${hgt(k.h2)}</b> ${Math.round(k.p2)} s ${dirName(k.d2)}` : '');
     const unit = (s) => s.replace(/ (m|ft)$/, '<small>$1</small>');
     def.surf = [unit(rng(fLo, fHi)), `${esc(sizeWord(fHi))} · ${swellTxt(now)}`];
     hour.surf = (h) => (faces[h]
@@ -3150,7 +3280,7 @@
     if (!k || !r) return;
     const f = {};
     for (const x of r.factors) f[x.label] = x.mult != null ? +x.mult.toFixed(2) : +x.pts.toFixed(2);
-    const entry = { t: new Date().toISOString(), id: c.id, total: r.total, verdict, f, k: { h: k.h, p: k.p, d: k.d, ws: k.ws, wd: k.wd, tn: k.tn, tdir: k.tdir, wwh: k.wwh, th: k.th } };
+    const entry = { t: new Date().toISOString(), id: c.id, total: r.total, verdict, f, k: { h: k.h, p: k.p, d: k.d, ws: k.ws, wd: k.wd, tn: k.tn, tdir: k.tdir, wwh: k.wwh, th: k.th, h2: k.h2, p2: k.p2, d2: k.d2 } };
     const list = loadFb();
     list.push(entry);
     saveFb(list);
@@ -3402,14 +3532,10 @@
   document.addEventListener('click', (e) => { if (!e.target.closest('#more, #more-btn')) setMore(false); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setMore(false); });
 
-  // Phones hide the header, so its tide line and best-right-now ride in
-  // the toolbar instead.
-  const headAside = document.querySelector('header .aside');
-  function placeInfo() {
-    (phone.matches ? $('m-info') : headAside).append($('tide-now'), $('best'));
-  }
-  phone.addEventListener('change', () => { placeInfo(); setMore(false); });
-  placeInfo();
+  // The header is gone at every width; its tide line and best-right-now
+  // ride in the toolbar's info line.
+  $('m-info').append($('tide-now'), $('best'));
+  phone.addEventListener('change', () => setMore(false));
 
   renderChips();
   renderGrid();
