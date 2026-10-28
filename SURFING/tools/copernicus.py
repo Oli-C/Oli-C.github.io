@@ -48,7 +48,7 @@ def open_dataset(t0, t1):
             import copernicusmarine as cm
             ds = cm.open_dataset(dataset_id=DATASET, variables=list(VARS), start_datetime=t0.isoformat(), end_datetime=t1.isoformat(),
                                  minimum_latitude=35.5, maximum_latitude=43.5, minimum_longitude=-11.5, maximum_longitude=-5.5,
-                                 service='arco-geo-series')
+                                 service='arco-time-series')   # chunked for time series at points
             return ds, 'copernicusmarine (account)'
         except Exception as e:  # keep going on the public store
             print(f'toolbox unavailable ({e}); reading the public store', file=sys.stderr)
