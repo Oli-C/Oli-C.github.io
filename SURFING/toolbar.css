@@ -30,7 +30,8 @@
 }
 .r2 { margin-top: 6px; }
 
-/* Brand: the page's name and the way back to allfield. */
+/* Brand: the page's name and the way back (the cams page to allfield,
+   the others to the cams). */
 .brand {
   display: inline-flex;
   align-items: center;
@@ -315,13 +316,12 @@
   .chip { font-size: 12px; padding: 3px 10px 3px; }
   .m-info { gap: 12px; margin-top: 7px; font-size: 12px; }
 }
-/* Most phones (up to 420px): the views you're not on show as their icons,
-   so brand, search, views and ⋯ fit with even gaps. */
+/* Most phones (up to 420px): the views show as their icons (the brand
+   names the page you're on), so brand, search, views and ⋯ fit with even
+   gaps. */
 @media (max-width: 420px) {
-  #view-seg button:not([aria-pressed="true"]),
-  #view-seg a:not([aria-current="page"]) { padding: 1px 8px 1px; }
-  #view-seg button:not([aria-pressed="true"]) span,
-  #view-seg a:not([aria-current="page"]) span { display: none; }
+  #view-seg button, #view-seg a { padding: 1px 8px 1px; }
+  #view-seg button span, #view-seg a span { display: none; }
 }
 /* Small phones (360px and so on): a touch tighter all round so the bar
    still fits on one line. */
@@ -329,6 +329,5 @@
   .controls { padding-left: 10px; padding-right: 10px; }
   .r1 { gap: 4px; }
   .brand { font-size: 15px; padding-right: 2px; }
-  #view-seg button:not([aria-pressed="true"]),
-  #view-seg a:not([aria-current="page"]) { padding: 1px 6px 1px; }
+  #view-seg button, #view-seg a { padding: 1px 6px 1px; }
 }

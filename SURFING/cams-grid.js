@@ -65,7 +65,7 @@ function renderGrid() {
     <section class="area" data-area="__mine" hidden>
       <div class="area-head">
         <h2>My spots<small></small></h2>
-        <div class="area-sum"><a class="edit-mine" href="week.html#edit">Edit my spots</a></div>
+        <div class="area-sum"><a class="edit-mine" href="account.html#spots">Edit my spots</a></div>
       </div>
       <div class="cards"></div>
     </section>` + AREAS.map((a) => {

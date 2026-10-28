@@ -174,7 +174,7 @@ async function listReports(kv, prefix, since) {
   return out;
 }
 
-// Routes: POST /v (retired), POST /s, GET /stats?key=, GET /export?key=,
+// Routes: POST /v (retired), POST /s, GET /s/mine, GET /stats?key=, GET /export?key=,
 // GET /people?key=. Returns a Response, or null when the path isn't one.
 async function handleFeedback(req, env, url, json, ipTag) {
   if (req.method === 'POST' && url.pathname === '/v') return json({ error: 'retired; log a session instead' }, 410);
@@ -197,6 +197,15 @@ async function handleFeedback(req, env, url, json, ipTag) {
   }
 
   if (req.method !== 'GET') return null;
+  // The signed-in person's own sessions, newest first (the account page).
+  if (url.pathname === '/s/mine') {
+    const me = await account(env, req);
+    if (!me) return json({ error: 'signed out' }, 401);
+    const mine = (await listReports(env.FEEDBACK, 's:', '')).filter((e) => e.uid === me.id)
+      .map(({ id, local, mins, rating, size, surface, shape, why, model }) => ({ id, local, mins, rating, size, surface, shape, why, model }))
+      .sort((a, b) => (a.local < b.local ? 1 : -1)).slice(0, 200);
+    return json({ sessions: mine });
+  }
   if (url.pathname === '/export' || url.pathname === '/people' || url.pathname === '/stats') {
     if (!(await isAdmin(req, env))) return json({ error: 'no' }, 403);
   }

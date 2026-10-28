@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build 799430c566. */
-const WORKER_BUILD = '799430c566';
+   Build 6a97138566. */
+const WORKER_BUILD = '6a97138566';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (7-day outlook).
@@ -1759,7 +1759,7 @@ async function listReports(kv, prefix, since) {
   return out;
 }
 
-// Routes: POST /v (retired), POST /s, GET /stats?key=, GET /export?key=,
+// Routes: POST /v (retired), POST /s, GET /s/mine, GET /stats?key=, GET /export?key=,
 // GET /people?key=. Returns a Response, or null when the path isn't one.
 async function handleFeedback(req, env, url, json, ipTag) {
   if (req.method === 'POST' && url.pathname === '/v') return json({ error: 'retired; log a session instead' }, 410);
@@ -1782,6 +1782,15 @@ async function handleFeedback(req, env, url, json, ipTag) {
   }
 
   if (req.method !== 'GET') return null;
+  // The signed-in person's own sessions, newest first (the account page).
+  if (url.pathname === '/s/mine') {
+    const me = await account(env, req);
+    if (!me) return json({ error: 'signed out' }, 401);
+    const mine = (await listReports(env.FEEDBACK, 's:', '')).filter((e) => e.uid === me.id)
+      .map(({ id, local, mins, rating, size, surface, shape, why, model }) => ({ id, local, mins, rating, size, surface, shape, why, model }))
+      .sort((a, b) => (a.local < b.local ? 1 : -1)).slice(0, 200);
+    return json({ sessions: mine });
+  }
   if (url.pathname === '/export' || url.pathname === '/people' || url.pathname === '/stats') {
     if (!(await isAdmin(req, env))) return json({ error: 'no' }, 403);
   }
@@ -2458,7 +2467,7 @@ export default {
       || (await handleHistory(req, env, url, json))
       || (await handleAccounts(req, env, url, json, ipTag))
       || (await handleFeedback(req, env, url, json, ipTag))
-      || json({ routes: ['GET /forecast', 'GET /forecast/day?d=', 'GET /health', 'POST /a/signup', 'POST /a/login', 'POST /a/recover', 'POST /a/password', 'POST /a/logout', 'GET /a/me', 'POST /s', 'GET /skill/waves?days=', 'GET /obs?src=&since=', 'GET /history/status', 'GET /history/spot?id=&from=&to=', 'GET /history/spot/hours?id=&date=', 'GET /skill', 'POST /skill', 'GET /grid', 'POST /grid/swell', 'POST /ibi'] }, 404);
+      || json({ routes: ['GET /forecast', 'GET /forecast/day?d=', 'GET /health', 'POST /a/signup', 'POST /a/login', 'POST /a/recover', 'POST /a/password', 'POST /a/logout', 'GET /a/me', 'POST /s', 'GET /s/mine', 'GET /skill/waves?days=', 'GET /obs?src=&since=', 'GET /history/status', 'GET /history/spot?id=&from=&to=', 'GET /history/spot/hours?id=&date=', 'GET /skill', 'POST /skill', 'GET /grid', 'POST /grid/swell', 'POST /ibi'] }, 404);
   },
 
   async scheduled(event, env, ctx) {

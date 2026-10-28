@@ -225,48 +225,19 @@ const Account = (() => {
     };
   })();
 
-  /* ---------- The toolbar's account button ----------
-     In the bar's options (the ⋯ menu on phones): your name, or "Sign in".
-     It opens a small panel with the account line or form, and a way to
-     your spots on the 7-day page. */
+  /* ---------- The toolbar's account link ----------
+     In the bar's options (the ⋯ menu on phones): your name, or "Sign in",
+     to the account page (account.html). */
   const ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>';
   function toolbar() {
     const more = document.getElementById('more');
     if (!more || document.getElementById('acct-btn')) return;
-    const btn = document.createElement('button');
-    Object.assign(btn, { className: 'acct-tb', id: 'acct-btn', type: 'button', title: 'Your account' });
-    btn.setAttribute('aria-haspopup', 'dialog');
-    btn.setAttribute('aria-expanded', 'false');
-    more.appendChild(btn);
-    const pop = document.createElement('div');
-    Object.assign(pop, { className: 'acct-pop', id: 'acct-pop', hidden: true });
-    pop.setAttribute('role', 'dialog');
-    pop.setAttribute('aria-label', 'Account');
-    document.body.appendChild(pop);
-    const label = () => { const me = get(); btn.innerHTML = `${ICON}<span>${me ? esc(me.name) : 'Sign in'}</span>`; };
-    const foot = () => {
-      const f = pop.querySelector('.acct-pop-foot'), n = favs.list().length;
-      if (f) f.innerHTML = /week\.html/.test(location.pathname) ? '' : `<a href="week.html">${n ? `My spots (${n})` : 'Pick my spots'} on the 7-day page →</a>`;
-    };
-    function show(on) {
-      pop.hidden = !on;
-      btn.setAttribute('aria-expanded', on);
-      if (!on) return;
-      // On phones the button sits in the ⋯ menu: fold that away behind it.
-      const ctl = document.getElementById('controls'), mb = document.getElementById('more-btn');
-      if (ctl) ctl.classList.remove('more-open');
-      if (mb) mb.setAttribute('aria-expanded', 'false');
-      pop.innerHTML = '<div class="acct-pop-head"><b>Account</b><button class="acct-x" type="button" data-pop-x aria-label="Close">✕</button></div><div class="acct-pop-body"></div><div class="acct-pop-foot"></div>';
-      mount(pop.querySelector('.acct-pop-body'), { reason: 'to log sessions and keep your spots on every device.', onChange: () => { label(); foot(); } });
-      if (!get() && !st) open('in');
-      foot();
-    }
-    btn.addEventListener('click', (e) => { e.stopPropagation(); show(pop.hidden); });
-    pop.addEventListener('click', (e) => { e.stopPropagation(); if (e.target.closest('[data-pop-x]')) show(false); });
-    document.addEventListener('click', (e) => { if (!pop.hidden && !e.target.closest('#acct-pop, #acct-btn')) show(false); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !pop.hidden) show(false); });
+    const a = document.createElement('a');
+    Object.assign(a, { className: 'acct-tb', id: 'acct-btn', href: 'account.html', title: 'Your account, spots and sessions' });
+    if (/account\.html$/.test(location.pathname)) a.setAttribute('aria-current', 'page');
+    more.appendChild(a);
+    const label = () => { const me = get(); a.innerHTML = `${ICON}<span>${me ? esc(me.name) : 'Sign in'}</span>`; };
     listeners.add(label);
-    favs.onChange(foot);
     label();
   }
   toolbar();

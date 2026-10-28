@@ -6,10 +6,12 @@
    bars for dawn / morning / afternoon / evening. Tap a card for the rest
    of that day (tide, light, confidence) in one line.
 
-   "My spots" (account.js: starred in a spot's viewer, ordered here; kept
-   on the account when signed in) come first; Mine / All picks whether
-   the rest of the coast shows too. The forecast is the worker's hourly
-   build, or the same blend done here if that's unavailable. */
+   "My spots" (account.js: starred in a spot's viewer, ordered on the
+   account page; kept on the account when signed in) come first; Mine /
+   All picks whether the rest of the coast shows too. Cards / Compact: the
+   cards, or a table of just the day scores, a row a spot. The forecast is
+   the worker's hourly build, or the same blend done here if that's
+   unavailable. */
 const DAYS = 16;       // today and fifteen ahead; past a week, a trend
 const NEAR = 7;        // days that count as a forecast (best bets, plain cards)
 const TTL = 60 * 60 * 1000;   // an hour; forecasts don't change faster than that
@@ -22,8 +24,8 @@ const store = { get: (k) => { try { return localStorage.getItem(k); } catch { re
 units = store.get('surf-units') === 'ft' ? 'ft' : 'm';
 let area = 'All';
 let scope = store.get('surf-week-scope') === 'all' ? 'all' : 'mine';
+let look = store.get('surf-week-view') === 'compact' ? 'compact' : 'cards';
 let sel = null;       // the opened tile: { id, i }
-let editing = location.hash === '#edit';   // the cams page's "Edit my spots" lands here
 let data = {};        // cam id -> { days: [{ date, hours:[k], tides:[], sun, conf }] }
 
 const byId = (id) => CAMS.find((x) => x.id === id);
@@ -105,28 +107,15 @@ function renderTools(hasFavs) {
       <button type="button" data-scope="mine" aria-pressed="${scope === 'mine'}">My spots</button>
       <button type="button" data-scope="all" aria-pressed="${scope === 'all'}">All</button>
     </div>` : ''}
-    <button class="btn${editing ? ' on' : ''}" type="button" data-edit>${editing ? 'Done' : hasFavs ? 'Edit my spots' : '★ Pick my spots'}</button>
-    <a class="btn" href="insights.html${Account.favs.list()[0] ? '?spot=' + esc(Account.favs.list()[0]) : ''}" style="text-decoration:none">Trends &amp; sessions →</a>
+    <div class="seg sm" role="group" aria-label="Layout">
+      <button type="button" data-look="cards" aria-pressed="${look === 'cards'}">Cards</button>
+      <button type="button" data-look="compact" aria-pressed="${look === 'compact'}">Compact</button>
+    </div>
+    <a class="btn" href="account.html#spots">${hasFavs ? 'Edit my spots' : '★ Pick my spots'}</a>
     <div class="legend" aria-hidden="true">
       ${LEVELS.map((l, i) => `<span class="lvl-${i}"><i></i>${l}</span>`).join('')}
       <span class="unsure"><i></i>greyer = less sure</span>
     </div>`;
-}
-
-const ARROW = (d) => `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
-function editHtml(favs) {
-  const others = CAMS.filter((c) => !favs.includes(c.id) && matches(c));
-  return `<section class="sec edit">
-    <div class="sec-head"><h2>My spots</h2><div class="acct-host"></div></div>
-    ${favs.length ? `<ol>${favs.map((id, n) => { const c = byId(id); return `<li>
-      <span class="n">${esc(c.name)}<small>${esc(c.zone || c.town)} · ${esc(c.area)}</small></span>
-      <button class="ib" type="button" data-up="${esc(id)}" aria-label="Move ${esc(c.name)} up"${n === 0 ? ' disabled' : ''}>${ARROW('M12 19V5M5 12l7-7 7 7')}</button>
-      <button class="ib" type="button" data-down="${esc(id)}" aria-label="Move ${esc(c.name)} down"${n === favs.length - 1 ? ' disabled' : ''}>${ARROW('M12 5v14M5 12l7 7 7-7')}</button>
-      <button class="ib" type="button" data-rm="${esc(id)}" aria-label="Remove ${esc(c.name)}">✕</button>
-    </li>`; }).join('')}</ol>` : '<p class="hint">No spots yet. Add some below: they’ll lead this page, in your order.</p>'}
-    <h3>Add spots</h3>
-    ${AREAS.map((a) => { const l = others.filter((c) => c.area === a); return l.length ? `<div class="adds">${l.map((c) => `<button class="add" type="button" data-add="${esc(c.id)}">+ ${esc(c.name)}</button>`).join('')}</div>` : ''; }).join('')}
-  </section>`;
 }
 
 // A spot's name and a card per day: size at the beach; the swell (arrow =
@@ -164,7 +153,25 @@ function stripHtml(c) {
     ${sel && sel.id === c.id ? detailHtml(c, sel.i) : ''}
   </div>`;
 }
-const gridHtml = (spots) => spots.map(stripHtml).join('');
+// Compact: a table a section, a row a spot, a cell a day holding just its
+// score on its colour (greyer when less sure, dashed past a week); the
+// opened day under the table.
+function tableHtml(spots) {
+  const ds = dates();
+  const cell = (c, iso, i) => {
+    const d = digestOf(c, i), on = sel && sel.id === c.id && sel.i === i, far = i >= NEAR ? ' far' : '';
+    if (!d) return `<td><button class="cc lvl-x${far}" type="button" data-id="${esc(c.id)}" data-i="${i}" aria-pressed="${on}" aria-label="${esc(c.name)}, ${dayName(iso, i, true)}: no forecast">–</button></td>`;
+    const size = Math.abs(d.hMax - d.hMin) < 0.25 ? hgt((d.hMin + d.hMax) / 2) : rng(d.hMin.toFixed(1), d.hMax.toFixed(1));
+    const what = `${dayName(iso, i, true)}: ${d.top === 0 ? 'flat' : `${fmt(d.top)} ${d.label}`}, ${size}, ${d.wsMin === d.wsMax ? d.wsMin : `${d.wsMin}–${d.wsMax}`} kts ${d.rel}`;
+    return `<td><button class="cc lvl-${d.level}${far}" type="button" data-id="${esc(c.id)}" data-i="${i}" aria-pressed="${on}" style="--conf:${d.conf != null ? d.conf : 1}" title="${esc(what)}" aria-label="${esc(c.name)}, ${esc(what)}">${d.top === 0 ? '–' : fmt(d.top)}</button></td>`;
+  };
+  const open = sel && spots.find((c) => c.id === sel.id);
+  return `<div class="ctab-wrap"><table class="ctab">
+    <thead><tr><th></th>${ds.map((iso, i) => `<th class="${i === 0 ? 'today' : ''}${i >= NEAR ? ' far' : ''}">${i === 0 ? 'Today' : dayName(iso, i)}<small>${new Date(iso + 'T12:00').getDate()}</small></th>`).join('')}</tr></thead>
+    <tbody>${spots.map((c) => `<tr><th scope="row"><a href="./#${esc(c.id)}" title="Open ${esc(c.name)}">${esc(c.name)}</a></th>${ds.map((iso, i) => cell(c, iso, i)).join('')}</tr>`).join('')}</tbody>
+  </table></div>${open ? detailHtml(open, sel.i) : ''}`;
+}
+const gridHtml = (spots) => (look === 'compact' ? tableHtml(spots) : spots.map(stripHtml).join(''));
 
 // One day at one spot, in a line: when it's best, size, wind, surface,
 // tide, light and how sure we are, each marked good / so-so / bad.
@@ -197,21 +204,13 @@ function renderList() {
   const rest = CAMS.filter((c) => !favs.includes(c.id) && matches(c));
   const showRest = !favs.length || scope === 'all';
   renderTools(favs.length > 0);
-  if (editing) {
-    list.innerHTML = editHtml(favs);
-    bets.innerHTML = '';
-    empty.classList.remove('show');
-  } else {
-    let html = '';
-    if (shownFavs.length) html += `<section class="sec"><div class="sec-head"><h2>My spots</h2><div class="acct-host"></div></div>${gridHtml(shownFavs)}</section>`;
-    else if (!favs.length) html += `<p class="hint"><b>Make this your list:</b> star the spots you surf (★ in a spot’s viewer, or “Pick my spots” here). They’ll lead this page in your order, and follow your account onto every device.</p>`;
-    if (showRest) html += AREAS.map((a) => { const l = rest.filter((c) => c.area === a); return l.length ? `<section class="sec"><div class="sec-head"><h2>${esc(a)}</h2></div>${gridHtml(l)}</section>` : ''; }).join('');
-    list.innerHTML = html;
-    renderBets(showRest ? [...shownFavs, ...rest] : shownFavs);
-    empty.classList.toggle('show', !shownFavs.length && !(showRest && rest.length) && !!(q.value.trim() || area !== 'All'));
-  }
-  const host = list.querySelector('.acct-host');
-  if (host) Account.mount(host, { reason: 'to keep your spots on every device.', onChange: () => renderList() });
+  let html = '';
+  if (shownFavs.length) html += `<section class="sec"><div class="sec-head"><h2>My spots</h2></div>${gridHtml(shownFavs)}</section>`;
+  else if (!favs.length) html += `<p class="hint"><b>Make this your list:</b> star the spots you surf (★ in a spot’s viewer, or <a href="account.html#spots">pick them on your account page</a>). They’ll lead this page in your order, and follow your account onto every device.</p>`;
+  if (showRest) html += AREAS.map((a) => { const l = rest.filter((c) => c.area === a); return l.length ? `<section class="sec"><div class="sec-head"><h2>${esc(a)}</h2></div>${gridHtml(l)}</section>` : ''; }).join('');
+  list.innerHTML = html;
+  renderBets(showRest ? [...shownFavs, ...rest] : shownFavs);
+  empty.classList.toggle('show', !shownFavs.length && !(showRest && rest.length) && !!(q.value.trim() || area !== 'All'));
 }
 
 function renderChips() {
@@ -224,38 +223,29 @@ function render() { renderChips(); renderList(); }
 function openTile(id, i) {
   sel = sel && sel.id === id && sel.i === i ? null : { id, i };
   renderList();
-  const t = list.querySelector(`.dcard[data-id="${CSS.escape(id)}"][data-i="${i}"]`);
+  const t = list.querySelector(`[data-id="${CSS.escape(id)}"][data-i="${i}"]`);
   if (t && sel) t.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
 }
 list.addEventListener('click', (e) => {
-  const t = e.target.closest('.dcard');
-  if (t) return openTile(t.dataset.id, +t.dataset.i);
-  const b = e.target.closest('[data-up], [data-down], [data-rm], [data-add]');
-  if (!b) return;
-  const l = Account.favs.list();
-  if (b.dataset.add) l.push(b.dataset.add);
-  else if (b.dataset.rm) l.splice(l.indexOf(b.dataset.rm), 1);
-  else {
-    const id = b.dataset.up || b.dataset.down, n = l.indexOf(id), m = n + (b.dataset.up ? -1 : 1);
-    if (m < 0 || m >= l.length) return;
-    [l[n], l[m]] = [l[m], l[n]];
-  }
-  Account.favs.save(l);
+  const t = e.target.closest('.dcard, .cc');
+  if (t) openTile(t.dataset.id, +t.dataset.i);
 });
 // Swiping one spot's days swipes them all, so the days stay in columns.
 let syncing = false;
 list.addEventListener('scroll', (e) => {
   const src = e.target;
-  if (syncing || !src.classList || !src.classList.contains('strip')) return;
+  const kind = src.classList && ['strip', 'ctab-wrap'].find((k) => src.classList.contains(k));
+  if (syncing || !kind) return;
   syncing = true;
-  for (const st of list.querySelectorAll('.strip')) if (st !== src) st.scrollLeft = src.scrollLeft;
+  for (const st of list.querySelectorAll('.' + kind)) if (st !== src) st.scrollLeft = src.scrollLeft;
   requestAnimationFrame(() => { syncing = false; });
 }, true);
 bets.addEventListener('click', (e) => { const b = e.target.closest('.bet'); if (b) openTile(b.dataset.id, +b.dataset.i); });
 tools.addEventListener('click', (e) => {
   const s = e.target.closest('[data-scope]');
   if (s) { scope = s.dataset.scope; store.set('surf-week-scope', scope); return renderList(); }
-  if (e.target.closest('[data-edit]')) { editing = !editing; sel = null; renderList(); }
+  const l = e.target.closest('[data-look]');
+  if (l) { look = l.dataset.look; store.set('surf-week-view', look); renderList(); }
 });
 Account.favs.onChange(() => renderList());
 q.addEventListener('input', renderList);

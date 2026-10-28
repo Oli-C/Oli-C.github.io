@@ -52,6 +52,11 @@ test('sessions need an account, and are checked', async () => {
   assert.equal((await call('POST', '/s', s)).status, 401);
   assert.equal((await call('POST', '/s', s, { token })).status, 200);
   assert.equal((await call('POST', '/s', s, { token })).status, 409, 'the same session twice');
+  assert.equal((await call('GET', '/s/mine')).status, 401);
+  const mine = (await call('GET', '/s/mine', null, { token })).body;
+  assert.equal(mine.sessions.length, 1);
+  assert.equal(mine.sessions[0].id, s.id);
+  assert.equal(mine.sessions[0].uid, undefined, 'no ids or names back');
   assert.equal((await call('POST', '/s', { ...s, local: new Date(Date.now() + 864e5).toISOString().slice(0, 16) }, { token })).status, 400, 'not in the future');
   assert.equal((await call('POST', '/s', { ...s, hours: [{ t: local, k: { h: 99, ws: 10 } }] }, { token })).status, 400, 'physical ranges');
   assert.equal((await call('POST', '/s', s, { token, origin: 'https://evil.example' })).status, 403, 'browsers on other sites');
