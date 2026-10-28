@@ -37,6 +37,10 @@
                        shown 16:9
              'page'  — a full web page in a frame (no player-only embed
                        available), shown tall
+             'none'  — no camera (yet): the spot still gets its score, a map
+                       pin, the 7-day outlook and session logging; its card
+                       shows the forecast and the viewer points to the
+                       nearest cams. Leave out embed, link and source.
      embed   the .m3u8 URL for 'hls', otherwise the URL loaded in the iframe
      poster  optional still shown before an 'hls' stream starts
      fallback optional page URL framed instead if an 'hls' stream won't play
@@ -262,6 +266,16 @@ const CAMS = [
     link:    'https://gosurf.fr/webcam/fr/123/Costa-Caparica-Praia-do-CDS',
     source:  'MEO Beachcam via viewsurf',
     thumb:   'https://films.viewsurf.com/BCcostacaparicacds_1_1.stream/media.jpg',
+  },
+  {
+    id:      'caparica-praia-nova',
+    name:    'Praia Nova',
+    town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'caparica', 'almada', 'no cam'],
+    lat: 38.6376, lng: -9.2354, faces: 250,   // OSM: Praia Nova, between CDS and Riviera on the same jetty-lined front
+    best: { ...CAPARICA, notes: 'Between the jetties just south of CDS, so it works much like it. No camera here: CDS and Riviera, either side, give the best look. ' + CAPARICA.notes },
+    type:    'none',
   },
   {
     id:      'caparica-riviera',

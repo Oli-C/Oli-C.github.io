@@ -2,28 +2,31 @@
    Part of the surf worker (see main.js; tools/build-worker.mjs bundles it).
 
    Two kinds of report:
-     verdict   "was the score right?" while watching a cam (too high / about
-               right / too low), with the conditions at that moment
+     verdict   "was the score right?" (too high / about right / too low).
+               Retired: POST /v now answers 410. The ones already sent are
+               still exported and keep calibrating the scores.
      session   "I surfed here": when, for how long, how it was (Flat … Epic),
                the wave size seen, how clean the surface was (Glassy …
                Blown out), the wave shape (Peeling / Mixed / Closing out)
                and what held it back, with the forecast for those hours.
                These train the scores (tools/skill.mjs).
 
-   Who sent it: the name the person gave once on their device (optional)
-   and the device (a random id made on the device, plus its kind, system
-   and browser). Both are kept here, privately: the export needs the key,
-   and tools/skill.mjs drops the name and device details before anything
-   reaches the public repo, keeping only a keyed hash of the device id.
+   Who sent it: a session needs a signed-in account (accounts.js), whose
+   id and name go with it, plus the device (a random id made on the device,
+   with its kind, system and browser). All kept here, privately: the export
+   needs the key, and tools/skill.mjs drops names and devices before
+   anything reaches the public repo, keeping only a keyed hash of the
+   account id.
 
    Keeping the input honest: everything is checked here whatever the page
    did. Unknown fields are dropped; every number must be finite and in a
    physical range; a session must have started in the last ~3 days and not
    in the future, last 30 min – 3 h, and carry 1–4 forecast hours inside
    that window. A hidden honeypot field must be empty and the form must
-   have been open a few seconds. Per sender (a keyed hash of the IP — the
-   IP itself is never stored): 30 verdicts and 10 sessions a day, and one
-   session per spot per start hour. The training step then weighs each
+   have been open a few seconds. Per account 10 sessions a day and one per
+   spot per start hour; per sender (a keyed hash of the IP — the IP itself
+   is never stored) 20 a day; 300 a day from everyone together. main.js
+   also rate-limits every request per IP before it gets here. The training step then weighs each
    device's reports down the more of them there are, and sets aside
    reports wildly out of line with the forecast. */
 
@@ -161,41 +164,30 @@ async function listReports(kv, prefix, since) {
   return out;
 }
 
-// Routes: POST /v, POST /s, GET /stats, GET /export?key=, GET /people?key=.
-// Returns a Response, or null when the path isn't one of these.
-async function handleFeedback(req, env, url, json) {
-  if (req.method === 'POST' && (url.pathname === '/v' || url.pathname === '/s')) {
+// Routes: POST /v (retired), POST /s, GET /stats?key=, GET /export?key=,
+// GET /people?key=. Returns a Response, or null when the path isn't one.
+async function handleFeedback(req, env, url, json, ipTag) {
+  if (req.method === 'POST' && url.pathname === '/v') return json({ error: 'retired; log a session instead' }, 410);
+  if (req.method === 'POST' && url.pathname === '/s') {
     if ((req.headers.get('Content-Length') | 0) > 20000) return json({ error: 'too big' }, 413);
+    const me = await account(env, req);
+    if (!me) return json({ error: 'sign in to log sessions' }, 401);
     let body;
     try { body = await req.json(); } catch { return json({ error: 'bad json' }, 400); }
-    const who = await senderTag(req.headers.get('CF-Connecting-IP') || 'x', await readSecret(env.EXPORT_KEY));
-
-    if (url.pathname === '/v') {
-      const v = body;
-      const ok = v && typeof v.id === 'string' && SPOT_ID.test(v.id) && ['high', 'ok', 'low'].includes(v.verdict) && num(v.total, 0, 10);
-      const k = ok && cleanK(v.k);
-      const name = ok && cleanName(v.name), dev = ok && cleanDev(v.dev);
-      if (!ok || !k || name === undefined || dev === undefined) return json({ error: 'bad verdict' }, 400);
-      if (!(await allow(env.FEEDBACK, 'v', who, 30))) return json({ error: 'too many today' }, 429);
-      const f = {};
-      if (v.f && typeof v.f === 'object') for (const [label, val] of Object.entries(v.f)) if (typeof label === 'string' && label.length < 20 && num(val, 0, 10)) f[label] = val;
-      const t = new Date().toISOString();
-      await env.FEEDBACK.put(`v:${stamp()}`, JSON.stringify({ t, who, id: v.id, total: v.total, verdict: v.verdict, f, k, name, dev }));
-      return json({ ok: true });
-    }
-
     const s = cleanSession(body, Date.now());
     if (typeof s === 'string') return json({ error: s }, 400);
-    const dupe = `sd:${who}:${s.id}:${s.local.slice(0, 13)}`;
+    const dupe = `sd:${me.id}:${s.id}:${s.local.slice(0, 13)}`;
     if (await env.FEEDBACK.get(dupe)) return json({ error: 'already logged that session' }, 409);
-    if (!(await allow(env.FEEDBACK, 's', who, 10))) return json({ error: 'too many today' }, 429);
+    if (!(await allow(env.FEEDBACK, 's', me.id, 10)) || !(await allow(env.FEEDBACK, 'si', ipTag, 20)) || !(await allow(env.FEEDBACK, 's', 'all', 300))) return json({ error: 'too many today' }, 429);
     await env.FEEDBACK.put(dupe, '1', { expirationTtl: 4 * 86400 });
-    await env.FEEDBACK.put(`s:${stamp()}`, JSON.stringify({ t: new Date().toISOString(), who, ...s }));
-    return json({ ok: true });
+    await env.FEEDBACK.put(`s:${stamp()}`, JSON.stringify({ t: new Date().toISOString(), who: ipTag, ...s, uid: me.id, name: me.name }));
+    me.sessions = (me.sessions || 0) + 1;
+    await saveUser(env, me);
+    return json({ ok: true, sessions: me.sessions });
   }
 
   if (req.method !== 'GET') return null;
-  if (url.pathname === '/export' || url.pathname === '/people') {
+  if (url.pathname === '/export' || url.pathname === '/people' || url.pathname === '/stats') {
     const exportKey = await readSecret(env.EXPORT_KEY);
     if (!exportKey || (url.searchParams.get('key') || '').trim() !== exportKey) return json({ error: 'no' }, 403);
   }
@@ -211,11 +203,16 @@ async function handleFeedback(req, env, url, json) {
     return json({ stats });
   }
   if (url.pathname === '/people') {
-    // Private: who's been reporting, by device. Needs the key.
+    // Private: who's been reporting — accounts, then reports by account
+    // (older ones by device). Needs the key.
     const people = {};
+    for (const u of await listAccounts(env.FEEDBACK)) {
+      people[u.id] = { name: u.name, account: true, created: u.created, banned: !!u.banned, devices: (u.devices || []).map((d) => `${d.kind} · ${d.os} · ${d.browser}`),
+        device: '', verdicts: 0, sessions: 0, spots: {}, first: u.created, last: u.created };
+    }
     for (const [kind, prefix] of [['verdicts', 'v:'], ['sessions', 's:']]) {
       for (const e of await listReports(env.FEEDBACK, prefix, '')) {
-        const id = (e.dev && e.dev.id) || `ip:${e.who}`;
+        const id = e.uid || (e.dev && e.dev.id) || `ip:${e.who}`;
         const p = people[id] = people[id] || { name: null, device: e.dev ? `${e.dev.kind} · ${e.dev.os} · ${e.dev.browser}` : 'unknown', verdicts: 0, sessions: 0, spots: {}, first: e.t, last: e.t };
         if (e.name) p.name = e.name;
         p[kind]++; p.spots[e.id] = (p.spots[e.id] || 0) + 1;

@@ -154,12 +154,14 @@ async function pullFeedback() {
     const since = [...list, ...sessions].map((e) => e.t).sort().pop() || '';
     try {
       const j = await getJson(`${url.replace(/\/$/, '')}/export?key=${encodeURIComponent(key)}&since=${encodeURIComponent(since)}`);
-      // This repo is public: names and device details stay in the worker.
-      // What lands here is the report plus a keyed hash of the device id
-      // (so one device's reports can still be weighed together).
+      // This repo is public: names, accounts and devices stay in the
+      // worker. What lands here is the report plus a keyed hash of the
+      // account id (older reports: the device id), so one person's reports
+      // can still be weighed together.
       const anon = (e) => {
-        const { name, dev, ...rest } = e;
-        if (dev && dev.id) rest.who = 'd' + createHmac('sha256', key).update(dev.id).digest('hex').slice(0, 12);
+        const { name, dev, uid, ...rest } = e;
+        if (uid) rest.who = 'u' + createHmac('sha256', key).update(uid).digest('hex').slice(0, 12);
+        else if (dev && dev.id) rest.who = 'd' + createHmac('sha256', key).update(dev.id).digest('hex').slice(0, 12);
         return rest;
       };
       j.verdicts = (j.verdicts || []).map(anon);

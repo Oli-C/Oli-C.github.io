@@ -135,12 +135,17 @@ async function buildForecast(env) {
   return { built, spots: Object.keys(spots).length, days: Object.keys(byDay), ms: Date.now() - started };
 }
 
+// The latest build, held in this isolate for a minute so a burst of page
+// loads (or someone hammering it) costs one KV read, not one each.
+let fcMemo = { at: 0, body: null };
+
 // Routes: GET /forecast, GET /forecast/day?d=YYYY-MM-DD, GET /forecast/refresh?key=.
 async function handleForecast(req, env, url, json) {
   if (req.method !== 'GET' || !url.pathname.startsWith('/forecast')) return null;
   const cors = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
   if (url.pathname === '/forecast') {
-    const body = await env.FEEDBACK.get('fc:latest');
+    if (Date.now() - fcMemo.at > 60000) fcMemo = { at: Date.now(), body: await env.FEEDBACK.get('fc:latest') };
+    const body = fcMemo.body;
     if (!body) return json({ error: 'no forecast built yet' }, 503);
     return new Response(body, { headers: { ...cors, 'Cache-Control': 'public, max-age=300' } });
   }

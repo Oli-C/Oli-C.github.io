@@ -430,6 +430,17 @@
   .cam.blocked .t-blk { display: inline; }
   .cam.offline img { filter: grayscale(1) brightness(.4); }
   .cam.offline video, .cam.offline .live { display: none; }
+  /* No camera: a dim swell line instead of a picture; conditions as usual. */
+  .cam.nocam { background: linear-gradient(160deg, var(--bg-3), var(--bg-2)); }
+  .nocam-art { position: absolute; left: 12%; right: 12%; top: 26%; height: 22%; width: 76%; color: var(--accent); opacity: .35; }
+  .icon-btn[hidden] { display: none; }
+  .frame.nocam { display: grid; place-items: center; background: linear-gradient(160deg, var(--bg-3), var(--bg-2)); }
+  .frame.nocam .frame-msg { position: relative; inset: auto; background: none; color: var(--fg); }
+  .frame.nocam .frame-msg .nocam-art { position: static; display: block; width: 160px; height: 40px; margin: 0 auto 10px; }
+  .frame.nocam .frame-msg > div { display: grid; justify-items: center; gap: 8px; }
+  .frame.nocam .frame-msg span { font-size: 12px; color: var(--fg-muted); }
+  .frame.nocam .near { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  .frame.nocam .near small { opacity: .7; margin-left: 4px; }
   @keyframes pulse {
     0%   { box-shadow: 0 0 0 0 rgba(229, 72, 77, .6); }
     70%  { box-shadow: 0 0 0 6px rgba(229, 72, 77, 0); }
@@ -1057,7 +1068,19 @@
   .who .fb-note { margin-top: 6px; }
   .who-line { margin-top: 10px; }
   .linkish { font: inherit; color: var(--accent-ink); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
-  .sess-open { margin-top: 12px; }
+  /* Sign in / create an account / recovery code */
+  .acct .sess-head { margin-bottom: 4px; }
+  .acct-fields { display: grid; gap: 8px; margin: 8px 0 10px; max-width: 360px; }
+  .acct-f { display: grid; gap: 4px; font-size: 12px; color: var(--fg-muted); }
+  .acct-f .who-in { flex: none; width: 100%; box-sizing: border-box; border-radius: 10px; padding: 8px 12px; }
+  .acct-go { margin-bottom: 4px; }
+  .acct .sess-err { margin: 0 0 8px; }
+  .acct-code {
+    margin: 8px 0; padding: 10px 14px; width: max-content; max-width: 100%; box-sizing: border-box;
+    font: 600 18px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.08em;
+    background: var(--bg-3); border: 1px dashed var(--accent); border-radius: 10px; user-select: all;
+  }
+  .sess-open { margin-top: 0; }
   .sess-open .fb-btn { display: inline-flex; align-items: center; gap: 7px; }
   .sess-open .fb-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent-ink); }
 
@@ -2012,11 +2035,12 @@
   }
 
   // The tile is the preview; name, place and conditions overlay the bottom.
+  const noCam = (c) => c.type === 'none';
   const cardHtml = (c) => `
-    <button class="cam" type="button" data-id="${esc(c.id)}" aria-label="Watch ${esc(c.name)}, ${esc(c.town)}">
+    <button class="cam${noCam(c) ? ' nocam' : ''}" type="button" data-id="${esc(c.id)}" aria-label="${noCam(c) ? 'Forecast for' : 'Watch'} ${esc(c.name)}, ${esc(c.town)}">
       ${c.thumb ? `<img src="${esc(thumbUrl(c.thumb))}" alt="" loading="lazy" decoding="async" onload="this.classList.add('ready')" onerror="this.remove()">` : ''}
       ${c.type === 'hls' ? `<video muted playsinline preload="none"${c.poster ? ` poster="${esc(c.poster)}"` : ''} aria-hidden="true"></video>` : ''}
-      <span class="live"><i></i>Live</span>
+      ${noCam(c) ? `<span class="live">No cam · forecast</span>${NOCAM_ART}` : '<span class="live"><i></i>Live</span>'}
       <span class="off" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M15 15v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h2m4 0h4a1 1 0 0 1 1 1v3l5-3v9"/></svg><span class="t-off">Camera offline</span><span class="t-blk">Plays on ${esc(sourceName(c))} only</span></span>
       <span class="score-slot">${badge(c)}</span>
       <div class="overlay">
@@ -2028,6 +2052,14 @@
       </div>
     </button>`;
 
+  // "3 cams", or "4 spots · 3 cams" when some have no camera.
+  const areaCount = (list) => {
+    const n = list.filter((c) => !noCam(c)).length, cams = `${n} cam${n === 1 ? '' : 's'}`;
+    return n === list.length ? cams : `${list.length} spots · ${cams}`;
+  };
+  // A forecast-only card's backdrop: a quiet swell line where the stream would be.
+  const NOCAM_ART = '<svg class="nocam-art" viewBox="0 0 120 40" preserveAspectRatio="none" aria-hidden="true"><path d="M0 26c10 0 10-10 20-10s10 10 20 10 10-10 20-10 10 10 20 10 10-10 20-10 10 10 20 10" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+
   // Built once; conditions are patched in later so the tiles keep streaming.
   function renderGrid() {
     grid.innerHTML = AREAS.map((a) => {
@@ -2035,7 +2067,7 @@
       return `
       <section class="area" data-area="${esc(a)}">
         <div class="area-head">
-          <h2>${esc(a)}<small>${list.length} cam${list.length === 1 ? '' : 's'}</small></h2>
+          <h2>${esc(a)}<small>${areaCount(list)}</small></h2>
           <div class="area-sum"></div>
         </div>
         <div class="cards">${list.map(cardHtml).join('')}</div>
@@ -2194,12 +2226,12 @@
   const offline = new Map();   // id -> 'probe' | 'play' | 'blocked'
 
   function reorder() {
-    const rank = (c) => CAMS.indexOf(c) + (offline.has(c.id) ? 1000 : 0);
+    const rank = (c) => CAMS.indexOf(c) + (offline.has(c.id) ? 1000 : noCam(c) ? 500 : 0);
     for (const sec of grid.querySelectorAll('.area')) {
       const box = sec.querySelector('.cards');
       [...box.children].sort((a, b) => rank(byId(a.dataset.id)) - rank(byId(b.dataset.id))).forEach((el) => box.appendChild(el));
     }
-    const dead = (sec) => [...sec.querySelectorAll('.cam')].every((el) => offline.has(el.dataset.id));
+    const dead = (sec) => [...sec.querySelectorAll('.cam')].every((el) => offline.has(el.dataset.id) || noCam(byId(el.dataset.id)));
     [...grid.querySelectorAll('.area')]
       .sort((a, b) => (dead(a) - dead(b)) || (AREAS.indexOf(a.dataset.area) - AREAS.indexOf(b.dataset.area)))
       .forEach((sec) => grid.appendChild(sec));
@@ -2330,7 +2362,7 @@
       ${sum ? `<div class="pop-sum">${esc(sum)}</div>` : ''}
       <div class="pop-actions">
         <button class="pop-btn" type="button" data-open="${esc(c.id)}">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>Watch live
+          ${noCam(c) ? 'Forecast' : '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>Watch live'}
         </button>
         ${goButton(c)}
       </div>`;
@@ -3092,28 +3124,20 @@
     } else if (e.key === 'Escape' && todayEl._sel != null) { e.stopPropagation(); selectHour(null); }
   });
 
-  /* ---------- "Was it right?" ---------- */
+  /* ---------- Feedback: sessions and accounts ---------- */
 
-  // Each verdict is stored with the factors behind that moment's score, so
-  // the spot's numbers can be fitted later instead of guessed.
+  // Verdicts this device sent before they were retired (Too high / About
+  // right / Too low). Logged sessions replaced them; only the tune panel
+  // still reads these, and the server keeps calibrating from the old ones.
   const FB_KEY = 'surf-feedback';
-  // Every verdict is pooled across all users: it goes to the Cloudflare
-  // worker (tools/worker/feedback.js) with the spot, score, factors and sea
-  // state, plus the name and device (kept private there), and the
-  // scheduled Action exports the pool, names and devices stripped, into
-  // data/feedback.json, which becomes each spot's calibration in
-  // data/skill.json. The device copy only lets a user see their own votes.
-  // Public on purpose: browsers post here. Exporting needs EXPORT_KEY,
-  // which lives only in Cloudflare and the repo's Actions secrets.
+  const loadFb = () => { try { return JSON.parse(localStorage.getItem(FB_KEY) || '[]') || []; } catch { return []; } };
+  // Sessions go to the Cloudflare worker (tools/worker/), which keeps them
+  // privately; the scheduled Action exports them, names and devices
+  // stripped, into data/sessions.json and trains the scores on them.
   const FEEDBACK_URL = SURF_WORKER;   // score.js
-  // Who's reporting: a name asked for once on this device (optional) and
-  // the device itself (a random id made here, plus its kind, system and
-  // browser). Both go with every report and stay private in the worker;
-  // the public repo only ever gets a hashed device id (tools/skill.mjs).
-  const NAME_OK = /^[\p{L}\p{M}\p{N} .'’_-]{1,40}$/u;
-  const getName = () => { try { return localStorage.getItem('surf-name') || ''; } catch { return ''; } };
-  const nameSkipped = () => { try { return localStorage.getItem('surf-name-skip') === '1'; } catch { return false; } };
-  let whoEdit = false, whoErr = '';
+  const api = (path) => FEEDBACK_URL.replace(/\/$/, '') + path;
+  // The device: a random id made here, plus its kind, system and browser.
+  // Goes with sign-ins and sessions and stays private in the worker.
   function deviceInfo() {
     let id = '';
     try { id = localStorage.getItem('surf-device') || ''; } catch {}
@@ -3129,96 +3153,162 @@
     const kind = os === 'iPadOS' || (/Android/.test(ua) && !/Mobile/.test(ua)) ? 'tablet' : /Mobi|iPhone|Android/.test(ua) ? 'phone' : 'desktop';
     return { id, kind, os, browser };
   }
-  const who = () => ({ name: getName() || null, dev: deviceInfo() });
-  // The name row: asked once (until saved or "Not now"), else a quiet
-  // "Reporting as …" with a way to change it.
-  function whoHtml() {
-    const name = getName();
-    if (whoEdit || (!name && !nameSkipped())) {
-      return `<div class="who">
-        <label class="who-q" for="who-in">${name ? 'Change your name' : 'What should we call you?'}</label>
-        <div class="who-row">
-          <input id="who-in" class="who-in" type="text" maxlength="40" autocomplete="nickname" enterkeyhint="done" placeholder="First name or nickname" value="${esc(name)}">
-          <button class="fb-btn" type="button" data-who-save>Save</button>
-          <button class="fb-btn" type="button" data-who-skip>${name ? 'Cancel' : 'Not now'}</button>
-        </div>
-        ${whoErr ? `<div class="sess-err">${esc(whoErr)}</div>` : ''}
-        <div class="fb-note">Asked once. Saved on this device and kept private with your reports, never shown on the site.</div>
-      </div>`;
-    }
-    return `<div class="fb-note who-line">${name ? `Reporting as <b>${esc(name)}</b>` : 'Reporting without a name'} · <button class="linkish" type="button" data-who-edit>${name ? 'change' : 'add your name'}</button></div>`;
-  }
-  function whoClick(e, c) {
-    const b = e.target.closest('[data-who-save], [data-who-skip], [data-who-edit]');
-    if (!b) return false;
-    if ('whoEdit' in b.dataset) { whoEdit = true; whoErr = ''; }
-    else if ('whoSkip' in b.dataset) { if (!getName()) try { localStorage.setItem('surf-name-skip', '1'); } catch {} whoEdit = false; whoErr = ''; }
-    else {
-      const v = ($('who-in').value || '').normalize('NFC').replace(/\s+/g, ' ').trim();
-      if (!v) { try { localStorage.removeItem('surf-name'); localStorage.setItem('surf-name-skip', '1'); } catch {} whoEdit = false; whoErr = ''; }
-      else if (!NAME_OK.test(v)) { whoErr = 'Letters, numbers, spaces and . \' - _ only, up to 40.'; }
-      else { try { localStorage.setItem('surf-name', v); } catch {} whoEdit = false; whoErr = ''; }
-    }
-    renderFb(c);
-    if (sess && sess.id === c.id) renderSess(c);
-    if (whoEdit) requestAnimationFrame(() => { const i = $('who-in'); if (i) i.focus(); });
-    return true;
-  }
 
-  // The conditions snapshot saved with every verdict and session: the
-  // blended forecast hour, every field the score and training use.
+  // The conditions snapshot saved with every session: the blended forecast
+  // hour, every field the score and training use.
   const K_KEEP = ['h', 'p', 'd', 'ws', 'wd', 'wg', 'day', 'tn', 'tdir', 'wwh', 'th', 'h2', 'p2', 'd2', 'sst', 'air', 'tide', 'conf'];
   const snapK = (k) => Object.fromEntries(K_KEEP.filter((f) => k[f] != null).map((f) => [f, typeof k[f] === 'number' ? +k[f].toFixed(3) : k[f]]));
-  const loadFb = () => { try { return JSON.parse(localStorage.getItem(FB_KEY) || '[]') || []; } catch { return []; } };
-  const saveFb = (list) => { try { localStorage.setItem(FB_KEY, JSON.stringify(list.slice(-2000))); } catch {} };
-  function logFeedback(c, verdict) {
-    const k = conditions[c.id] && conditions[c.id].now, r = scoreOf(c);
-    if (!k || !r) return;
-    const f = {};
-    for (const x of r.factors) f[x.label] = x.mult != null ? +x.mult.toFixed(2) : +x.pts.toFixed(2);
-    const entry = { t: new Date().toISOString(), id: c.id, total: r.total, verdict, f, k: snapK(k) };
-    const list = loadFb();
-    list.push(entry);
-    saveFb(list);
-    if (FEEDBACK_URL) fetch(FEEDBACK_URL.replace(/\/$/, '') + '/v', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...entry, ...who() }), keepalive: true }).catch(() => {});
-    else console.warn('surf: FEEDBACK_URL not set, verdict kept on this device only');
+
+  /* Accounts (tools/worker/accounts.js). Logging a session needs one: a
+     name and a password. Signing in keeps a token on this device, so it
+     stays signed in. Sign-up shows a recovery code once; with it the
+     person can set a new password themselves, otherwise Oli resets it. */
+  const ACCT_KEY = 'surf-account';
+  const getAcct = () => { try { const a = JSON.parse(localStorage.getItem(ACCT_KEY) || 'null'); return a && a.token && a.name ? a : null; } catch { return null; } };
+  const setAcct = (a) => { try { if (a) localStorage.setItem(ACCT_KEY, JSON.stringify({ name: a.name, token: a.token })); else localStorage.removeItem(ACCT_KEY); } catch {} };
+  // The name given on this device before accounts, offered at sign-up.
+  const oldName = () => { try { return localStorage.getItem('surf-name') || ''; } catch { return ''; } };
+  let acct = null;   // the open account form: { mode: 'in' | 'up' | 'forgot' | 'pw' | 'code', msg, note, busy, code, then, opened }
+  const sentence = (s) => s.charAt(0).toUpperCase() + s.slice(1) + (/[.?!]$/.test(s) ? '' : '.');
+  async function acctPost(path, body) {
+    const me = getAcct(), headers = { 'Content-Type': 'application/json' };
+    if (me) headers.Authorization = 'Bearer ' + me.token;
+    try {
+      const r = await fetch(api(path), { method: 'POST', headers, body: JSON.stringify({ ...body, dev: deviceInfo() }) });
+      const j = await r.json().catch(() => ({}));
+      return r.ok ? j : { error: j.error ? sentence(j.error) : `The server said no (${r.status}).`, status: r.status };
+    } catch { return { error: 'Couldn’t reach the server. Check your connection.' }; }
   }
-  function renderFb(c) {
+  const openAcct = (mode, extra = {}) => { acct = { mode, msg: '', note: '', busy: false, code: '', then: null, opened: Date.now(), ...extra }; };
+
+  function acctHtml() {
+    const me = getAcct();
+    if (!acct) {
+      return me
+        ? `<div class="fb-note who-line">Signed in as <b>${esc(me.name)}</b> · <button class="linkish" type="button" data-acct="pw">change password</button> · <button class="linkish" type="button" data-acct="out">sign out</button></div>`
+        : `<div class="fb-note who-line"><button class="linkish" type="button" data-acct="in">Sign in</button> or <button class="linkish" type="button" data-acct="up">create an account</button> to log sessions.</div>`;
+    }
+    const x = `<button class="sess-x" type="button" data-acct="close" aria-label="Close">✕</button>`;
+    if (acct.mode === 'code') {
+      return `<div class="who acct">
+        <div class="sess-head"><span class="who-q">Your recovery code</span></div>
+        <div class="acct-code" id="acct-code">${esc(acct.code)}</div>
+        <p class="fb-note">Keep it somewhere safe: a note, a photo, your password manager. It’s how you set a new password if you forget yours, and it won’t be shown again. Lost it? Ask Oli to reset your password.</p>
+        <div class="who-row"><button class="fb-btn" type="button" data-acct="copy">Copy</button><button class="pop-btn" type="button" data-acct="saved">I’ve saved it</button></div>
+      </div>`;
+    }
+    const field = (name, label, type, auto, extra = '') =>
+      `<label class="acct-f"><span>${label}</span><input class="who-in" name="${name}" type="${type}" autocomplete="${auto}" ${extra} required></label>`;
+    const nameF = (v = '') => field('username', 'Name', 'text', 'username', `maxlength="30" autocapitalize="words" spellcheck="false" value="${esc(v)}"`);
+    const forms = {
+      in: { title: 'Sign in', body: nameF() + field('password', 'Password', 'password', 'current-password', 'minlength="8" maxlength="200"'), go: 'Sign in',
+        links: `<button class="linkish" type="button" data-acct="up">Create an account</button> · <button class="linkish" type="button" data-acct="forgot">Forgot password?</button>` },
+      up: { title: 'Create an account', body: nameF(oldName()) + field('password', 'Password', 'password', 'new-password', 'minlength="8" maxlength="200" placeholder="8 characters or more"')
+          + '<input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">', go: 'Create account',
+        links: `Already have one? <button class="linkish" type="button" data-acct="in">Sign in</button>`,
+        note: 'Your name is kept private with your sessions: only Oli sees it, never shown on the site.' },
+      forgot: { title: 'Set a new password', body: nameF() + field('code', 'Recovery code', 'text', 'off', 'maxlength="24" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX"')
+          + field('password', 'New password', 'password', 'new-password', 'minlength="8" maxlength="200"'), go: 'Set password',
+        links: `<button class="linkish" type="button" data-acct="in">Back to sign in</button>`,
+        note: 'Use the recovery code you saved when you signed up. No code? Ask Oli to reset your password.' },
+      pw: { title: 'Change password', body: `<input type="text" name="username" autocomplete="username" value="${esc(me ? me.name : '')}" hidden>`
+          + field('old', 'Current password', 'password', 'current-password', 'maxlength="200"') + field('password', 'New password', 'password', 'new-password', 'minlength="8" maxlength="200"'), go: 'Change password',
+        links: `<button class="linkish" type="button" data-acct="forgot">Forgot it?</button>`,
+        note: 'Signs you out on your other devices.' },
+    };
+    const f = forms[acct.mode];
+    return `<form class="who acct" data-acct-form novalidate>
+      <div class="sess-head"><span class="who-q">${f.title}</span>${x}</div>
+      ${acct.note ? `<p class="fb-note">${esc(acct.note)}</p>` : ''}
+      <div class="acct-fields">${f.body}</div>
+      ${acct.msg ? `<div class="sess-err">${esc(acct.msg)}</div>` : ''}
+      <div class="who-row acct-go"><button class="pop-btn" type="submit"${acct.busy ? ' disabled' : ''}>${acct.busy ? 'One moment…' : f.go}</button></div>
+      <div class="fb-note">${f.links}</div>
+      ${f.note ? `<div class="fb-note">${f.note}</div>` : ''}
+    </form>`;
+  }
+
+  async function acctSubmit(c, form) {
+    const v = (n) => (form.elements[n] ? form.elements[n].value : '');
+    const name = v('username').normalize('NFC').replace(/\s+/g, ' ').trim(), pw = v('password');
+    const bad = acct.mode !== 'pw' && !/^[\p{L}\p{M}\p{N} .'’_-]{2,30}$/u.test(name) ? 'Names are 2–30 letters, numbers, spaces and . \' - _'
+      : pw.length < 8 ? 'Passwords need at least 8 characters.'
+      : acct.mode === 'forgot' && v('code').replace(/[^a-z0-9]/gi, '').length !== 16 ? 'The recovery code is 16 letters and numbers.' : '';
+    if (bad) { acct.msg = bad; return renderFb(c); }
+    acct.busy = true; acct.msg = ''; renderFb(c, form);
+    const body = acct.mode === 'in' ? { name, password: pw }
+      : acct.mode === 'up' ? { name, password: pw, hp: v('website'), dt: Date.now() - acct.opened }
+      : acct.mode === 'forgot' ? { name, code: v('code'), password: pw }
+      : { old: v('old'), password: pw };
+    const path = { in: '/a/login', up: '/a/signup', forgot: '/a/recover', pw: '/a/password' }[acct.mode];
+    const j = await acctPost(path, body);
+    acct.busy = false;
+    if (j.error) {
+      if (acct.mode === 'pw' && j.status === 401 && /signed out/i.test(j.error)) { setAcct(null); openAcct('in', { note: 'You’ve been signed out. Sign in again.' }); }
+      else acct.msg = j.error;
+      return renderFb(c, form);
+    }
+    setAcct({ name: j.name, token: j.token });
+    try { localStorage.removeItem('surf-name'); localStorage.removeItem('surf-name-skip'); } catch {}
+    const then = acct.then;
+    if (j.recovery) openAcct('code', { code: j.recovery, then });
+    else acctDone(c, then);
+    if (getAcct()) resendSessions();
+    renderFb(c);
+  }
+  // Signed in: carry on to whatever asked for it (the session form).
+  function acctDone(c, then) {
+    acct = null;
+    renderFb(c);
+    if (then === 'sess' && !(sess && sess.id === c.id)) openSess(c);
+  }
+  async function acctClick(e, c) {
+    const b = e.target.closest('[data-acct]');
+    if (!b) return;
+    const what = b.dataset.acct;
+    if (what === 'close') acct = null;
+    else if (what === 'out') {
+      acctPost('/a/logout', {});
+      setAcct(null);
+      if (sess) closeSess();
+    } else if (what === 'copy') {
+      try { await navigator.clipboard.writeText(acct.code); b.textContent = 'Copied'; } catch { const t = $('acct-code'); if (t) getSelection().selectAllChildren(t); }
+      return;
+    } else if (what === 'saved') return acctDone(c, acct.then);
+    else openAcct(what, { then: acct && acct.then, note: acct && acct.mode !== what ? '' : (acct && acct.note) || '' });
+    renderFb(c);
+    if (acct) requestAnimationFrame(() => { const i = $('v-fb').querySelector('input:not([hidden]):not(.hp)'); if (i) i.focus(); });
+  }
+
+  function renderFb(c, keep) {
     const el = $('v-fb');
     if (!scoreOf(c)) { el.hidden = true; el.innerHTML = ''; return; }
-    // A refresh mid-typing keeps what's been typed in the name box.
-    const typing = $('who-in') && document.activeElement === $('who-in') ? $('who-in').value : null;
-    requestAnimationFrame(() => { const i = $('who-in'); if (typing != null && i) { i.value = typing; i.focus(); } });
-    const mine = loadFb().filter((e) => e.id === c.id);
-    const last = mine[mine.length - 1], recent = last && Date.now() - new Date(last.t) < 60 * 60 * 1000;
+    // A re-render mid-typing keeps what's been typed (and where).
+    const old = keep || el.querySelector('[data-acct-form]');
+    const typed = old ? [...old.querySelectorAll('input')].map((i) => [i.name, i.value]) : [];
+    const focused = document.activeElement && el.contains(document.activeElement) ? document.activeElement.name : null;
     el.hidden = false;
     el.innerHTML = `
-      <div class="fb-row">
-        <span class="k">Score right?</span>
-        <button class="fb-btn${recent && last.verdict === 'high' ? ' sel' : ''}" type="button" data-fb="high">Too high</button>
-        <button class="fb-btn${recent && last.verdict === 'ok' ? ' sel' : ''}" type="button" data-fb="ok">About right</button>
-        <button class="fb-btn${recent && last.verdict === 'low' ? ' sel' : ''}" type="button" data-fb="low">Too low</button>
-      </div>
-      <div class="fb-note">${(() => {
-          const pool = sharedSkill && sharedSkill.calibration && sharedSkill.calibration[c.id];
-          const bits = ['Everyone’s verdicts calibrate this spot'];
-          if (pool) bits.push(`${pool.n} so far${pool.n >= 5 && Math.abs(pool.f - 1) >= 0.02 ? `, scores ×${pool.f.toFixed(2)}` : ''}`);
-          if (mine.length) bits.push(`${mine.length} from you`);
-          return bits.join(' · ');
-        })()}</div>
       <div class="fb-row sess-open">
-        <button class="fb-btn" type="button" data-sess-open aria-expanded="${sess && sess.id === c.id}">${ICON_BOARD}Surfed here? Log a session</button>
+        <button class="fb-btn" type="button" data-sess-open aria-expanded="${!!(sess && sess.id === c.id)}">${ICON_BOARD}Surfed here? Log a session</button>
         <span class="fb-note">${(() => {
           const L = learnedSpot(c.id), n = L ? L.n : 0, mineS = loadSess().filter((e) => e.id === c.id).length;
           return [n ? `${n} session${n > 1 ? 's' : ''} logged here` : 'Your sessions teach the scores', mineS ? `${mineS} from you` : ''].filter(Boolean).join(' · ');
         })()}</span>
       </div>
-      ${whoHtml()}`;
-    el.querySelectorAll('[data-fb]').forEach((b) => b.addEventListener('click', () => { logFeedback(c, b.dataset.fb); renderFb(c); if (TUNE) renderTune(c); }));
-    el.querySelector('[data-sess-open]').addEventListener('click', () => (sess && sess.id === c.id ? closeSess() : openSess(c)));
-    el.onclick = (e) => whoClick(e, c);
-    const wi = $('who-in');
-    if (wi) wi.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); el.querySelector('[data-who-save]').click(); } });
+      ${acctHtml()}`;
+    const form = el.querySelector('[data-acct-form]');
+    if (form && typed.length) {
+      for (const [n, val] of typed) { const i = form.elements[n]; if (i && val && i.type !== 'hidden') i.value = val; }
+      if (focused && form.elements[focused]) form.elements[focused].focus();
+    }
+    el.querySelector('[data-sess-open]').addEventListener('click', () => {
+      if (sess && sess.id === c.id) return closeSess();
+      if (!getAcct()) { openAcct('in', { then: 'sess', note: 'Sign in to log a session. Every report then belongs to someone, which keeps them honest.' }); renderFb(c); return requestAnimationFrame(() => { const i = el.querySelector('input[name="username"]'); if (i) i.focus(); }); }
+      openSess(c);
+    });
+    el.onclick = (e) => acctClick(e, c);
+    el.onsubmit = (e) => { e.preventDefault(); if (acct && !acct.busy) acctSubmit(c, e.target); };
   }
 
   /* ---------- Logged sessions ("I surfed here") ----------
@@ -3369,7 +3459,7 @@
       ${sess.msg ? `<p class="sess-err">${esc(sess.msg)}</p>` : ''}
       <div class="sess-go">
         <button class="pop-btn" type="button" data-ssend${sess.busy ? ' disabled' : ''}>${sess.warn ? 'Yes, log it' : 'Log session'}</button>
-        <span class="fb-note">Saved with the forecast for those hours${getName() ? `, as ${esc(getName())}` : ''}.</span>
+        <span class="fb-note">Saved with the forecast for those hours${getAcct() ? `, as ${esc(getAcct().name)}` : ''}.</span>
       </div>`;
   }
 
@@ -3412,7 +3502,7 @@
       mins: sess.mins, rating: sess.rating, size: sess.size, surface: sess.surface, shape: sess.shape, why: [...sess.why],
       hours: p.hrs.slice(0, 4).map((k) => ({ t: k.t, k: snapK(k) })),
       model: p.model == null ? null : +p.model.toFixed(2), ver: SESS_VER,
-      hp: hp ? hp.value : '', dt: Date.now() - sess.opened, ...who(),
+      hp: hp ? hp.value : '', dt: Date.now() - sess.opened, dev: deviceInfo(),
     };
     sess.busy = true; sess.msg = ''; renderSess(c);
     const res = await sendSession(payload);
@@ -3425,32 +3515,40 @@
     sess.done = true;
     const what = `${esc(SESSION_RATINGS[payload.rating])}, ${esc(SIZE_BANDS[payload.size].toLowerCase())}, ${hm(payload.local)} for ${SESS_MINS.find((m) => m[0] === payload.mins)[1]}`;
     sess.msg = res.ok ? `Logged: ${what}. Thanks. It counts from the next update (every 3 hours).`
+      : res.signedOut ? `Saved on this device: ${what}. ${esc(res.why)}`
       : `Saved on this device: ${what}. ${esc(res.why)} It’ll send itself next time you open the page.`;
+    if (res.signedOut) openAcct('in', { note: 'Sign in again to send your session.' });
     renderFb(c);
     renderSess(c);
   }
   // POST one session. refused = the server checked it and said no (don't
   // keep it); otherwise not ok means try again later.
+  // signedOut = no working sign-in on this device (the session is kept and
+  // sent after signing in).
   async function sendSession(payload) {
-    if (!FEEDBACK_URL) return { ok: false, why: 'There’s no feedback server set up.' };
+    const me = getAcct();
+    if (!me) return { ok: false, signedOut: true, why: 'Sign in and it’ll send.' };
     try {
-      const r = await fetch(FEEDBACK_URL.replace(/\/$/, '') + '/s', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const r = await fetch(api('/s'), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + me.token }, body: JSON.stringify(payload) });
       const j = await r.json().catch(() => ({}));
       if (r.ok || r.status === 409) return { ok: true };   // 409: it already has this one
+      if (r.status === 401) { setAcct(null); return { ok: false, signedOut: true, why: 'You were signed out; sign in again and it’ll send.' }; }
       const msg = j.error ? j.error.charAt(0).toUpperCase() + j.error.slice(1) + '.' : `The server said no (${r.status}).`;
-      if (r.status === 400 || r.status === 413) return { refused: true, why: msg };
+      if (r.status === 400 || r.status === 403 || r.status === 413) return { refused: true, why: msg };
       return { ok: false, why: r.status === 429 ? 'That’s the most for today.' : 'The server couldn’t take it just now.' };
     } catch { return { ok: false, why: 'Couldn’t reach the server.' }; }
   }
   // Sessions kept on this device (offline, or the server busy) go when the
   // page next opens, while they're still within the 3-day window.
   async function resendSessions() {
+    if (!getAcct()) return;
     const list = loadSess();
     let changed = false;
     for (const e of list) {
       if (e.sent || !e.payload) continue;
       if (Date.now() - Date.parse(e.payload.start) > 70 * 3600000) { delete e.payload; changed = true; continue; }
       const r = await sendSession(e.payload);
+      if (r.signedOut) break;
       if (r.ok || r.refused) { e.sent = !!r.ok; delete e.payload; changed = true; }
     }
     if (changed) saveSess(list);
@@ -3580,9 +3678,11 @@
     lastFocus = document.activeElement;
     $('v-name').textContent = c.name;
     $('v-where').textContent = `${c.zone && c.zone !== c.town ? c.zone + ' · ' : ''}${c.town} · ${c.area}`;
-    $('v-open').href = c.link;
+    $('v-open').hidden = !c.link;
+    if (c.link) $('v-open').href = c.link;
     $('v-go').dataset.go = c.id;
-    $('v-foot').innerHTML = `Stream by ${esc(c.source)} · <a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">open original</a>`;
+    $('v-foot').innerHTML = noCam(c) ? 'No camera at this spot yet: forecast and local knowledge only.'
+      : `Stream by ${esc(c.source)} · <a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">open original</a>`;
     renderScore(c);
     renderFb(c);
     renderSess(c);
@@ -3596,8 +3696,9 @@
     for (const t of Object.values(tiles)) t.hold = false;
     if (tiles[c.id]) tiles[c.id].hold = true;
     syncTiles();
-    frame.className = 'frame ' + (c.type === 'page' ? 'page' : 'video');
-    if (offline.get(c.id) === 'blocked') frameMsg(`This cam only plays on ${sourceName(c)} for now.`, c);
+    frame.className = 'frame ' + (c.type === 'page' ? 'page' : noCam(c) ? 'video nocam' : 'video');
+    if (noCam(c)) frame.innerHTML = noCamHtml(c);
+    else if (offline.get(c.id) === 'blocked') frameMsg(`This cam only plays on ${sourceName(c)} for now.`, c);
     else if (c.type === 'hls') playHls(c);
     else frame.innerHTML = iframeHtml(c.embed, c);
     viewer.hidden = false;
@@ -3607,6 +3708,20 @@
     $('v-close').focus();
     if (push) history.pushState(null, '', '#' + c.id);
   }
+
+  // Where a spot has no camera, the frame offers the nearest ones.
+  const kmBetween = (a, b) => {
+    const r = Math.PI / 180, x = (b.lng - a.lng) * r * Math.cos((a.lat + b.lat) / 2 * r), y = (b.lat - a.lat) * r;
+    return Math.hypot(x, y) * 6371;
+  };
+  function noCamHtml(c) {
+    const near = CAMS.filter((o) => !noCam(o) && o.id !== c.id).map((o) => ({ o, km: kmBetween(c, o) }))
+      .sort((a, b) => a.km - b.km).slice(0, 2).filter((x) => x.km < 25);
+    const km = (d) => (d < 0.95 ? `${Math.round(d * 1000 / 50) * 50} m` : `${d.toFixed(d < 10 ? 1 : 0)} km`);
+    return `<div class="frame-msg">${NOCAM_ART}<div><b>No camera at ${esc(c.name)} yet</b>${near.length ? `<span>Nearest cams</span><span class="near">${near.map((x) =>
+      `<button class="pop-btn" type="button" data-near="${esc(x.o.id)}">${esc(x.o.name)} <small>${km(x.km)}</small></button>`).join('')}</span>` : ''}</div></div>`;
+  }
+  frame.addEventListener('click', (e) => { const b = e.target.closest('[data-near]'); if (b) open(b.dataset.near); });
 
   function close(push = true) {
     if (viewer.hidden) return;
