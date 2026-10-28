@@ -28,13 +28,16 @@
    GET /obs?src=&since=      stored measurements (one source, ≤ 31 days) */
 
 const HIST_BUOYS = [
-  { id: 'nazare', ds: 'TS_70_6200199_MO_UND', lat: 39.56, lng: -9.21 },
+  { id: 'nazare', ds: 'TS_70_6200199_MO_UND', lat: 39.56, lng: -9.21, wind: true },
   { id: 'sines', ds: 'TS_70_Sines-coast-buoy_MO_UND', lat: 37.9211, lng: -8.9289 },
   { id: 'leixoes', ds: 'TS_70_Leixoes-coast-buoy_MO_UND', lat: 41.3167, lng: -8.9833 },
   { id: 'faro', ds: 'TS_70_Faro-coast-buoy_MO_UND', lat: 36.9047, lng: -7.8983 },
-  { id: 'silleiro', ds: 'TS_70_6200084_MO_UND', lat: 42.12, lng: -9.43 },
-  { id: 'cadiz', ds: 'TS_70_6200085_MO_UND', lat: 36.49, lng: -6.96 },
+  { id: 'silleiro', ds: 'TS_70_6200084_MO_UND', lat: 42.12, lng: -9.43, wind: true },
+  { id: 'cadiz', ds: 'TS_70_6200085_MO_UND', lat: 36.49, lng: -6.96, wind: true },
 ];
+// ERDDAP refuses a request naming a variable the dataset lacks: the IH coastal
+// buoys carry waves and sea temperature only, the others wind and mean direction too.
+const buoyVars = (b) => (b.wind ? ['VHM0', 'VTPK', 'VPED', 'VMDR', 'WSPD', 'WDIR', 'TEMP'] : ['VHM0', 'VTPK', 'VPED', 'TEMP']);
 const HIST_GAUGES = [
   { id: 'cascais', ds: 'TS_70_CascaisTG_TG_UND' },
   { id: 'nazare', ds: 'TS_70_NazareTG_TG_UND' },
@@ -101,7 +104,7 @@ async function archiveBuoys(db) {
   for (const b of HIST_BUOYS) {
     try {
       const since = await lastObs(db, 'buoy:' + b.id);
-      const hours = await erddapHours(b.ds, ['VHM0', 'VTPK', 'VPED', 'VMDR', 'WSPD', 'WDIR', 'TEMP'], since);
+      const hours = await erddapHours(b.ds, buoyVars(b), since);
       n += await insertRows(db, 'obs', ['src', 't', 'h', 'p', 'd', 'ws', 'wd', 'sst'], hours.filter(([, o]) => o.VHM0 != null || o.WSPD != null).map(([t, o]) =>
         [sqlStr('buoy:' + b.id), sqlStr(t), sqlNum(o.VHM0), sqlNum(o.VTPK), sqlNum(o.VPED ?? o.VMDR), sqlNum(o.WSPD != null ? o.WSPD * 3.6 : null), sqlNum(o.WDIR), sqlNum(o.TEMP)]));
     } catch (e) { console.log('buoy', b.id, e.message); }
