@@ -72,52 +72,11 @@ async function load() {
   keep(next);
 }
 
-/* ---------- Per-day digest ---------- */
-const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
-const half = (x) => Math.round(x * 2) / 2;
-const mode = (arr) => arr.slice().sort((a, b) => arr.filter((v) => v === a).length - arr.filter((v) => v === b).length).pop();
-
-// Score every daylight hour: the headline is the daylight average (one good
-// hour doesn't make a good day); the blocks say when in the day.
+/* ---------- Per-day digest (score.js dayDigest) ---------- */
 const digests = new Map();
-function digest(c, day) {
-  if (!day) return null;
-  const daylight = day.hours.filter((k) => !isDark(c, k) && hourOf(k.t) >= 5 && hourOf(k.t) < 22);
-  const scored = daylight.map((k) => ({ k, r: score(c, k) })).filter((x) => x.r);
-  if (!scored.length) return null;
-  const blocks = BUCKETS.map((b) => {
-    const s = avg(scored.filter((x) => hourOf(x.k.t) >= b.from && hourOf(x.k.t) < b.to).map((x) => x.r.total));
-    return { ...b, score: s == null ? null : half(s), level: s == null ? null : levelOf(half(s)) };
-  });
-  const best = blocks.filter((b) => b.score != null).sort((a, b) => b.score - a.score)[0];
-  // Face height at the beach, not offshore swell, so it reads like the apps.
-  const fr = scored.map((x) => faceRange(c, x.k));
-  const ws = scored.map((x) => x.k.ws);
-  const surfs = scored.filter((x) => x.r.surface).map((x) => x.r.surface.i);
-  const top = half(avg(scored.map((x) => x.r.total)));
-  // The day's swell (offshore height, from, period) and any second swell
-  // from a different direction there for most of it; the wind's direction.
-  const ds = scored.map((x) => x.k.d).filter((v) => v != null);
-  const two = scored.filter((x) => x.k.h2 >= 0.3 && x.k.p2 >= 6 && x.k.d2 != null);
-  const sw = { h: avg(scored.map((x) => x.k.h)), d: ds.length ? meanDir(ds) : null };
-  let s2 = null;
-  if (two.length >= scored.length / 2) {
-    const d2 = meanDir(two.map((x) => x.k.d2));
-    if (sw.d == null || angleDiff(d2, sw.d) >= 25) s2 = { h: avg(two.map((x) => x.k.h2)), p: Math.round(avg(two.map((x) => x.k.p2))), d: d2 };
-  }
-  const wd = meanDir(scored.map((x) => x.k.wd));
-  return {
-    sw, s2, wd,
-    top, level: levelOf(top), label: LEVELS[levelOf(top)], best, blocks,
-    hMin: Math.min(...fr.map((f) => f[0])), hMax: Math.max(...fr.map((f) => f[1])), p: Math.round(avg(scored.map((x) => x.k.p))),
-    dir: mode(scored.map((x) => dirName(x.k.d))), wsMin: kts(Math.min(...ws)), wsMax: kts(Math.max(...ws)), rel: mode(scored.map((x) => x.r.wind)),
-    surf: surfs.length ? { most: mode(surfs), best: Math.min(...surfs) } : null,
-    tides: day.tides, sun: day.sun, conf: day.conf,
-  };
-}
 const digestOf = (c, i) => {
   const key = `${c.id}|${i}|${units}`;
-  if (!digests.has(key)) digests.set(key, data[c.id] && data[c.id].days[i] ? digest(c, data[c.id].days[i]) : null);
+  if (!digests.has(key)) digests.set(key, data[c.id] && data[c.id].days[i] ? dayDigest(c, data[c.id].days[i]) : null);
   return digests.get(key);
 };
 const dates = () => { const any = Object.values(data)[0]; return any ? any.days.map((d) => d.date) : []; };

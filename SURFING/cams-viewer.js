@@ -381,6 +381,10 @@ function renderToday(c) {
     tide = card('tide', 'Tide', ...def.tide, plot('tide', svg + evs + nowDot + selDot));
   }
 
+  // Keep the row of days where it was scrolled to, and the sheet where it
+  // was, across the redraw.
+  const pickX = el.querySelector('.day-pick') ? el.querySelector('.day-pick').scrollLeft : 0;
+  const sheet = viewer.querySelector('.sheet'), sheetY = sheet ? sheet.scrollTop : 0;
   el.hidden = false;
   el.innerHTML =
     `<div class="today-head">${dayPicker(c)}</div>` +
@@ -388,6 +392,9 @@ function renderToday(c) {
     `<div class="day-graphs">${quality}${surf}${wind}${tide}</div>`;
   el._scrub = { def, hour };
   el._sel = null;   // fresh render shows the day again
+  const pk = el.querySelector('.day-pick');
+  if (pk) pk.scrollLeft = pickX;
+  if (sheet) sheet.scrollTop = sheetY;
 }
 
 // Scrub the day: hover, or drag a finger across any graph, and one cursor

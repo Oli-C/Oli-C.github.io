@@ -92,6 +92,9 @@ test('blendSpot: a week, days and sources', () => {
   assert.equal(Object.keys(f.kept).length, 9, 'kept one hour a day');
   assert.ok(Object.values(f.kept)[0].src.swell.length >= 5 && Object.values(f.kept)[0].src.wind.length === site.WIND_MODELS.length);
   assert.ok(f.days.at(-1).conf <= f.days[2].conf, 'further out, less sure');
+  const g = site.dayDigest(c, f.days[3]);
+  assert.ok(g.top >= 0 && g.top <= 10 && g.blocks.length === 4, 'a day summed up: score and its four blocks');
+  assert.ok(g.sw.h > 0 && g.sw.d != null && g.wsLo <= g.wsHi && g.hMin <= g.hMax, 'swell, wind and size ranges');
 });
 
 test('regression: set conditions keep their scores', () => {

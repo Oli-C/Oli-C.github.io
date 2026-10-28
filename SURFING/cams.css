@@ -1173,7 +1173,8 @@ header { display: none; }
 .tbar span { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-muted); white-space: nowrap; }
 .tbar.past { opacity: .45; }
 .tbar.now .col { outline: 2px solid var(--fg); outline-offset: 1px; }
-.today-sum { margin-top: 12px; font-size: 14px; line-height: 1.45; }
+/* Room for two lines whatever the day says, so changing day doesn't move the page. */
+.today-sum { margin-top: 12px; font-size: 14px; line-height: 1.45; min-height: 2.9em; }
 
 /* Whole-day graphs: quality, surf, wind, tide on one 24-hour axis.
    Each is its own card: label, headline, one line of detail, the graph.
@@ -1192,7 +1193,7 @@ header { display: none; }
 .g-key i { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 3px; background: var(--c); }
 .g-big { display: block; margin-top: 4px; font-size: 24px; font-weight: 600; line-height: 1.05; letter-spacing: -0.02em; }
 .g-big small { font-size: 13px; font-weight: 500; color: var(--fg-muted); margin-left: 4px; letter-spacing: 0; }
-.g-sub { margin-top: 3px; font-size: 13px; line-height: 1.35; color: var(--fg-muted); }
+.g-sub { margin-top: 3px; font-size: 13px; line-height: 1.35; color: var(--fg-muted); min-height: 2.7em; }
 .g-sub b { color: var(--fg); font-weight: 600; }
 .plot { position: relative; height: 64px; margin-top: 14px; }
 .plot.band { height: 18px; margin-top: 12px; }
@@ -1493,7 +1494,7 @@ header { display: none; }
   .panel { padding: 12px 14px; }
   .verdict { font-size: 14px; }
   .chip-now { padding: 3px 9px 3px; font-size: 12px; }
-  .today-sum { margin-top: 6px; font-size: 13px; line-height: 1.4; }
+  .today-sum { margin-top: 6px; font-size: 13px; line-height: 1.4; min-height: 4.2em; }   /* three lines on a phone */
   .day-graphs { gap: 8px; margin-top: 10px; }
   .graph { padding: 10px 12px 6px; }
   .g-big { font-size: 21px; margin-top: 2px; }

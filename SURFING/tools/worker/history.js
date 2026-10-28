@@ -15,10 +15,19 @@
              buoy, for every hour 0–7 days ahead; `lead` is whole days between the run
              we saw and the hour, and the first forecast seen at a lead is kept
      runs  (t, kind, n, ms, note)                  a line per archive run
+     spot_hour (spot, t, h, p, d, h2, p2, d2, wwh, th, ws, wd, wg, tide, tn, sst, air)
+             every spot's blended conditions, hour by hour, for each day that's
+             over (raw, so any later scoring can be run over them again)
+     spot_day  (spot, date, score, level, best, best_part, face_lo, face_hi, h, p, d,
+             h2, d2, ws_lo, ws_hi, wd, rel, surface, tides, rise, sunset, build)
+             each finished day summed up (score.js dayDigest), scored as of
+             `build` (the worker build that wrote it)
 
    Hourly: the IPMA stations. Every 6 hours (00, 06, 12, 18 UTC): the buoys
    and gauges (EMODnet lags a day or more, so each picks up from its last
-   stored hour) and the wave models at the buoys.
+   stored hour), the wave models at the buoys, and the spots' finished days
+   from the latest forecast build (the last two are rewritten until they
+   settle, as later runs refine their hindcast).
 
    Size: ~40 stations + 10 buoys/gauges a day ≈ 1,200 obs rows, and ≈ 6,000
    fc rows (6 buoys × 5 models × 24 h × ~8 leads), ~100 bytes each: about
@@ -28,7 +37,9 @@
                              (ibi:latest) for the forecast build, and its forecasts at
                              the buoys filed in fc like the other wave models'
    GET /skill/waves?days=60  every wave model's miss at the buoys by lead day
-   GET /obs?src=&since=      stored measurements (one source, ≤ 31 days) */
+   GET /obs?src=&since=      stored measurements (one source, ≤ 31 days)
+   GET /history/spot?id=&from=&to=    a spot's days (summaries; ≤ 400)
+   GET /history/spot/hours?id=&date=  a spot's hours on one day */
 
 // The buoys and gauges: stations.js (bundled in).
 const HIST_UA = { 'User-Agent': 'allfield-surfcams/1.0' };
@@ -127,6 +138,36 @@ async function archiveWaveForecasts(db) {
   return insertRows(db, 'fc', ['pt', 'model', 't', 'lead', 'h', 'p', 'd', 'issued'], rows);
 }
 
+// The spots' finished days from the latest build: the hours raw, and each
+// day summed up.
+async function archiveSpots(db, env) {
+  const fc = JSON.parse((await env.FEEDBACK.get('fc:latest')) || 'null');
+  if (!fc) return 0;
+  const H = ['h', 'p', 'd', 'h2', 'p2', 'd2', 'wwh', 'th', 'ws', 'wd', 'wg', 'tide', 'tn', 'sst', 'air'];
+  const hours = [], days = [];
+  for (const c of CAMS) {
+    const s = fc.spots[c.id];
+    if (!s) continue;
+    const today = new Date(Date.now() + (s.offset || 0) * 1000).toISOString().slice(0, 10);
+    for (const day of s.days.filter((d) => d.date < today)) {
+      for (const k of day.hours) hours.push([sqlStr(c.id), sqlStr(k.t), ...H.map((f) => sqlNum(k[f]))]);
+      const g = dayDigest(c, day);
+      if (!g) continue;
+      days.push([sqlStr(c.id), sqlStr(day.date), sqlNum(g.top), g.level, sqlNum(g.best && g.best.score), sqlStr(g.best && g.best.label), sqlNum(g.hMin), sqlNum(g.hMax),
+        sqlNum(g.sw.h), sqlNum(g.p), sqlNum(g.sw.d), sqlNum(g.s2 && g.s2.h), sqlNum(g.s2 && g.s2.d), sqlNum(g.wsLo), sqlNum(g.wsHi), sqlNum(g.wd), sqlStr(g.rel),
+        g.surf ? g.surf.most : 'NULL', sqlStr((day.tides || []).map((e) => `${e.kind[0]}${e.t}`).join(' ')), sqlStr(day.sun && day.sun.rise), sqlStr(day.sun && day.sun.set), sqlStr(WORKER_BUILD)]);
+    }
+  }
+  // Replaced, not ignored: the last couple of days settle as later runs come in.
+  const put = async (table, cols, rows) => {
+    const stmts = [];
+    for (let i = 0; i < rows.length; i += 300) stmts.push(db.prepare(`INSERT OR REPLACE INTO ${table} (${cols.join(',')}) VALUES ${rows.slice(i, i + 300).map((r) => `(${r.join(',')})`).join(',')}`));
+    if (stmts.length) await db.batch(stmts);
+    return rows.length;
+  };
+  return (await put('spot_hour', ['spot', 't', ...H], hours)) + (await put('spot_day', ['spot', 'date', 'score', 'level', 'best', 'best_part', 'face_lo', 'face_hi', 'h', 'p', 'd', 'h2', 'd2', 'ws_lo', 'ws_hi', 'wd', 'rel', 'surface', 'tides', 'rise', 'sunset', 'build'], days));
+}
+
 async function archiveHistory(env, force) {
   const db = env.DB;
   if (!db) return { skipped: 'no DB binding' };
@@ -135,9 +176,10 @@ async function archiveHistory(env, force) {
   if (six) {
     try { out.buoys = await archiveBuoys(db); } catch (e) { out.buoys = 'error: ' + e.message; }
     try { out.fc = await archiveWaveForecasts(db); } catch (e) { out.fc = 'error: ' + e.message; }
+    try { out.spots = await archiveSpots(db, env); } catch (e) { out.spots = 'error: ' + e.message; }
   }
   out.ms = Date.now() - started;
-  try { await db.prepare('INSERT OR REPLACE INTO runs (t, kind, n, ms, note) VALUES (?, ?, ?, ?, ?)').bind(new Date().toISOString().slice(0, 16), six ? 'full' : 'ipma', [out.ipma, out.buoys, out.fc].reduce((a, v) => a + (typeof v === 'number' ? v : 0), 0), out.ms, JSON.stringify(out)).run(); } catch {}
+  try { await db.prepare('INSERT OR REPLACE INTO runs (t, kind, n, ms, note) VALUES (?, ?, ?, ?, ?)').bind(new Date().toISOString().slice(0, 16), six ? 'full' : 'ipma', [out.ipma, out.buoys, out.fc, out.spots].reduce((a, v) => a + (typeof v === 'number' ? v : 0), 0), out.ms, JSON.stringify(out)).run(); } catch {}
   return out;
 }
 
@@ -175,19 +217,36 @@ async function receiveIbi(req, env, json) {
 // Routes: POST /ibi, GET /skill/waves, GET /obs, GET /history/status. Null otherwise.
 async function handleHistory(req, env, url, json) {
   if (req.method === 'POST' && url.pathname === '/ibi') return receiveIbi(req, env, json);
-  if (req.method !== 'GET' || !['/skill/waves', '/obs', '/history/status', '/history/refresh'].includes(url.pathname)) return null;
+  if (req.method !== 'GET' || !['/skill/waves', '/obs', '/history/status', '/history/refresh', '/history/spot', '/history/spot/hours'].includes(url.pathname)) return null;
   if (!env.DB) return json({ error: 'no history database bound' }, 503);
   if (url.pathname === '/history/refresh') {
     if (!(await isAdmin(req, env))) return json({ error: 'no' }, 403);
     return json({ ok: true, ...(await archiveHistory(env, true)) });
   }
   if (url.pathname === '/history/status') {
-    const [obs, fc, runs] = await Promise.all([
+    const [obs, fc, spots, runs] = await Promise.all([
       env.DB.prepare("SELECT substr(src, 1, instr(src, ':') - 1) AS kind, count(*) AS rows, count(DISTINCT src) AS sources, min(t) AS first, max(t) AS last FROM obs GROUP BY kind").all(),
       env.DB.prepare('SELECT count(*) AS rows, count(DISTINCT model) AS models, min(t) AS first, max(t) AS last FROM fc').first(),
+      env.DB.prepare('SELECT count(*) AS days, count(DISTINCT spot) AS spots, min(date) AS first, max(date) AS last FROM spot_day').first(),
       env.DB.prepare('SELECT * FROM runs ORDER BY t DESC LIMIT 5').all(),
     ]);
-    return json({ obs: obs.results, fc, runs: runs.results }, 200, { 'Cache-Control': 'public, max-age=300' });
+    return json({ obs: obs.results, fc, spots, runs: runs.results }, 200, { 'Cache-Control': 'public, max-age=300' });
+  }
+  // A spot's history: its days summed up, or one day's hours.
+  if (url.pathname === '/history/spot' || url.pathname === '/history/spot/hours') {
+    const id = url.searchParams.get('id') || '', D = /^\d{4}-\d\d-\d\d$/;
+    if (!CAMS.some((c) => c.id === id)) return json({ error: 'id=<spot>' }, 400);
+    if (url.pathname === '/history/spot/hours') {
+      const date = url.searchParams.get('date') || '';
+      if (!D.test(date)) return json({ error: 'date=YYYY-MM-DD' }, 400);
+      const r = await env.DB.prepare('SELECT * FROM spot_hour WHERE spot = ? AND t >= ? AND t < ? ORDER BY t').bind(id, date, date + 'T99').all();
+      return json({ id, date, hours: r.results }, 200, { 'Cache-Control': 'public, max-age=3600' });
+    }
+    const to = url.searchParams.get('to') || new Date().toISOString().slice(0, 10);
+    const from = url.searchParams.get('from') || new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
+    if (!D.test(from) || !D.test(to)) return json({ error: 'from= and to= as YYYY-MM-DD' }, 400);
+    const r = await env.DB.prepare('SELECT * FROM spot_day WHERE spot = ? AND date >= ? AND date <= ? ORDER BY date LIMIT 400').bind(id, from, to).all();
+    return json({ id, from, to, days: r.results }, 200, { 'Cache-Control': 'public, max-age=3600' });
   }
   if (url.pathname === '/obs') {
     const src = url.searchParams.get('src') || '', since = url.searchParams.get('since') || new Date(Date.now() - 2 * 864e5).toISOString().slice(0, 16);

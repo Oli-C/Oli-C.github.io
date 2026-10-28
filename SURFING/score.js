@@ -795,6 +795,50 @@ function blendSpot(c, m, w, opts = {}) {
   return { offset, days, kept };
 }
 
+/* One day at a spot, summed up: every daylight hour scored, the headline
+   the daylight average (one good hour doesn't make a good day), the four
+   blocks saying when in the day, size at the beach, the swell and any
+   second swell, the wind and the surface. The outlook page's cards and the
+   worker's daily history are both this. */
+function dayDigest(c, day) {
+  const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+  const half = (x) => Math.round(x * 2) / 2;
+  const mode = (arr) => arr.slice().sort((a, b) => arr.filter((v) => v === a).length - arr.filter((v) => v === b).length).pop();
+  if (!day) return null;
+  const daylight = day.hours.filter((k) => !isDark(c, k) && hourOf(k.t) >= 5 && hourOf(k.t) < 22);
+  const scored = daylight.map((k) => ({ k, r: score(c, k) })).filter((x) => x.r);
+  if (!scored.length) return null;
+  const blocks = BUCKETS.map((b) => {
+    const s = avg(scored.filter((x) => hourOf(x.k.t) >= b.from && hourOf(x.k.t) < b.to).map((x) => x.r.total));
+    return { ...b, score: s == null ? null : half(s), level: s == null ? null : levelOf(half(s)) };
+  });
+  const best = blocks.filter((b) => b.score != null).sort((a, b) => b.score - a.score)[0];
+  // Face height at the beach, not offshore swell, so it reads like the apps.
+  const fr = scored.map((x) => faceRange(c, x.k));
+  const ws = scored.map((x) => x.k.ws);
+  const surfs = scored.filter((x) => x.r.surface).map((x) => x.r.surface.i);
+  const top = half(avg(scored.map((x) => x.r.total)));
+  // The day's swell (offshore height, from, period) and any second swell
+  // from a different direction there for most of it; the wind's direction.
+  const ds = scored.map((x) => x.k.d).filter((v) => v != null);
+  const two = scored.filter((x) => x.k.h2 >= 0.3 && x.k.p2 >= 6 && x.k.d2 != null);
+  const sw = { h: avg(scored.map((x) => x.k.h)), d: ds.length ? meanDir(ds) : null };
+  let s2 = null;
+  if (two.length >= scored.length / 2) {
+    const d2 = meanDir(two.map((x) => x.k.d2));
+    if (sw.d == null || angleDiff(d2, sw.d) >= 25) s2 = { h: avg(two.map((x) => x.k.h2)), p: Math.round(avg(two.map((x) => x.k.p2))), d: d2 };
+  }
+  const wd = meanDir(scored.map((x) => x.k.wd));
+  return {
+    sw, s2, wd,
+    top, level: levelOf(top), label: LEVELS[levelOf(top)], best, blocks,
+    hMin: Math.min(...fr.map((f) => f[0])), hMax: Math.max(...fr.map((f) => f[1])), p: Math.round(avg(scored.map((x) => x.k.p))),
+    dir: mode(scored.map((x) => dirName(x.k.d))), wsMin: kts(Math.min(...ws)), wsMax: kts(Math.max(...ws)), wsLo: Math.min(...ws), wsHi: Math.max(...ws), rel: mode(scored.map((x) => x.r.wind)),
+    surf: surfs.length ? { most: mode(surfs), best: Math.min(...surfs) } : null,
+    tides: day.tides, sun: day.sun, conf: day.conf,
+  };
+}
+
 // 0–1 confidence for a forecast day: model spread (averaged over its
 // hours) costs, and so does distance into the future.
 function dayConfidence(hours, dayIdx) {
