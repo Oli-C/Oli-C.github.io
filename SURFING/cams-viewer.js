@@ -118,6 +118,9 @@ function renderScore(c) {
   if (cnd && cnd.sun && cnd.sun.rise) chips.push(chip('Light', `${cnd.sun.rise}–${cnd.sun.set}`));
   if (k && k.obs) chips.push(chip('Measured', `${kts(k.obs.ws)} kts${k.obs.wd != null ? ' ' + dirName(k.obs.wd) : ''}`, `${esc(k.obs.station)} ${k.obs.t}`));
   const open = foldOpen(el, 'details.why');
+  // After dark the score is 0, but the factors still say what the sea is
+  // doing: explain them against what it would score with light.
+  const shown = r.dark ? r.lit || 0 : r.total, shownLevel = levelOf(shown);
   el.hidden = false;
   el.innerHTML = `
     <div class="glance">
@@ -129,12 +132,13 @@ function renderScore(c) {
     </div>
     ${chips.length ? `<div class="now-chips">${chips.join('')}</div>` : ''}
     <details class="fold why"${open}>
-      <summary><span class="k">Why ${fmt(r.total)}?</span><span class="fold-hint">factor by factor</span></summary>
+      <summary><span class="k">Why ${fmt(shown)}?</span><span class="fold-hint">${r.dark ? 'with light to see by' : 'factor by factor'}</span></summary>
       <div class="factors">
+        ${r.dark ? '<p class="score-note">It’s dark, so it scores 0 now; this is how the same conditions would score with light.</p>' : ''}
         ${r.factors.map((f) => {
           const pts = f.mult != null ? `×${f.mult.toFixed(2).replace(/0$/, '')}` : `${fmt(Math.round(f.pts * 2) / 2)}/${f.max}`;
           return `
-          <div class="factor lvl-${r.level}">
+          <div class="factor lvl-${shownLevel}">
             <span class="k">${f.label}</span>
             <span class="f-bar"><i style="width:${share(f) * 100}%"></i></span>
             <span class="f-pts">${pts}</span>
