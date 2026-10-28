@@ -68,16 +68,15 @@ const thumbUrl = (u) => u + (u.includes('?') ? '&' : '?') + 't=' + stamp;
 
 const scoreOf = (c) => score(c, conditions[c.id] && conditions[c.id].now);
 const MOON = '<svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
-const badge = (c, lg) => {
-  const r = scoreOf(c);
+const badge = (c, lg, r = scoreOf(c)) => {
   if (r && r.dark) return `<span class="score lvl-dark${lg ? ' lg' : ''}" title="After dark: ${r.lit ? `${fmt(r.lit)} with light to see by` : 'flat anyway'}">${MOON}${r.lit ? `<b>${fmt(r.lit)}</b>` : ''}<small>Dark</small></span>`;
   if (r && r.total === 0) return `<span class="score lvl-0${lg ? ' lg' : ''}" title="${esc(r.cap || 'Flat')}"><small>Flat</small></span>`;
   return r
     ? `<span class="score lvl-${r.level}${lg ? ' lg' : ''}"><b>${fmt(r.total)}</b><small>${r.label}</small></span>`
     : `<span class="score lvl-x${lg ? ' lg' : ''}"><b>–</b><small>no data</small></span>`;
 };
-const condText = (c) => {
-  const k = conditions[c.id] && conditions[c.id].now, r = scoreOf(c);
+const condText = (c, k = conditions[c.id] && conditions[c.id].now) => {
+  const r = score(c, k);
   if (!r) return '';
   // Wind and how clean it leaves the surface, e.g. "9 kts cross, bumpy".
   const rel = r.wind === 'cross-shore' ? 'cross' : r.wind;

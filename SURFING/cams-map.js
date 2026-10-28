@@ -12,7 +12,7 @@ const windClass = (ws) => (ws < 12 ? 'w0' : ws < 25 ? 'w1' : ws < 40 ? 'w2' : 'w
 // The time slider moves the pins too: each spot's forecast hour nearest
 // now + fieldHour, from the worker's build (else today and tomorrow), with
 // that day's bars.
-let pinFc = null;
+let pinFc = null, popSpot = null;
 function pinAt(c) {
   const cond = conditions[c.id];
   if (!fieldHour) return { k: cond && cond.now };
@@ -24,7 +24,7 @@ function pinAt(c) {
   let best = null, bestD = 2 * 3.6e6;
   for (const d of days) for (const k of d.hours) {
     const dt = Math.abs(Date.parse(k.t + ':00Z') - at);
-    if (dt < bestD) { bestD = dt; best = { k, hs: d.hours }; }
+    if (dt < bestD) { bestD = dt; best = { k, hs: d.hours, tides: d.tides }; }
   }
   return best || {};
 }
@@ -33,6 +33,8 @@ function slidePins() {
   loadWorkerForecast().then((fc) => { pinFc = fc; }, () => {}).then(() => {
     for (const c of CAMS) markers[c.id].setIcon(pinIcon(c));
     declutter();
+    if (popSpot && popSpot.isOpen()) popSpot.setContent(popupHtml(popSpot.spot));
+    if (cardId) showMapCard(byId(cardId), false);
   });
 }
 
@@ -52,22 +54,29 @@ const pinIcon = (c) => {
   });
 };
 
+// Now, or the slider's hour: its score and conditions, that day's bars,
+// tides and summary, and the viewer opens on that day.
 const popupHtml = (c) => {
-  const cond = condText(c);
-  const sum = daySummary(c);
+  const at = fieldHour ? pinAt(c) : null, k = at && at.k;
+  const today = conditions[c.id] && conditions[c.id].now && conditions[c.id].now.t.slice(0, 10);
+  const date = k && k.t.slice(0, 10), isToday = !k || date === today;
+  const when = k ? `${isToday ? '' : DAY_NAMES[new Date(date + 'T12:00Z').getUTCDay()] + ' '}${k.t.slice(11, 16)}` : 'Now';
+  const cond = k ? condText(c, k) : at ? '' : condText(c);
+  const sum = k ? daySummary(c, at.hs, isToday) : at ? '' : daySummary(c);
+  const tide = k ? (isToday ? tideTimes(tidesFor(c)) : (at.tides || []).map((e) => `${e.kind} ${fmtMins(e.mins)}`).join(' · ')) : tideTimes(tidesFor(c));
   return `
     <div class="pop-head">
       <div>
         <div class="pop-name">${esc(c.name)}</div>
         <div class="pop-where">${esc(c.zone || c.town)} · ${esc(c.area)}</div>
       </div>
-      ${badge(c)}
+      ${k ? badge(c, false, score(c, k)) : at ? badge(c, false, null) : badge(c)}
     </div>
-    ${cond ? `<div class="pop-cond">Now ${cond} ${miniBars(c)}</div>` : ''}
-    ${tideTimes(tidesFor(c)) ? `<div class="pop-sum">Tide: ${esc(tideTimes(tidesFor(c)))}</div>` : ''}
+    ${cond ? `<div class="pop-cond">${esc(when)} ${cond} ${k ? miniBars(c, at.hs, hourOf(k.t)) : miniBars(c)}</div>` : at ? '<div class="pop-cond">No forecast for that time yet.</div>' : ''}
+    ${tide ? `<div class="pop-sum">Tide${isToday ? '' : ' that day'}: ${esc(tide)}</div>` : ''}
     ${sum ? `<div class="pop-sum">${esc(sum)}</div>` : ''}
     <div class="pop-actions">
-      <button class="pop-btn" type="button" data-open="${esc(c.id)}">
+      <button class="pop-btn" type="button" data-open="${esc(c.id)}${isToday ? '' : '@' + date}">
         ${noCam(c) ? 'Forecast' : '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>Watch live'}
       </button>
       ${goButton(c)}
@@ -156,7 +165,8 @@ function initMap() {
     const m = L.marker([c.lat, c.lng], { icon: pinIcon(c), title: c.name, keyboard: true });
     m.on('click', () => {
       if (phone.matches) return showMapCard(c);
-      L.popup({ closeButton: false, maxWidth: 340, offset: [0, -14] }).setLatLng(m.getLatLng()).setContent(popupHtml(c)).openOn(map);
+      popSpot = L.popup({ closeButton: false, maxWidth: 340, offset: [0, -14] }).setLatLng(m.getLatLng()).setContent(popupHtml(c)).openOn(map);
+      popSpot.spot = c;
       findCard(c.id);
     });
     markers[c.id] = m;
@@ -171,7 +181,7 @@ function initMap() {
 
 const mapCard = $('map-card');
 let cardId = null;
-function showMapCard(c) {
+function showMapCard(c, pan = true) {
   if (cardId) hotPin(cardId, false);
   cardId = c.id;
   hotPin(c.id, true);
@@ -180,7 +190,7 @@ function showMapCard(c) {
   mapCard.hidden = false;
   $('map-wrap').classList.add('has-card');
   // Keep the pin clear of the card.
-  requestAnimationFrame(() => map.panInside([c.lat, c.lng], { paddingTopLeft: [40, mapTop() + 40], paddingBottomRight: [40, mapCard.offsetHeight + 40] }));
+  if (pan) requestAnimationFrame(() => map.panInside([c.lat, c.lng], { paddingTopLeft: [40, mapTop() + 40], paddingBottomRight: [40, mapCard.offsetHeight + 40] }));
 }
 function hideMapCard() {
   if (!cardId) return;
@@ -542,7 +552,7 @@ function syncTimeControl() {
   const input = el.querySelector('input');
   input.max = Math.max(0, last);
   input.value = fieldHour;
-  const t = new Date(Date.now() + fieldHour * 3.6e6);
+  const t = new Date(Date.now() + fieldHour * 3.6e6 + 1.8e6);   // the nearest hour, as the pins pick
   el.querySelector('output').textContent = fieldHour === 0 ? 'Now' : `${DAY_NAMES[t.getDay()]} ${String(t.getHours()).padStart(2, '0')}:00 · +${fieldHour} h`;
 }
 function makeTimeControl() {
