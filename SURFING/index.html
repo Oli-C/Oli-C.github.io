@@ -26,6 +26,11 @@
     font-weight: 400 700;
     font-stretch: 125%;
     font-display: swap;
+    /* The font's own metrics leave room for Kannada below the line, so
+       Latin caps and digits rode ~0.15em high in every box. Same total
+       height, baseline moved so they sit centred. */
+    ascent-override: 117%;
+    descent-override: 51%;
     src: url('../assets/fonts/anek-kannada-latin-ext.woff2') format('woff2');
     unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
   }
@@ -35,6 +40,8 @@
     font-weight: 400 700;
     font-stretch: 125%;
     font-display: swap;
+    ascent-override: 117%;
+    descent-override: 51%;
     src: url('../assets/fonts/anek-kannada-latin.woff2') format('woff2');
     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
   }
@@ -222,7 +229,7 @@
     background: var(--bg-3);
     border: 1px solid var(--border-2);
     border-radius: 8px;
-    padding: 7px 10px 5px 32px;
+    padding: 6px 10px 6px 32px;
     outline: none;
     transition: border-color .2s var(--ease);
   }
@@ -248,7 +255,7 @@
     background: transparent;
     border: 0;
     border-radius: 6px;
-    padding: 5px 9px 3px;
+    padding: 4px 9px 4px;
     cursor: pointer;
     transition: color .2s var(--ease), background .2s var(--ease);
   }
@@ -257,7 +264,7 @@
     background: var(--accent);
   }
   .seg svg { width: 13px; height: 13px; }
-  .seg.sm button { padding: 4px 8px 2px; font-size: 11px; min-width: 30px; justify-content: center; }
+  .seg.sm button { padding: 3px 8px 3px; font-size: 11px; min-width: 30px; justify-content: center; }
 
   .chips {
     flex: 1;
@@ -278,7 +285,7 @@
     background: transparent;
     border: 1px solid var(--border-2);
     border-radius: 999px;
-    padding: 4px 10px 2px;
+    padding: 3px 10px 3px;
     cursor: pointer;
     transition: color .2s var(--ease), border-color .2s var(--ease), background .2s var(--ease);
   }
@@ -370,7 +377,7 @@
   .m-info .best { flex: none; flex-wrap: nowrap; gap: 6px; margin: 0; }
   .m-info .best-label { font-size: 10px; }
   .m-info .best-chip { font-size: 13px; padding: 2px 10px 2px 2px; }
-  .m-info .best-chip .score { padding: 2px 6px 1px; }
+  .m-info .best-chip .score { padding: 1.5px 6px 1.5px; }
 
   /* Wide: brand · search · areas · view · options on one line, the info
      line under it. */
@@ -390,7 +397,7 @@
   }
   /* Phones: 16px input stops iOS zooming on focus */
   @media (max-width: 640px) {
-    .search input { font-size: 16px; padding: 8px 10px 6px 32px; }
+    .search input { font-size: 16px; padding: 7px 10px 7px 32px; }
   }
 
 
@@ -408,7 +415,7 @@
     color: var(--ink);
     background: var(--pin);
     border-radius: 8px;
-    padding: 4px 8px 2px;
+    padding: 3px 8px 3px;
     white-space: nowrap;
     line-height: 1;
   }
@@ -563,7 +570,7 @@
     z-index: 2;
     right: 8px;
     top: 8px;
-    padding: 3px 6px 2px;
+    padding: 2.5px 6px 2.5px;
     box-shadow: 0 4px 14px rgba(0,0,0,0.35);
   }
   .cam .score b { font-size: 12px; }
@@ -584,7 +591,7 @@
     background: rgba(0,0,0,0.5);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
-    padding: 3px 7px 2px;
+    padding: 2.5px 7px 2.5px;
     border-radius: 999px;
   }
   .live i {
@@ -684,7 +691,7 @@
     color: var(--fg-muted);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    padding: 3px 7px 1px;
+    padding: 2px 7px 2px;
   }
 
   .empty {
@@ -713,7 +720,7 @@
     -webkit-backdrop-filter: blur(6px);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 7px 10px 5px;
+    padding: 6px 10px 6px;
     pointer-events: none;
   }
   .legend { flex-direction: column; align-items: flex-start; gap: 4px; }
@@ -735,7 +742,7 @@
   .map-hint .hint-txt { display: none; }
   .map-hint a {
     display: inline-block;
-    padding: 4px 10px 3px;
+    padding: 3.5px 10px 3.5px;
     color: var(--accent-ink);
     white-space: nowrap;
     text-decoration: none;
@@ -787,7 +794,7 @@
     display: grid;
     place-items: center;
     min-width: 30px;
-    padding: 1px 6px 0;
+    padding: 0.5px 6px 0.5px;
     border-radius: 9px 0 0 9px;
     font-size: 12px;
     font-weight: 700;
@@ -844,7 +851,7 @@
     border-radius: var(--radius);
     box-shadow: 0 6px 18px rgba(0,0,0,0.25);
   }
-  .leaflet-control-layers-expanded { padding: 6px 10px 4px; font-size: 12px; letter-spacing: 0.03em; }
+  .leaflet-control-layers-expanded { padding: 5px 10px 5px; font-size: 12px; letter-spacing: 0.03em; }
   .leaflet-control-layers label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
   .leaflet-control-layers input { accent-color: var(--accent); }
   .leaflet-control-attribution {
@@ -859,7 +866,7 @@
     border: 1px solid var(--border-2);
     border-radius: var(--radius-sm);
     font-size: 12px;
-    padding: 3px 7px 1px;
+    padding: 2px 7px 2px;
   }
   .leaflet-tooltip-top::before { border-top-color: var(--border-2); }
 
@@ -883,7 +890,7 @@
     background: var(--accent);
     border: 0;
     border-radius: 999px;
-    padding: 8px 14px 6px;
+    padding: 7px 14px 7px;
     cursor: pointer;
   }
   .pop-btn svg { width: 12px; height: 12px; }
@@ -951,13 +958,13 @@
     background: transparent;
     border: 1px solid var(--border-2);
     border-radius: 999px;
-    padding: 8px 13px 6px;
+    padding: 7px 13px 7px;
     cursor: pointer;
     transition: border-color .2s var(--ease), color .2s var(--ease);
   }
   .nav:hover, .nav:focus-visible { border-color: var(--accent); color: var(--accent-ink); outline: none; }
   .nav svg { width: 13px; height: 13px; }
-  .r2 > .nav { font-size: 12px; padding: 5px 11px 3px; }
+  .r2 > .nav { font-size: 12px; padding: 4px 11px 4px; }
 
   /* "Open in…" chooser for directions */
   .go {
@@ -1179,7 +1186,7 @@
     display: inline-flex;
     align-items: baseline;
     gap: 5px;
-    padding: 5px 10px 3px;
+    padding: 4px 10px 4px;
     font-size: 13px;
     white-space: nowrap;
     background: var(--bg-3);
@@ -1230,7 +1237,7 @@
   .fb-note { display: block; margin-top: 6px; }
   .fb-btn {
     font: inherit; font-size: 13px; letter-spacing: 0.02em; color: var(--fg);
-    background: var(--bg-3); border: 1px solid var(--border-2); border-radius: 999px; padding: 7px 13px 5px; cursor: pointer;
+    background: var(--bg-3); border: 1px solid var(--border-2); border-radius: 999px; padding: 6px 13px 6px; cursor: pointer;
     transition: border-color .2s var(--ease), background .2s var(--ease);
   }
   .fb-btn:hover { border-color: var(--accent); }
@@ -1393,7 +1400,7 @@
   .plot .tlab {
     position: absolute;
     z-index: 4;
-    padding: 2px 4px 1px;
+    padding: 1.5px 4px 1.5px;
     border-radius: 4px;
     background: color-mix(in srgb, var(--bg-3) 88%, transparent);
     font-size: 11px;
@@ -1414,7 +1421,7 @@
   .axis span { position: absolute; top: 2px; transform: translateX(-50%); white-space: nowrap; }
   .axis .now-tag {
     top: 0;
-    padding: 2px 6px 1px;
+    padding: 1.5px 6px 1.5px;
     border-radius: 999px;
     font-weight: 700;
     color: var(--bg);
@@ -1448,7 +1455,7 @@
     z-index: 2;
     transform: translateX(-50%);
     white-space: nowrap;
-    padding: 2px 7px 1px;
+    padding: 1.5px 7px 1.5px;
     font: inherit;
     font-size: 11px;
     font-weight: 700;
@@ -1508,7 +1515,7 @@
     .sheet-head { padding-top: max(12px, env(safe-area-inset-top)); }
     .frame.page { flex: 1; height: auto; min-height: 60vh; }
     .seg button span { display: none; }
-    .seg button { padding: 8px 10px 6px; }
+    .seg button { padding: 7px 10px 7px; }
     .tbar span { font-size: 10px; }
   }
 
@@ -1544,7 +1551,7 @@
     /* One height, border and radius for every control in the bar. */
     .r1 { gap: 6px; align-items: center; }
     .search { flex: 0 0 36px; transition: flex-basis .2s var(--ease); }
-    .search input { height: 36px; padding: 6px 8px 5px 34px; border-radius: 10px; }
+    .search input { height: 36px; padding: 5.5px 8px 5.5px 34px; border-radius: 10px; }
     .search svg { left: 10px; width: 16px; height: 16px; color: var(--fg); }
     .r1:not(:has(.search input:focus)) .search input {
       padding-right: 0;   /* folded: 34px icon inset + borders = exactly 36px */
@@ -1573,7 +1580,7 @@
     #view-seg { height: 36px; padding: 3px; gap: 2px; border-color: var(--border-2); border-radius: 10px; }
     #view-seg button {
       height: 28px;
-      padding: 2px 11px 0;
+      padding: 1px 11px 1px;
       border-radius: 7px;
       justify-content: center;
       font-size: 13px;
@@ -1615,11 +1622,11 @@
       border-radius: var(--radius);
       box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
     }
-    .more .nav { justify-content: center; font-size: 14px; padding: 8px 12px 6px; }
+    .more .nav { justify-content: center; font-size: 14px; padding: 7px 12px 7px; }
     .more .seg.sm { align-self: stretch; }
-    .more .seg.sm button { flex: 1; font-size: 13px; padding: 6px 8px 4px; }
+    .more .seg.sm button { flex: 1; font-size: 13px; padding: 5px 8px 5px; }
     .more .switch { font-size: 13px; justify-content: space-between; flex-direction: row-reverse; }
-    .chip { font-size: 12px; padding: 4px 10px 2px; }
+    .chip { font-size: 12px; padding: 3px 10px 3px; }
     .m-info {
       display: flex;
       align-items: center;
@@ -1636,7 +1643,7 @@
     .m-info .best { flex: none; flex-wrap: nowrap; gap: 6px; margin: 0; }
     .m-info .best-label { font-size: 10px; margin-right: 0; }
     .m-info .best-chip { font-size: 12px; gap: 6px; padding: 2px 9px 2px 2px; }
-    .m-info .best-chip .score { padding: 2px 5px 1px; border-radius: 6px; }
+    .m-info .best-chip .score { padding: 1.5px 5px 1.5px; border-radius: 6px; }
     .m-info .best-chip .score b { font-size: 11px; }
     .m-info .best-chip .score small { display: none; }
     .area { margin-bottom: 18px; }
@@ -1726,7 +1733,7 @@
     .leaflet-control-zoom { display: none; }
     .leaflet-control-layers-toggle { width: 38px; height: 38px; }
     .leaflet-control-attribution { font-size: 8px; max-width: 60%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .legend { font-size: 9px; padding: 5px 8px 3px; left: 8px; bottom: 8px; }
+    .legend { font-size: 9px; padding: 4px 8px 4px; left: 8px; bottom: 8px; }
     .lg-row { gap: 7px; }
     .lg-k { min-width: 28px; }
     .legend i { width: 7px; height: 7px; }
@@ -1738,7 +1745,7 @@
     /* Tighter panels and graphs on phones. */
     .panel { padding: 12px 14px; }
     .verdict { font-size: 14px; }
-    .chip-now { padding: 4px 9px 2px; font-size: 12px; }
+    .chip-now { padding: 3px 9px 3px; font-size: 12px; }
     .today-sum { margin-top: 6px; font-size: 13px; line-height: 1.4; }
     .day-graphs { gap: 8px; margin-top: 10px; }
     .graph { padding: 10px 12px 6px; }
@@ -1753,12 +1760,12 @@
     .src-k { flex-basis: 100%; }
     .fb-row { gap: 6px; }
     .fb-row .k { flex-basis: 100%; }
-    .fb-btn { font-size: 12px; padding: 6px 10px 4px; }
+    .fb-btn { font-size: 12px; padding: 5px 10px 5px; }
   }
   /* Most phones (up to 420px): the view you're not on shows as its icon,
      so brand, search, toggle and ⋯ fit with even gaps and edge padding. */
   @media (max-width: 420px) {
-    #view-seg button:not([aria-pressed="true"]) { padding: 2px 8px 0; }
+    #view-seg button:not([aria-pressed="true"]) { padding: 1px 8px 1px; }
     #view-seg button:not([aria-pressed="true"]) span { display: none; }
   }
 </style>
@@ -2905,6 +2912,9 @@
     const ev = effectiveView();
     layout.dataset.view = ev;
     for (const b of $('view-seg').querySelectorAll('button')) b.setAttribute('aria-pressed', b.dataset.view === ev);
+    // This tab remembers the view through a refresh; desktops also keep it
+    // for next time, while phones start a new visit on the cams.
+    try { sessionStorage.setItem('surf-view', v); } catch {}
     if (!phone.matches) try { localStorage.setItem('surf-view', v); } catch {}
     applyFilter();
     if (ev !== 'grid') showMap();
@@ -3582,9 +3592,12 @@
 
   renderChips();
   renderGrid();
-  let savedView = '';
-  try { savedView = localStorage.getItem('surf-view') || ''; } catch {}
-  setView(phone.matches ? 'grid' : ['grid', 'split', 'map'].includes(savedView) ? savedView : wide.matches ? 'split' : 'grid');
+  const VIEWS = ['grid', 'split', 'map'];
+  let tabView = '', savedView = '';
+  try { tabView = sessionStorage.getItem('surf-view') || ''; savedView = localStorage.getItem('surf-view') || ''; } catch {}
+  setView(VIEWS.includes(tabView) ? tabView
+    : phone.matches ? 'grid'
+    : VIEWS.includes(savedView) ? savedView : wide.matches ? 'split' : 'grid');
   if (location.hash) open(location.hash.slice(1), false);
 
   // Tiles start streaming as soon as hls.js is in (Safari needs nothing).
