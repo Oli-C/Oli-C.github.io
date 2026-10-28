@@ -366,7 +366,7 @@
   const digests = new Map();
   function digest(c, day) {
     if (!day) return null;
-    const daylight = day.hours.filter((k) => k.day !== 0 && hourOf(k.t) >= 6 && hourOf(k.t) < 20);
+    const daylight = day.hours.filter((k) => !isDark(c, k) && hourOf(k.t) >= 5 && hourOf(k.t) < 22);
     const scored = daylight.map((k) => ({ k, r: score(c, k) })).filter((x) => x.r);
     if (!scored.length) return null;
     const blocks = BUCKETS.map((b) => {
@@ -555,7 +555,7 @@
   Account.favs.sync();
   load().then(() => {
     const ds = dates();
-    status.textContent = ds.length ? `Each tile is that day’s daylight average; the bars under the score are dawn, morning, afternoon and evening. Blended from ${WIND_MODELS.length} wind and ${MARINE_MODELS.length} wave models, each weighted by how accurate it’s been that many days ahead.` : 'Forecast unavailable right now.';
+    status.textContent = ds.length ? `Each tile is that day’s daylight average; the bars under the score are dawn, morning, afternoon and evening. Blended from ${WIND_MODELS.length} wind and ${MARINE_MODELS.filter((m) => !m.ocean).length} wave models, each weighted by how accurate it’s been that many days ahead.` : 'Forecast unavailable right now.';
     render();
   }).catch(() => { status.textContent = 'Forecast unavailable right now.'; });
 </script>

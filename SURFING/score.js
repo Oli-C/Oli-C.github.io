@@ -105,12 +105,24 @@ function faceRange(c, k, raw) {
 
 // Size, period and direction points for one swell train at this spot
 // (t.ha is its height on arrival at the beach).
+// Full marks only in the sweet spot, so "within spec" isn't "perfect":
+// size peaks across 45–85% of the spot's range and eases to 3.3 at its top
+// before falling away; direction peaks at the middle of the swell window
+// and eases to 2.6 at its edges.
 function swellPts(c, t) {
   const b = c.best, [lo, hi] = b.size, P = b.period, h = t.ha;
-  const sweet = lo + 0.4 * (hi - lo);
-  const size = h <= sweet ? lerp(h, lo * 0.5, 0, sweet, 4) : h <= hi ? 4 : lerp(h, hi, 4, hi * 1.4, 0);
+  const s1 = lo + 0.45 * (hi - lo), s2 = lo + 0.85 * (hi - lo);
+  const size = h <= s1 ? lerp(h, lo * 0.5, 0, s1, 4) : h <= s2 ? 4 : h <= hi ? lerp(h, s2, 4, hi, 3.3) : lerp(h, hi, 3.3, hi * 1.4, 0);
   const per = lerp(t.p, P - 2, 0, P + 5, 3);
-  const dir = t.d != null ? lerp(distToWindow(t.d, b.swell), 0, 3, 60, 0) : 2;
+  let dir = 2;
+  if (t.d != null) {
+    const out = distToWindow(t.d, b.swell);
+    if (out > 0) dir = lerp(out, 0, 2.6, 60, 0);
+    else {
+      const half = ((b.swell[1] - b.swell[0] + 360) % 360) / 2, mid = (b.swell[0] + half) % 360;
+      dir = 3 - 0.4 * Math.min(1, (angleDiff(t.d, mid) / Math.max(half, 1)) ** 2);
+    }
+  }
   return { size, per, dir, total: size + per + dir };
 }
 
@@ -171,7 +183,8 @@ function windRel(c, k) {
                 ×0.65 well outside; ×0.9 more if it's running the wrong way
 
    Caps: under 0.4 m is Flat (0); swell far outside the size range can't
-   score above 3 (too big) or 4 (too small); after dark it's 0 ("Dark").
+   score above 3 (too big) or 4 (too small); after dark it's 0 ("Dark"),
+   with `lit` saying what the same conditions would score in daylight.
    Blind to the banks — a nudge to open the cam, not a forecast. */
 function score(c, k) {
   if (!k || k.h == null || k.ws == null) return null;
@@ -264,9 +277,16 @@ function score(c, k) {
     f.push({ label: 'Tide', mult: tide, now: `${tideWord(k.tn)}${k.tdir ? ` and ${k.tdir}` : ''}`, likes: b.tide.text });
   }
 
-  let total = (size + per + dir) * wind * sea * tide * clean, cap = '', dark = false;
-  if (k.day === 0) { total = 0; cap = 'After dark'; dark = true; }
-  else if (h < 0.3) { total = 0; cap = `Under ${hgt(0.3)}, flat`; }
+  // Light to surf by, from the sun's height: full from sunrise to sunset,
+  // a little less in first and last light, dark only once the sun is 6°
+  // down (civil twilight over, ~30 min after sunset here).
+  const elev = sunAt(c, k);
+  const dark = elev == null ? k.day === 0 : elev < -6;
+  const light = dark || elev == null || elev >= 0 ? 1 : elev >= -3 ? 0.92 : 0.82;
+  if (light < 1) f.push({ label: 'Light', mult: light, now: hourOf(k.t) < 12 ? 'first light' : 'last light', likes: 'daylight' });
+
+  let total = (size + per + dir) * wind * sea * tide * clean * light, cap = '';
+  if (h < 0.3) { total = 0; cap = `Under ${hgt(0.3)}, flat`; }
   else if (h > hi * 1.4) { total = Math.min(total, 3); cap = `Capped: ${hgt(h)} is too big for this spot`; }
   else if (h < lo * 0.7) { total = Math.min(total, 4); cap = `Capped: ${hgt(h)} is too small for this spot`; }
   // Pooled "was it right?" verdicts for this spot (data/skill.json): a spot
@@ -278,8 +298,8 @@ function score(c, k) {
   }
   // Logged sessions: what surfers said it was actually like in conditions
   // like these, here and across the coast (see learnedCorrection). Never
-  // lifts a dark or flat hour, and the size caps still hold.
-  if (!dark && h >= 0.3) {
+  // lifts a flat hour, and the size caps still hold.
+  if (h >= 0.3) {
     const corr = learnedCorrection(c, k);
     if (corr) {
       const before = total;
@@ -289,7 +309,13 @@ function score(c, k) {
       f.push({ label: 'Sessions', mult: before > 0 ? total / before : 1, now: corr.text, likes: 'scores that match logged sessions' });
     }
   }
+  // Above 7 the scale tightens: a raw 8 reads 7.3, a 9 reads 8.3, 9.5 reads
+  // 9.1, and only everything lined up together reaches 10.
+  if (total > 7) total = 7 + 3 * ((Math.min(total, 10) - 7) / 3) ** 2;
   total = Math.round(total * 2) / 2;
+  // After dark it's 0, but keep what it would be with light to see by.
+  const lit = dark ? total : null;
+  if (dark) { total = 0; cap = 'After dark'; }
   const level = levelOf(total);
 
   // Where the sources disagree, say so rather than pretend to be sure.
@@ -303,7 +329,7 @@ function score(c, k) {
     const dOff = angleDiff(k.obs.wd, m.wd), sOff = Math.abs(k.obs.ws - m.ws);
     if (dOff >= 60 || sOff >= 18) notes.push(`${k.obs.station} measured ${kts(k.obs.ws)} kts ${dirName(k.obs.wd)} at ${k.obs.t}; models said ${kts(m.ws)} kts ${dirName(m.wd)}${k.obsW ? ' — the reading is weighted in' : ''}`);
   }
-  return { total, level, label: dark ? 'Dark' : LEVELS[level], wind: rel, factors: f, cap, notes, surface };
+  return { total, level, label: dark ? 'Dark' : LEVELS[level], dark, lit, wind: rel, factors: f, cap, notes, surface };
 }
 
 // Surface words, cleanest first. Index is what sessions report and train.
@@ -384,6 +410,39 @@ function learnedCorrection(c, k) {
 
 const hourOf = (t) => parseInt(t.slice(11, 13), 10);
 
+// The sun's height (degrees) for a spot at a forecast hour. Hours are the
+// spot's local clock; every spot is on Lisbon time unless it says (c.tz).
+const tzParts = {};
+function tzOffsetMs(utcMs, tz) {
+  const fmt = tzParts[tz] = tzParts[tz] || new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+  const p = Object.fromEntries(fmt.formatToParts(new Date(utcMs)).map((x) => [x.type, +x.value]));
+  return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute) - Math.floor(utcMs / 60000) * 60000;
+}
+function sunElevation(lat, lng, ms) {
+  const r = Math.PI / 180, d = ms / 864e5 - 10957.5;   // days from J2000
+  const g = (357.529 + 0.98560028 * d) * r, q = 280.459 + 0.98564736 * d;
+  const L = (q + 1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g)) * r, e = (23.439 - 0.00000036 * d) * r;
+  const ra = Math.atan2(Math.cos(e) * Math.sin(L), Math.cos(L)), dec = Math.asin(Math.sin(e) * Math.sin(L));
+  const ha = ((18.697374558 + 24.06570982441908 * d) * 15 + lng) * r - ra;
+  return Math.asin(Math.sin(lat * r) * Math.sin(dec) + Math.cos(lat * r) * Math.cos(dec) * Math.cos(ha)) / r;
+}
+const sunMemo = new Map();
+function sunAt(c, k) {
+  if (!c || c.lat == null || !k || !k.t || typeof Intl === 'undefined') return null;
+  const key = c.id + '|' + k.t;
+  if (sunMemo.has(key)) return sunMemo.get(key);
+  let v = null;
+  try {
+    const tz = c.tz || 'Europe/Lisbon', guess = Date.parse(k.t.slice(0, 16) + ':00Z');
+    v = sunElevation(c.lat, c.lng, guess - tzOffsetMs(guess - tzOffsetMs(guess, tz), tz));
+  } catch {}
+  if (sunMemo.size > 20000) sunMemo.clear();
+  sunMemo.set(key, v);
+  return v;
+}
+// Too dark to surf: the sun more than 6° down (falls back to the models' flag).
+const isDark = (c, k) => { const e = sunAt(c, k); return e == null ? k.day === 0 : e < -6; };
+
 // Bands: Poor to 3.5, Fair to 6.5, Good to 8.5, Epic above — Epic needs a
 // near-perfect day, not just a good one.
 const levelOf = (total) => (total === 0 ? 0 : total <= 3.5 ? 1 : total <= 6.5 ? 2 : total <= 8.5 ? 3 : 4);
@@ -438,6 +497,9 @@ const MARINE_MODELS = [
   { key: 'ewam', name: 'DWD EWAM', w: 1.0 },                   // 0.05° European
   { key: 'ncep_gfswave025', name: 'NCEP', w: 0.8 },            // 0.25° global
   { key: 'gwam', name: 'DWD GWAM', w: 0.6 },                   // 0.25° global
+  // No waves: the tide (sea level) and sea temperature, which no wave model
+  // here carries. It votes on those alone (its wave fields come back empty).
+  { key: 'meteofrance_currents', name: 'Météo-France ocean', w: 1, ocean: true },
 ];
 const modelIds = (models) => models.map((m) => m.id || m.key).join();
 

@@ -214,6 +214,9 @@
   .lvl-3 { --pin: var(--lvl-3); --ink: #101820; }
   .lvl-4 { --pin: var(--lvl-4); --ink: #101820; }
   .lvl-x { --pin: var(--bg-2); --ink: var(--fg-muted); }
+  /* After dark: a moon, not a 0 that looks like no surf. */
+  .lvl-dark { --pin: #27313d; --ink: #c3cedb; }
+  .score .moon { width: 0.95em; height: 0.95em; align-self: center; fill: currentColor; }
   .score {
     display: inline-flex;
     align-items: baseline;
@@ -1653,7 +1656,7 @@
     leaflet: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js',
   };
   const COND_TTL = 30 * 60 * 1000; // re-fetch conditions after 30 minutes
-  const COND_VER = 8;              // bump when the cached shape changes
+  const COND_VER = 9;              // bump when the cached shape changes
   // Tiles keep a short buffer and start on the lowest rendition — they're
   // small, and ten of them at once adds up.
   const TILE_HLS = {
@@ -1711,8 +1714,10 @@
   const thumbUrl = (u) => u + (u.includes('?') ? '&' : '?') + 't=' + stamp;
 
   const scoreOf = (c) => score(c, conditions[c.id] && conditions[c.id].now);
+  const MOON = '<svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
   const badge = (c, lg) => {
     const r = scoreOf(c);
+    if (r && r.dark) return `<span class="score lvl-dark${lg ? ' lg' : ''}" title="After dark${r.lit != null ? ` · ${fmt(r.lit)} in daylight` : ''}">${MOON}<small>Dark</small></span>`;
     return r
       ? `<span class="score lvl-${r.level}${lg ? ' lg' : ''}"><b>${fmt(r.total)}</b><small>${r.label}</small></span>`
       : `<span class="score lvl-x${lg ? ' lg' : ''}"><b>–</b><small>no data</small></span>`;
@@ -1722,7 +1727,7 @@
     if (!r) return '';
     // Wind and how clean it leaves the surface, e.g. "9 kts cross, bumpy".
     const rel = r.wind === 'cross-shore' ? 'cross' : r.wind;
-    return `<b>${hgt(k.h)}</b> · <b>${Math.round(k.p)} s</b> · <b>${kts(k.ws)} kts</b> ${rel}${r.surface && k.day !== 0 ? `, <span class="surf-word surf-${r.surface.i}">${esc(r.surface.label.toLowerCase())}</span>` : ''}`;
+    return `<b>${hgt(k.h)}</b> · <b>${Math.round(k.p)} s</b> · <b>${kts(k.ws)} kts</b> ${rel}${r.surface && !r.dark ? `, <span class="surf-word surf-${r.surface.i}">${esc(r.surface.label.toLowerCase())}</span>` : ''}`;
   };
 
   /* ---------- Today: four bars + a summary ---------- */
@@ -1734,7 +1739,7 @@
     if (!hs || !hs.length) return null;
     const nowH = new Date().getHours();
     return BUCKETS.map((b) => {
-      const rows = hs.filter((k) => k.day !== 0 && hourOf(k.t) >= b.from && hourOf(k.t) < b.to);
+      const rows = hs.filter((k) => !isDark(c, k) && hourOf(k.t) >= b.from && hourOf(k.t) < b.to);
       const totals = rows.map((k) => score(c, k)).filter(Boolean).map((r) => r.total);
       const avg = totals.length ? Math.round((totals.reduce((a, x) => a + x, 0) / totals.length) * 2) / 2 : null;
       return { ...b, score: avg, level: avg == null ? null : levelOf(avg), past: nowH >= b.to, now: nowH >= b.from && nowH < b.to };
@@ -1753,7 +1758,7 @@
   function daySummary(c) {
     const hs = conditions[c.id] && conditions[c.id].hours;
     if (!hs) return '';
-    const day = hs.filter((k) => k.day !== 0 && hourOf(k.t) >= 6 && hourOf(k.t) < 19);
+    const day = hs.filter((k) => !isDark(c, k) && hourOf(k.t) >= 6 && hourOf(k.t) < 19);
     if (day.length < 2) return 'No daylight hours left to call.';
     const first = day[0], last = day[day.length - 1];
     const dh = last.h - first.h;
@@ -1877,7 +1882,8 @@
         if (sx) { now.src = sx.src; now.model = sx.model; }
         if (s.obs) now.obs = s.obs;
         now.conf = confidence(now.src, s.obs, now);
-        next[c.id] = { now, hours, sun: day.sun, tides: day.tides, t: now.t };
+        const tmr = s.days[s.days.indexOf(day) + 1];
+        next[c.id] = { now, hours, sun: day.sun, tides: day.tides, t: now.t, tomorrow: tmr ? tmr.hours : [] };
         when = when || now.t.slice(11, 16);
       }
       conditions = next;
@@ -2063,7 +2069,7 @@
     const coast = coastTides();
     for (const sec of grid.querySelectorAll('.area')) {
       const best = CAMS.filter((c) => c.area === sec.dataset.area && !noCam(c))
-        .map((c) => ({ c, r: scoreOf(c) })).filter((x) => x.r)
+        .map((c) => ({ c, r: scoreOf(c) })).filter((x) => x.r && !x.r.dark)
         .sort((x, y) => y.r.total - x.r.total)[0];
       // Only areas whose tide strays from the coast-wide line get their own.
       const ev = areaTides(sec.dataset.area);
@@ -2083,9 +2089,24 @@
     } else {
       tideEl.hidden = true;
     }
+    const bestEl = $('best');
+    const night = CAMS.some((c) => { const r = scoreOf(c); return r && r.dark; });
+    if (night) {
+      // Dark: the strip looks ahead to tomorrow morning (06–12, in daylight).
+      const morn = CAMS.map((c) => {
+        const hs = ((conditions[c.id] && conditions[c.id].tomorrow) || []).filter((k) => !isDark(c, k) && hourOf(k.t) >= 6 && hourOf(k.t) < 12);
+        const ts = hs.map((k) => score(c, k)).filter(Boolean).map((r) => r.total);
+        return { c, s: ts.length ? Math.round(ts.reduce((a, b) => a + b, 0) / ts.length * 2) / 2 : null };
+      }).filter((x) => x.s > 0).sort((a, b) => b.s - a.s).slice(0, 3);
+      bestEl.hidden = !morn.length;
+      bestEl.innerHTML = morn.length
+        ? `<span class="best-label">Tomorrow morning</span>` + morn.map(({ c, s }) =>
+            `<button class="best-chip" type="button" data-open="${esc(c.id)}"><span class="score lvl-${levelOf(s)}"><b>${fmt(s)}</b><small>${LEVELS[levelOf(s)]}</small></span><span>${esc(c.name)}</span></button>`).join('')
+        : '';
+      return;
+    }
     const top = CAMS.map((c) => ({ c, r: scoreOf(c) })).filter((x) => x.r && x.r.total > 0)
       .sort((x, y) => y.r.total - x.r.total).slice(0, 3);
-    const bestEl = $('best');
     bestEl.hidden = !top.length;
     bestEl.innerHTML = top.length
       ? `<span class="best-label">Best right now</span>` + top.map(({ c }) =>
@@ -2310,14 +2331,14 @@
   // coloured off / cross / on) and the day's four bars.
   const pinIcon = (c) => {
     const r = scoreOf(c), k = conditions[c.id] && conditions[c.id].now;
-    const lvl = r ? 'lvl-' + r.level : 'lvl-x';
+    const lvl = r ? (r.dark ? 'lvl-dark' : 'lvl-' + r.level) : 'lvl-x';
     const data = k ? `<span class="d">
         <span class="row swell"><span style="display:inline-flex;--rot:${k.d != null ? Math.round(k.d + 180) : 0}deg">${k.d != null ? GLYPH : ''}</span><em>${hgt(k.h)}</em>${Math.round(k.p)}s</span>
         <span class="row wind ${r ? REL_SHORT[r.wind] : ''}"><span style="display:inline-flex;--rot:${Math.round(k.wd + 180)}deg">${GLYPH}</span><em>${kts(k.ws)}kt</em></span>
         ${miniBars(c)}</span>` : '';
     return L.divIcon({
       className: 'pin-wrap',
-      html: `<span class="pin ${lvl}" title="${esc(c.name)}"><span class="sc">${r ? fmt(r.total) : '·'}</span>${data}</span>`,
+      html: `<span class="pin ${lvl}" title="${esc(c.name)}"><span class="sc">${r ? (r.dark ? MOON : fmt(r.total)) : '·'}</span>${data}</span>`,
       iconSize: [0, 0],
       iconAnchor: [0, 0],
       popupAnchor: [0, -14],
@@ -2818,13 +2839,14 @@
     const share = (f) => (f.mult != null ? f.mult : f.pts / f.max);
     const weak = r.factors.filter((f) => share(f) < (f.mult != null ? 0.9 : 0.6))
       .sort((a, b) => share(a) - share(b)).slice(0, 2);
-    const verdict = r.cap ? esc(r.cap)
+    const verdict = r.dark ? `Dark now${r.lit != null ? `; with light, this would be <b>${fmt(r.lit)} ${LEVELS[levelOf(r.lit)].toLowerCase()}</b>` : ''}`
+      : r.cap ? esc(r.cap)
       : weak.length ? 'Held back by ' + weak.map((f) => `<b>${esc(f.label.toLowerCase())}</b>`).join(' and ')
       : 'Everything’s lining up';
     const chip = (label, v, s) => `<span class="chip-now"><span class="k">${label}</span><b>${v}</b>${s ? `<small>${s}</small>` : ''}</span>`;
     const chips = [];
     // How clean it should be, first: what most people want to know.
-    if (r.surface && k && k.day !== 0) chips.push(`<span class="chip-now surf-${r.surface.i}" title="${esc(r.surface.learned || 'From the wind, gusts, chop and any cross swell')}"><span class="k">Surface</span><b>${esc(r.surface.label)}</b>${r.surface.learned ? '<small>from sessions</small>' : ''}</span>`);
+    if (r.surface && k && !r.dark) chips.push(`<span class="chip-now surf-${r.surface.i}" title="${esc(r.surface.learned || 'From the wind, gusts, chop and any cross swell')}"><span class="k">Surface</span><b>${esc(r.surface.label)}</b>${r.surface.learned ? '<small>from sessions</small>' : ''}</span>`);
     if (k && k.sst != null) chips.push(chip('Water', `${Math.round(k.sst)}°C`, esc(suit(k.sst))));
     if (k && k.air != null) chips.push(chip('Air', `${Math.round(k.air)}°C`));
     if (cnd && cnd.sun && cnd.sun.rise) chips.push(chip('Light', `${cnd.sun.rise}–${cnd.sun.set}`));
@@ -2894,7 +2916,8 @@
     const pad = (n) => String(n).padStart(2, '0');
     const rise = cnd.sun && hhmm(cnd.sun.rise), set = cnd.sun && hhmm(cnd.sun.set);
     const nowM = new Date().getHours() * 60 + new Date().getMinutes(), nowH = Math.floor(nowM / 60);
-    const dark = (h) => rise != null && set != null && ((h + 1) * 60 <= rise || h * 60 >= set);
+    // Too dark to surf: the same rule as the score (sun 6° down), not sunset itself.
+    const dark = (h) => (byHour[h] ? isDark(c, byHour[h]) : rise != null && set != null && ((h + 1) * 60 <= rise || h * 60 >= set));
     const cls = (h) => (h === nowH ? ' now' : h < nowH ? ' past' : '') + (dark(h) ? ' dark' : '');
     const night = rise != null && set != null
       ? `<span class="night" style="left:0;width:${pct(rise)}"></span><span class="night" style="left:${pct(set)};right:0"></span>` : '';
