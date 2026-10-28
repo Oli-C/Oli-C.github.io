@@ -1,0 +1,317 @@
+/* Seven days for every spot: the spot's name and a card per day, headed by
+   the day's score (the daylight average, same engine as the live page) on
+   its colour, greyer when less certain; then size at the beach, the swell
+   and any second swell (arrows, height, period, from), the wind (arrow,
+   knots, from, offshore / cross / onshore), the surface, and four little
+   bars for dawn / morning / afternoon / evening. Tap a card for the rest
+   of that day (tide, light, confidence) in one line.
+
+   "My spots" (account.js: starred in a spot's viewer, ordered here; kept
+   on the account when signed in) come first; Mine / All picks whether
+   the rest of the coast shows too. The forecast is the worker's hourly
+   build, or the same blend done here if that's unavailable. */
+const DAYS = 7;
+const TTL = 60 * 60 * 1000;   // an hour; forecasts don't change faster than that
+const VER = 5;
+
+const $ = (id) => document.getElementById(id);
+const list = $('list'), chips = $('chips'), empty = $('empty'), status = $('status'), bets = $('bets'), tools = $('tools');
+
+const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+units = store.get('surf-units') === 'ft' ? 'ft' : 'm';
+let area = 'All';
+let scope = store.get('surf-week-scope') === 'all' ? 'all' : 'mine';
+let sel = null;       // the opened tile: { id, i }
+let editing = location.hash === '#edit';   // the cams page's "Edit my spots" lands here
+let data = {};        // cam id -> { days: [{ date, hours:[k], tides:[], sun, conf }] }
+
+const byId = (id) => CAMS.find((x) => x.id === id);
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/* ---------- Fetch ---------- */
+async function load() {
+  await loadSharedSkill();
+  const ids = CAMS.map((c) => c.id).join(), today = new Date().toDateString();
+  const skillStamp = sharedSkill && sharedSkill.updated || '';
+  try {
+    const c = JSON.parse(store.get('surf-week') || 'null');
+    if (c && c.v === VER && c.ids === ids && c.day === today && c.skill === skillStamp && Date.now() - c.t < TTL) { data = c.data; return; }
+  } catch {}
+  const keep = (d) => { data = d; store.set('surf-week', JSON.stringify({ v: VER, ids, day: today, skill: skillStamp, t: Date.now(), data })); };
+  // First choice: the worker's hourly build, already blended for every
+  // spot and day; fall back to fetching and blending here.
+  try {
+    const r = await fetch(SURF_WORKER + '/forecast');
+    if (!r.ok) throw new Error('worker said ' + r.status);
+    const fc = await r.json();
+    if (fc.v !== 1 || Date.now() - Date.parse(fc.built) > 3 * 3600e3) throw new Error('stale or unknown forecast');
+    const next = {};
+    for (const c of CAMS) {
+      const s = fc.spots[c.id];
+      if (!s) throw new Error('spot missing: ' + c.id);
+      const from = new Date(Date.now() + s.offset * 1000).toISOString().slice(0, 10);
+      next[c.id] = { days: s.days.filter((d) => d.date >= from).slice(0, DAYS).map((d) => ({ date: d.date, hours: d.hours, tides: d.tides, sun: d.sun, conf: d.conf })) };
+    }
+    return keep(next);
+  } catch (e) { console.info('surf: worker forecast unavailable, fetching directly —', e.message); }
+  const pts = CAMS.map(offshore);
+  const lat = pts.map((p) => p[0]).join(','), lng = pts.map((p) => p[1]).join(',');
+  // Same multi-model blend as the live page and the worker.
+  const [marine, wind] = await Promise.all([
+    fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&hourly=${MARINE.join()}&models=${modelIds(MARINE_MODELS)}&forecast_days=${DAYS}&timezone=auto`).then((r) => r.json()),
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=${WIND.join()}&models=${modelIds(WIND_MODELS)}&daily=sunrise,sunset&forecast_days=${DAYS}&timezone=auto`).then((r) => r.json()),
+  ]);
+  if (marine.error || wind.error) throw new Error(marine.reason || wind.reason);
+  const M = asList(marine), W = asList(wind);
+  const next = {};
+  CAMS.forEach((c, i) => {
+    const m = M[i], w = W[i];
+    if (m && w && m.hourly && w.hourly) next[c.id] = { days: blendSpot(c, m, w).days };   // score.js
+  });
+  keep(next);
+}
+
+/* ---------- Per-day digest ---------- */
+const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+const half = (x) => Math.round(x * 2) / 2;
+const mode = (arr) => arr.slice().sort((a, b) => arr.filter((v) => v === a).length - arr.filter((v) => v === b).length).pop();
+
+// Score every daylight hour: the headline is the daylight average (one good
+// hour doesn't make a good day); the blocks say when in the day.
+const digests = new Map();
+function digest(c, day) {
+  if (!day) return null;
+  const daylight = day.hours.filter((k) => !isDark(c, k) && hourOf(k.t) >= 5 && hourOf(k.t) < 22);
+  const scored = daylight.map((k) => ({ k, r: score(c, k) })).filter((x) => x.r);
+  if (!scored.length) return null;
+  const blocks = BUCKETS.map((b) => {
+    const s = avg(scored.filter((x) => hourOf(x.k.t) >= b.from && hourOf(x.k.t) < b.to).map((x) => x.r.total));
+    return { ...b, score: s == null ? null : half(s), level: s == null ? null : levelOf(half(s)) };
+  });
+  const best = blocks.filter((b) => b.score != null).sort((a, b) => b.score - a.score)[0];
+  // Face height at the beach, not offshore swell, so it reads like the apps.
+  const fr = scored.map((x) => faceRange(c, x.k));
+  const ws = scored.map((x) => x.k.ws);
+  const surfs = scored.filter((x) => x.r.surface).map((x) => x.r.surface.i);
+  const top = half(avg(scored.map((x) => x.r.total)));
+  // The day's swell (offshore height, from, period) and any second swell
+  // from a different direction there for most of it; the wind's direction.
+  const ds = scored.map((x) => x.k.d).filter((v) => v != null);
+  const two = scored.filter((x) => x.k.h2 >= 0.3 && x.k.p2 >= 6 && x.k.d2 != null);
+  const sw = { h: avg(scored.map((x) => x.k.h)), d: ds.length ? meanDir(ds) : null };
+  let s2 = null;
+  if (two.length >= scored.length / 2) {
+    const d2 = meanDir(two.map((x) => x.k.d2));
+    if (sw.d == null || angleDiff(d2, sw.d) >= 25) s2 = { h: avg(two.map((x) => x.k.h2)), p: Math.round(avg(two.map((x) => x.k.p2))), d: d2 };
+  }
+  const wd = meanDir(scored.map((x) => x.k.wd));
+  return {
+    sw, s2, wd,
+    top, level: levelOf(top), label: LEVELS[levelOf(top)], best, blocks,
+    hMin: Math.min(...fr.map((f) => f[0])), hMax: Math.max(...fr.map((f) => f[1])), p: Math.round(avg(scored.map((x) => x.k.p))),
+    dir: mode(scored.map((x) => dirName(x.k.d))), wsMin: kts(Math.min(...ws)), wsMax: kts(Math.max(...ws)), rel: mode(scored.map((x) => x.r.wind)),
+    surf: surfs.length ? { most: mode(surfs), best: Math.min(...surfs) } : null,
+    tides: day.tides, sun: day.sun, conf: day.conf,
+  };
+}
+const digestOf = (c, i) => {
+  const key = `${c.id}|${i}|${units}`;
+  if (!digests.has(key)) digests.set(key, data[c.id] && data[c.id].days[i] ? digest(c, data[c.id].days[i]) : null);
+  return digests.get(key);
+};
+const dates = () => { const any = Object.values(data)[0]; return any ? any.days.map((d) => d.date) : []; };
+const dayName = (iso, i, long) => (i === 0 ? 'Today' : i === 1 && long ? 'Tomorrow' : (long ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] : DOW)[new Date(iso + 'T12:00').getDay()]);
+
+/* ---------- Render ---------- */
+const q = $('q');
+const matches = (c) => spotMatches(c, q.value, area);   // toolbar.js
+
+// Best bets: the strongest windows of the week among the spots on show.
+function renderBets(spots) {
+  const ds = dates(), cands = [];
+  for (const c of spots) ds.forEach((iso, i) => { const d = digestOf(c, i); if (d && d.best) cands.push({ c, i, iso, d, s: d.best.score }); });
+  cands.sort((a, b) => b.s - a.s || a.i - b.i);
+  const good = cands.filter((x) => x.s > 3.5).slice(0, 3);
+  if (!cands.length) { bets.innerHTML = ''; return; }
+  const pick = good.length ? good : cands.slice(0, 1);
+  bets.innerHTML = `<span class="k">${good.length ? 'Best bets' : 'Quiet week'}</span>` + pick.map((x) =>
+    `<button class="bet lvl-${levelOf(x.s)}" type="button" data-id="${esc(x.c.id)}" data-i="${x.i}"><b>${fmt(x.s)}</b>${esc(x.c.name)} <small>${dayName(x.iso, x.i, true)} ${x.d.best.label.toLowerCase()}</small></button>`).join('')
+    + (good.length ? '' : '<span>nothing better than this on show</span>');
+}
+
+function renderTools(hasFavs) {
+  tools.innerHTML = `
+    ${hasFavs ? `<div class="seg sm" role="group" aria-label="Spots to show">
+      <button type="button" data-scope="mine" aria-pressed="${scope === 'mine'}">My spots</button>
+      <button type="button" data-scope="all" aria-pressed="${scope === 'all'}">All</button>
+    </div>` : ''}
+    <button class="btn${editing ? ' on' : ''}" type="button" data-edit>${editing ? 'Done' : hasFavs ? 'Edit my spots' : '★ Pick my spots'}</button>
+    <div class="legend" aria-hidden="true">
+      ${LEVELS.map((l, i) => `<span class="lvl-${i}"><i></i>${l}</span>`).join('')}
+      <span class="unsure"><i></i>greyer = less sure</span>
+    </div>`;
+}
+
+const ARROW = (d) => `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+function editHtml(favs) {
+  const others = CAMS.filter((c) => !favs.includes(c.id) && matches(c));
+  return `<section class="sec edit">
+    <div class="sec-head"><h2>My spots</h2><div class="acct-host"></div></div>
+    ${favs.length ? `<ol>${favs.map((id, n) => { const c = byId(id); return `<li>
+      <span class="n">${esc(c.name)}<small>${esc(c.zone || c.town)} · ${esc(c.area)}</small></span>
+      <button class="ib" type="button" data-up="${esc(id)}" aria-label="Move ${esc(c.name)} up"${n === 0 ? ' disabled' : ''}>${ARROW('M12 19V5M5 12l7-7 7 7')}</button>
+      <button class="ib" type="button" data-down="${esc(id)}" aria-label="Move ${esc(c.name)} down"${n === favs.length - 1 ? ' disabled' : ''}>${ARROW('M12 5v14M5 12l7 7 7-7')}</button>
+      <button class="ib" type="button" data-rm="${esc(id)}" aria-label="Remove ${esc(c.name)}">✕</button>
+    </li>`; }).join('')}</ol>` : '<p class="hint">No spots yet. Add some below: they’ll lead this page, in your order.</p>'}
+    <h3>Add spots</h3>
+    ${AREAS.map((a) => { const l = others.filter((c) => c.area === a); return l.length ? `<div class="adds">${l.map((c) => `<button class="add" type="button" data-add="${esc(c.id)}">+ ${esc(c.name)}</button>`).join('')}</div>` : ''; }).join('')}
+  </section>`;
+}
+
+// A spot's name and a card per day: size at the beach; the swell (arrow =
+// the way it's travelling, offshore height, period, from) and a second
+// swell from elsewhere if there is one; the wind (arrow, knots, from, and
+// how it sits on this beach, coloured); the surface; when in the day.
+const GLYPH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l6 9h-3.5v11h-5V11H6z"/></svg>';
+const arrow = (deg) => (deg == null ? '' : `<span class="arr" style="--rot:${Math.round(deg + 180)}deg">${GLYPH}</span>`);
+function stripHtml(c) {
+  const ds = dates();
+  const cardsHtml = ds.map((iso, i) => {
+    const d = digestOf(c, i), on = sel && sel.id === c.id && sel.i === i;
+    const day = `<span class="day${i === 0 ? ' today' : ''}">${i === 0 ? 'Today' : `${dayName(iso, i)} ${new Date(iso + 'T12:00').getDate()}`}</span>`;
+    if (!d) return `<button class="dcard lvl-x" type="button" data-id="${esc(c.id)}" data-i="${i}" aria-pressed="${on}"><span class="top">${day}<span><b>–</b></span></span><span class="body">No forecast</span></button>`;
+    const size = Math.abs(d.hMax - d.hMin) < 0.25 ? hgt((d.hMin + d.hMax) / 2) : rng(d.hMin.toFixed(1), d.hMax.toFixed(1));
+    const wind = d.wsMin === d.wsMax ? `${d.wsMin}` : `${d.wsMin}–${d.wsMax}`;
+    const rel = d.rel === 'cross-shore' ? 'cross' : d.rel;
+    return `<button class="dcard lvl-${d.level}" type="button" data-id="${esc(c.id)}" data-i="${i}" aria-pressed="${on}" style="--conf:${d.conf != null ? d.conf : 1}"
+      aria-label="${esc(c.name)}, ${dayName(iso, i, true)}: ${d.top === 0 ? 'flat' : `${fmt(d.top)} ${d.label}`}">
+      <span class="top">${day}<span>${d.top === 0 ? '<b>Flat</b>' : `<b>${fmt(d.top)}</b><small>${d.label}</small>`}</span></span>
+      <span class="body">
+        <span class="size" title="Wave faces at the beach">${size}<small>faces</small></span>
+        <span class="cr">${arrow(d.sw.d)}<b>${hgt(d.sw.h)}</b> ${d.p} s${d.sw.d != null ? ' ' + dirName(d.sw.d) : ''}</span>
+        ${d.s2 ? `<span class="cr s2" title="Second swell">${arrow(d.s2.d)}<b>${hgt(d.s2.h)}</b> ${d.s2.p} s ${dirName(d.s2.d)}</span>` : ''}
+        <span class="cr w-${d.rel}">${arrow(d.wd)}<b>${wind} kts</b> ${dirName(d.wd)} <em>${rel}</em></span>
+        ${d.surf ? `<span class="cr surf surf-${d.surf.most}">${SURFACES[d.surf.most]}</span>` : ''}
+        <span class="when"><span class="parts" aria-hidden="true">${d.blocks.map((b) => `<i class="${b.level == null ? 'lvl-x' : 'lvl-' + b.level}" style="height:${b.score == null ? 2 : Math.max(2, b.score * 10)}%"></i>`).join('')}</span>${d.best ? `best ${d.best.label.toLowerCase()}` : ''}</span>
+      </span>
+    </button>`;
+  }).join('');
+  return `<div class="srow" data-id="${esc(c.id)}">
+    <div class="srow-head"><a href="./#${esc(c.id)}" title="Open ${esc(c.name)}">${esc(c.name)}</a><small>${esc(c.zone && c.zone !== c.name ? c.zone : c.town)}</small></div>
+    <div class="strip">${cardsHtml}</div>
+    ${sel && sel.id === c.id ? detailHtml(c, sel.i) : ''}
+  </div>`;
+}
+const gridHtml = (spots) => spots.map(stripHtml).join('');
+
+// One day at one spot, in a line: when it's best, size, wind, surface,
+// tide, light and how sure we are, each marked good / so-so / bad.
+function detailHtml(c, i) {
+  const d = digestOf(c, i), iso = dates()[i];
+  if (!d) return `<div class="dt"><span class="when">${dayName(iso, i, true)}: no forecast.</span></div>`;
+  const size = Math.abs(d.hMax - d.hMin) < 0.25 ? hgt((d.hMin + d.hMax) / 2) : rng(d.hMin.toFixed(1), d.hMax.toFixed(1));
+  const [lo, hi] = c.best.size;
+  const sizeCls = d.hMax < lo * 0.6 || d.hMin > hi * 1.6 ? 'bad' : d.hMax < lo || d.hMin > hi ? 'ok' : 'good';
+  const wind = d.wsMin === d.wsMax ? `${d.wsMin} kts` : `${d.wsMin}–${d.wsMax} kts`;
+  const windCls = d.wsMax <= 6 || d.rel === 'offshore' ? 'good' : d.rel === 'cross-shore' && d.wsMax <= 14 ? 'ok' : d.wsMax <= 8 ? 'ok' : 'bad';
+  const surfCls = !d.surf ? '' : d.surf.most <= 1 ? 'good' : d.surf.most === 2 ? 'ok' : 'bad';
+  const confCls = d.conf == null ? '' : d.conf >= 0.75 ? 'good' : d.conf >= 0.45 ? 'ok' : 'bad';
+  const tide = d.tides && d.tides.length ? d.tides.map((e) => `${e.kind === 'High' ? 'High' : 'Low'} ${fmtMins(e.mins)}`).join(' · ') : '';
+  const best = d.best;
+  return `<div class="dt">
+    <span class="when"><b>${esc(c.name)}, ${dayName(iso, i, true)}</b> · ${fmt(d.top)} ${d.label} over the day${best ? `, best ${best.label.toLowerCase()} ${String(best.from).padStart(2, '0')}–${String(best.to).padStart(2, '0')} (${fmt(best.score)})` : ''}</span>
+    <span class="chip2 ${sizeCls}"><small>Size</small>${size}</span>
+    <span class="chip2 ${windCls}"><small>Wind</small>${wind} ${esc(d.rel.replace('-shore', ''))}</span>
+    ${d.surf ? `<span class="chip2 ${surfCls}"><small>Surface</small>${SURFACES[d.surf.most]}${d.surf.best < d.surf.most ? `, ${SURFACES[d.surf.best].toLowerCase()} at best` : ''}</span>` : ''}
+    ${tide ? `<span class="chip2"><small>Tide</small>${tide}</span>` : ''}
+    ${d.sun ? `<span class="chip2"><small>Light</small>${d.sun.rise}–${d.sun.set}</span>` : ''}
+    ${d.conf != null ? `<span class="chip2 ${confCls}"><small>Forecast</small>${confWord(d.conf)} confidence</span>` : ''}
+    <a href="./#${esc(c.id)}">Open spot →</a>
+  </div>`;
+}
+
+function renderList() {
+  const favs = Account.favs.list(), shownFavs = favs.map(byId).filter((c) => c && matches(c));
+  const rest = CAMS.filter((c) => !favs.includes(c.id) && matches(c));
+  const showRest = !favs.length || scope === 'all';
+  renderTools(favs.length > 0);
+  if (editing) {
+    list.innerHTML = editHtml(favs);
+    bets.innerHTML = '';
+    empty.classList.remove('show');
+  } else {
+    let html = '';
+    if (shownFavs.length) html += `<section class="sec"><div class="sec-head"><h2>My spots</h2><div class="acct-host"></div></div>${gridHtml(shownFavs)}</section>`;
+    else if (!favs.length) html += `<p class="hint"><b>Make this your list:</b> star the spots you surf (★ in a spot’s viewer, or “Pick my spots” here). They’ll lead this page in your order, and follow your account onto every device.</p>`;
+    if (showRest) html += AREAS.map((a) => { const l = rest.filter((c) => c.area === a); return l.length ? `<section class="sec"><div class="sec-head"><h2>${esc(a)}</h2></div>${gridHtml(l)}</section>` : ''; }).join('');
+    list.innerHTML = html;
+    renderBets(showRest ? [...shownFavs, ...rest] : shownFavs);
+    empty.classList.toggle('show', !shownFavs.length && !(showRest && rest.length) && !!(q.value.trim() || area !== 'All'));
+  }
+  const host = list.querySelector('.acct-host');
+  if (host) Account.mount(host, { reason: 'to keep your spots on every device.', onChange: () => renderList() });
+}
+
+function renderChips() {
+  chips.innerHTML = ['All', ...AREAS].map((a) => `<button class="chip" type="button" data-area="${esc(a)}" aria-pressed="${a === area}">${esc(a)}</button>`).join('');
+}
+
+function render() { renderChips(); renderList(); }
+
+/* ---------- Wiring ---------- */
+function openTile(id, i) {
+  sel = sel && sel.id === id && sel.i === i ? null : { id, i };
+  renderList();
+  const t = list.querySelector(`.dcard[data-id="${CSS.escape(id)}"][data-i="${i}"]`);
+  if (t && sel) t.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+}
+list.addEventListener('click', (e) => {
+  const t = e.target.closest('.dcard');
+  if (t) return openTile(t.dataset.id, +t.dataset.i);
+  const b = e.target.closest('[data-up], [data-down], [data-rm], [data-add]');
+  if (!b) return;
+  const l = Account.favs.list();
+  if (b.dataset.add) l.push(b.dataset.add);
+  else if (b.dataset.rm) l.splice(l.indexOf(b.dataset.rm), 1);
+  else {
+    const id = b.dataset.up || b.dataset.down, n = l.indexOf(id), m = n + (b.dataset.up ? -1 : 1);
+    if (m < 0 || m >= l.length) return;
+    [l[n], l[m]] = [l[m], l[n]];
+  }
+  Account.favs.save(l);
+});
+// Swiping one spot's days swipes them all, so the days stay in columns.
+let syncing = false;
+list.addEventListener('scroll', (e) => {
+  const src = e.target;
+  if (syncing || !src.classList || !src.classList.contains('strip')) return;
+  syncing = true;
+  for (const st of list.querySelectorAll('.strip')) if (st !== src) st.scrollLeft = src.scrollLeft;
+  requestAnimationFrame(() => { syncing = false; });
+}, true);
+bets.addEventListener('click', (e) => { const b = e.target.closest('.bet'); if (b) openTile(b.dataset.id, +b.dataset.i); });
+tools.addEventListener('click', (e) => {
+  const s = e.target.closest('[data-scope]');
+  if (s) { scope = s.dataset.scope; store.set('surf-week-scope', scope); return renderList(); }
+  if (e.target.closest('[data-edit]')) { editing = !editing; sel = null; renderList(); }
+});
+Account.favs.onChange(() => renderList());
+q.addEventListener('input', renderList);
+chips.addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (b) { area = b.dataset.area; render(); } });
+$('units').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-units]');
+  if (!b) return;
+  units = b.dataset.units === 'ft' ? 'ft' : 'm';
+  for (const x of $('units').querySelectorAll('button')) x.setAttribute('aria-pressed', x.dataset.units === units);
+  store.set('surf-units', units);
+  render();
+});
+for (const x of $('units').querySelectorAll('button')) x.setAttribute('aria-pressed', x.dataset.units === units);
+
+renderChips();
+Account.favs.sync();
+load().then(() => {
+  const ds = dates();
+  status.textContent = ds.length ? `Each tile is that day’s daylight average; the bars under the score are dawn, morning, afternoon and evening. Blended from ${WIND_MODELS.length} wind and ${MARINE_MODELS.filter((m) => !m.ocean).length} wave models, each weighted by how accurate it’s been that many days ahead.` : 'Forecast unavailable right now.';
+  render();
+}).catch(() => { status.textContent = 'Forecast unavailable right now.'; });

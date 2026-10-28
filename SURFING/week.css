@@ -1,0 +1,213 @@
+/* The 7-day page (week.html): best bets, my spots, a row of day cards per
+   spot, and the opened day. The toolbar is toolbar.css; the account forms,
+   account.css. */
+
+@font-face {
+  font-family: 'Anek Kannada';
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 125%;
+  font-display: swap;
+  /* The font's own metrics leave room for Kannada below the line, so
+     Latin caps and digits rode ~0.15em high in every box. Same total
+     height, baseline moved so they sit centred. */
+  ascent-override: 117%;
+  descent-override: 51%;
+  src: url('../assets/fonts/anek-kannada-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Anek Kannada';
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 125%;
+  font-display: swap;
+  /* The font's own metrics leave room for Kannada below the line, so
+     Latin caps and digits rode ~0.15em high in every box. Same total
+     height, baseline moved so they sit centred. */
+  ascent-override: 117%;
+  descent-override: 51%;
+  src: url('../assets/fonts/anek-kannada-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --accent: #ff8200;
+  --lvl-0: #5c6166; --lvl-1: #8b2f45; --lvl-2: #e3a23a; --lvl-3: #9eb05c; --lvl-4: #ff8200;
+  --radius: 10px; --radius-lg: 14px;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+[data-theme="charcoal"] {
+  --bg: #101820; --bg-2: #373a36; --bg-3: #1a232c;
+  --fg: #d6d2c4; --fg-muted: #968c83; --accent-ink: var(--accent);
+  --border: rgba(214, 210, 196, 0.12); --border-2: rgba(214, 210, 196, 0.22); --border-3: rgba(214, 210, 196, 0.38);
+}
+[data-theme="light"] {
+  --accent: #ff6900; --lvl-4: #ff6900;
+  --bg: #d7d2cb; --bg-2: #bfb8af; --bg-3: #eae6e0;
+  --fg: #101820; --fg-muted: #6e6259; --accent-ink: color-mix(in srgb, var(--accent) 58%, var(--fg));
+  --border: rgba(16, 24, 32, 0.12); --border-2: rgba(16, 24, 32, 0.22); --border-3: rgba(16, 24, 32, 0.40);
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'Anek Kannada', system-ui, sans-serif;
+  font-stretch: 125%;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  letter-spacing: -0.005em;
+}
+.page {
+  max-width: 1800px;   /* same as the cams page, so the toolbar lines up */
+  margin: 0 auto;
+  padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 64px max(16px, env(safe-area-inset-left));
+}
+
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* The toolbar is toolbar.css, shared with the cams page. */
+.page { padding-top: 0; }
+.status { color: var(--fg-muted); font-size: 12px; line-height: 1.5; margin: 18px 0 0; max-width: 1100px; }
+
+/* Score colours (same as the cams page): grey flat, red poor, amber fair,
+   green good, orange epic. --ink is the text that reads on each. */
+.lvl-0 { --pin: var(--lvl-0); --ink: #fff; }
+.lvl-1 { --pin: var(--lvl-1); --ink: #fff; }
+.lvl-2 { --pin: var(--lvl-2); --ink: #101820; }
+.lvl-3 { --pin: var(--lvl-3); --ink: #101820; }
+.lvl-4 { --pin: var(--lvl-4); --ink: #101820; }
+.lvl-x { --pin: var(--bg-2); --ink: var(--fg-muted); }
+
+/* Best bets: the week's standouts in one line. */
+.bets { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0 0 14px; font-size: 13px; color: var(--fg-muted); }
+.bets .k { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.bet {
+  display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 13px; color: var(--fg); cursor: pointer;
+  background: var(--bg-3); border: 1px solid var(--border-2); border-radius: 999px; padding: 4px 10px 4px 4px;
+}
+.bet:hover { border-color: var(--accent); }
+.bet b { display: inline-grid; place-items: center; min-width: 30px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--pin); color: var(--ink); font-size: 12px; }
+.bet small { color: var(--fg-muted); font-size: 12px; }
+
+/* Tools: Mine / All, edit, legend. */
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; }
+.tools .seg { order: 0; }   /* toolbar.css moves the bar's .seg; not this one */
+.legend { display: flex; flex-wrap: wrap; gap: 10px; margin-left: auto; font-size: 11px; color: var(--fg-muted); }
+.legend span { display: inline-flex; align-items: center; gap: 4px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; background: var(--pin); }
+.legend .unsure i { background: var(--lvl-3); filter: saturate(0.3); }
+.btn {
+  font: inherit; font-size: 12px; color: var(--fg); cursor: pointer;
+  background: var(--bg-3); border: 1px solid var(--border-2); border-radius: 999px; padding: 4px 11px;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.on { background: var(--accent); border-color: var(--accent); color: #101820; font-weight: 600; }
+
+/* A section: My spots, or an area. */
+.sec { max-width: 1260px; margin: 0 0 22px; }
+.sec[hidden] { display: none; }
+.sec-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 6px; }
+.sec-head h2 { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+.sec-head .acct-host { flex-basis: 100%; }
+.sec-head .acct-line { margin-top: 0; }
+
+/* A spot: its name, then a card per day. On narrow screens the cards
+   swipe sideways, every spot's row in step with the others. */
+.srow { margin-bottom: 14px; }
+.srow-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; min-width: 0; }
+.srow-head a { color: var(--fg); text-decoration: none; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
+.srow-head a:hover { color: var(--accent-ink); }
+.srow-head small { font-size: 12px; color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.strip {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(158px, 1fr); gap: 6px;
+  overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain;
+}
+.strip::-webkit-scrollbar { display: none; }
+.dcard {
+  display: flex; flex-direction: column; min-width: 0; padding: 0; scroll-snap-align: start;
+  font: inherit; text-align: left; color: var(--fg); cursor: pointer;
+  background: var(--bg-3); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+  transition: border-color .15s var(--ease), transform .15s var(--ease);
+}
+.dcard:hover { border-color: var(--border-3); }
+.dcard[aria-pressed="true"] { border-color: var(--fg); }
+/* The day and its score on the score's colour; greyer when less certain. */
+.dcard .top {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 6px; padding: 5px 9px 4px;
+  background: var(--pin); color: var(--ink); filter: saturate(calc(0.3 + 0.7 * var(--conf, 1)));
+}
+.dcard .top .day { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.dcard .top .day.today { text-decoration: underline; text-underline-offset: 3px; }
+.dcard .top b { font-size: 16px; font-weight: 700; line-height: 1; }
+.dcard .top small { font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-left: 3px; }
+.dcard .body { display: grid; gap: 3px; padding: 7px 9px 8px; font-size: 12px; color: var(--fg-muted); }
+.dcard .size { font-size: 17px; font-weight: 700; color: var(--fg); letter-spacing: -0.01em; line-height: 1.1; }
+.dcard .size small { display: none; font-size: 10px; font-weight: 500; color: var(--fg-muted); letter-spacing: 0.04em; margin-left: 3px; }
+.cr { display: flex; align-items: center; gap: 5px; white-space: nowrap; min-width: 0; }
+.cr b { color: var(--fg); font-weight: 600; }
+.cr .arr { display: inline-flex; flex: none; width: 13px; height: 13px; color: var(--fg); }
+.cr .arr svg { width: 13px; height: 13px; fill: currentColor; transform: rotate(var(--rot)); }
+.cr.s2 { font-size: 11px; }
+.cr.s2 .arr { opacity: .65; }
+.cr.w-offshore .arr, .cr.w-offshore em { color: #9eb05c; }
+.cr.w-cross-shore .arr, .cr.w-cross-shore em { color: #9fb3c8; }
+.cr.w-onshore .arr, .cr.w-onshore em { color: #ff5a5a; }
+[data-theme="light"] .cr.w-offshore .arr, [data-theme="light"] .cr.w-offshore em { color: #5f7a1f; }
+[data-theme="light"] .cr.w-cross-shore .arr, [data-theme="light"] .cr.w-cross-shore em { color: #4f6a85; }
+[data-theme="light"] .cr.w-onshore .arr, [data-theme="light"] .cr.w-onshore em { color: #c0392b; }
+.cr em { font-style: normal; font-size: 11px; }
+.cr.surf::before { content: ""; width: 7px; height: 7px; margin: 0 3px 0 3px; border-radius: 50%; background: var(--surf, var(--border-3)); flex: none; }
+.surf-0, .surf-1 { --surf: var(--lvl-3); }
+.surf-2 { --surf: var(--lvl-2); }
+.surf-3, .surf-4 { --surf: #e0605a; }
+/* When in the day: dawn, morning, afternoon, evening. */
+.dcard .when { display: flex; align-items: flex-end; gap: 6px; margin-top: 3px; font-size: 11px; }
+.parts { display: inline-flex; gap: 2px; align-items: flex-end; height: 14px; flex: none; }
+.parts i { width: 6px; min-height: 2px; border-radius: 1px; background: var(--pin, var(--bg-2)); }
+@media (min-width: 1000px) { .strip { gap: 8px; } .dcard .body { font-size: 12.5px; } }
+
+/* The opened day: the essentials in a line of chips, coloured by how
+   they help (green), are so-so (amber) or hurt (red). */
+.dt { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 0 10px; }
+.dt .when { width: 100%; font-size: 12px; color: var(--fg-muted); }
+.dt .when b { color: var(--fg); font-weight: 600; }
+.chip2 { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--fg); background: var(--bg-3); border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; }
+.chip2 small { color: var(--fg-muted); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+.chip2::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--dot, var(--border-3)); flex: none; }
+.chip2.good { --dot: var(--lvl-3); }
+.chip2.ok { --dot: var(--lvl-2); }
+.chip2.bad { --dot: #e0605a; }
+.chip2.lvl-0, .chip2.lvl-1, .chip2.lvl-2, .chip2.lvl-3, .chip2.lvl-4 { --dot: var(--pin); }
+.dt a { font-size: 13px; color: var(--accent-ink); text-decoration: none; margin-left: 4px; }
+.dt a:hover { text-decoration: underline; }
+
+/* Editing my spots */
+.edit { max-width: 640px; }
+.edit ol { list-style: none; display: grid; gap: 4px; margin: 0 0 14px; }
+.edit li { display: flex; align-items: center; gap: 6px; background: var(--bg-3); border: 1px solid var(--border); border-radius: 10px; padding: 6px 6px 6px 12px; }
+.edit li .n { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; }
+.edit li .n small { display: block; font-size: 11px; font-weight: 400; color: var(--fg-muted); }
+.ib { flex: none; width: 34px; height: 34px; display: inline-grid; place-items: center; font: inherit; font-size: 15px; color: var(--fg); background: var(--bg); border: 1px solid var(--border-2); border-radius: 8px; cursor: pointer; }
+.ib:hover:not([disabled]) { border-color: var(--accent); color: var(--accent-ink); }
+.ib[disabled] { opacity: .35; cursor: default; }
+.edit h3 { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); margin: 10px 0 6px; }
+.adds { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.add { font: inherit; font-size: 13px; color: var(--fg); background: transparent; border: 1px dashed var(--border-3); border-radius: 999px; padding: 4px 11px; cursor: pointer; }
+.add:hover { border-style: solid; border-color: var(--accent); }
+.hint { font-size: 13px; color: var(--fg-muted); background: var(--bg-3); border: 1px dashed var(--border-2); border-radius: 10px; padding: 10px 12px; margin: 0 0 14px; max-width: 1100px; }
+.hint b { color: var(--fg); }
+.empty { display: none; text-align: center; color: var(--fg-muted); padding: 60px 16px; }
+.empty.show { display: block; }
+
+@media (max-width: 520px) {
+  .legend { margin-left: 0; }
+  .strip { margin-right: -16px; padding-right: 16px; grid-auto-columns: 158px; }
+  .dcard .body { font-size: 12px; }
+  /* Best bets: one row to swipe rather than a stack. */
+  .bets { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-right: -16px; padding-right: 16px; }
+  .bets::-webkit-scrollbar { display: none; }
+  .bet { flex: none; }
+  .bets .k { flex: none; }
+}
