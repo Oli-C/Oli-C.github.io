@@ -1,7 +1,8 @@
 /* ---------- Entry points ----------
    fetch      the routes in accounts.js, feedback.js, forecast.js and
               history.js, plus /health, all behind the rate limits below
-   scheduled  the hourly Cron Trigger: rebuild the forecast, then add the
+   scheduled  the hourly Cron Trigger: rebuild the forecast (and every 3 h
+              the map's wind grid, grid.js), then add the
               hour's measurements (and every 6 h the buoys and the wave
               models' forecasts) to the history database
 
@@ -69,13 +70,16 @@ export default {
     const ipTag = await senderTag(ip, await readSecret(env.EXPORT_KEY));
     return (await handleForecast(req, env, url, json))
       || (await handleSkill(req, env, url, json))
+      || (await handleGrid(req, env, url, json))
       || (await handleHistory(req, env, url, json))
       || (await handleAccounts(req, env, url, json, ipTag))
       || (await handleFeedback(req, env, url, json, ipTag))
-      || json({ routes: ['GET /forecast', 'GET /forecast/day?d=', 'GET /health', 'POST /a/signup', 'POST /a/login', 'POST /a/recover', 'POST /a/password', 'POST /a/logout', 'GET /a/me', 'POST /s', 'GET /skill/waves?days=', 'GET /obs?src=&since=', 'GET /history/status', 'GET /history/spot?id=&from=&to=', 'GET /history/spot/hours?id=&date=', 'GET /skill', 'POST /skill', 'POST /ibi'] }, 404);
+      || json({ routes: ['GET /forecast', 'GET /forecast/day?d=', 'GET /health', 'POST /a/signup', 'POST /a/login', 'POST /a/recover', 'POST /a/password', 'POST /a/logout', 'GET /a/me', 'POST /s', 'GET /skill/waves?days=', 'GET /obs?src=&since=', 'GET /history/status', 'GET /history/spot?id=&from=&to=', 'GET /history/spot/hours?id=&date=', 'GET /skill', 'POST /skill', 'GET /grid', 'POST /grid/swell', 'POST /ibi'] }, 404);
   },
 
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(buildForecast(env).catch((e) => console.log('forecast', e.message)).then(() => archiveHistory(env)));
+    ctx.waitUntil(buildForecast(env).catch((e) => console.log('forecast', e.message))
+      .then(() => windGrid(env)).catch((e) => console.log('wind grid', e.message))
+      .then(() => archiveHistory(env)));
   },
 };

@@ -9,6 +9,11 @@ weighted by its record at the buoys like the rest (tools/skill.mjs).
 
     node SURFING/tools/points.mjs > points.json
     python SURFING/tools/copernicus.py points.json [--post] [--out ibi.json]
+    python SURFING/tools/copernicus.py --grid [--post] [--out grid.json]
+
+--grid samples the whole coast the map shows instead (every second cell,
+~5.5 km; every 3 hours for 48): wave height, swell direction and peak
+period, for the map's swell field and height heat map (POST /grid/swell).
 
 With COPERNICUSMARINE_SERVICE_USERNAME / _PASSWORD set it reads through the
 copernicusmarine toolbox with that account; without them, from the same
@@ -38,7 +43,12 @@ VARS = {
     'VHM0_SW2': ('secondary_swell_wave_height', 2), 'VTM01_SW2': ('secondary_swell_wave_period', 1), 'VMDR_SW2': ('secondary_swell_wave_direction', 0),
     'VHM0_WW': ('wind_wave_height', 2),
 }
+PUBLIC_MAPS = PUBLIC.replace('mdl-arco-geo-032', 'mdl-arco-time-032').replace('geoChunked.zarr', 'timeChunked.zarr')   # chunked by time step: whole maps
 PAST_H, AHEAD_H = 48, 10 * 24
+# The map's grid: the coast from the Algarve's west coast to Nazaré, out to sea.
+GRID_BOX = (36.8, 40.1, -10.3, -8.5)              # lat from, lat to, lng from, lng to
+GRID_STEP, GRID_HOURS, GRID_EVERY = 2, 48, 3
+GRID_VARS = {'VHM0': ('h', 100), 'VMDR_SW1': ('d', 1), 'VTPK': ('p', 10)}   # stored as whole cm, degrees, tenths of a second
 REACH = 3            # cells around a point searched for sea (~8 km)
 
 
@@ -54,6 +64,51 @@ def open_dataset(t0, t1):
             print(f'toolbox unavailable ({e}); reading the public store', file=sys.stderr)
     ds = xr.open_zarr(PUBLIC, consolidated=True, zarr_format=2)[list(VARS)]
     return ds.sel(time=slice(np.datetime64(t0.replace(tzinfo=None)), np.datetime64(t1.replace(tzinfo=None)))), 'public ARCO store'
+
+
+def open_maps(t0, t1):
+    """The same model, chunked a whole map per time step (what a grid wants)."""
+    box = dict(minimum_latitude=GRID_BOX[0], maximum_latitude=GRID_BOX[1], minimum_longitude=GRID_BOX[2], maximum_longitude=GRID_BOX[3])
+    if os.environ.get('COPERNICUSMARINE_SERVICE_USERNAME'):
+        try:
+            import copernicusmarine as cm
+            ds = cm.open_dataset(dataset_id=DATASET, variables=list(GRID_VARS), start_datetime=t0.isoformat(), end_datetime=t1.isoformat(),
+                                 service='arco-geo-series', **box)
+            return ds, 'copernicusmarine (account)'
+        except Exception as e:
+            print(f'toolbox unavailable ({e}); reading the public store', file=sys.stderr)
+    ds = xr.open_zarr(PUBLIC_MAPS, consolidated=True, zarr_format=2)[list(GRID_VARS)]
+    ds = ds.sel(latitude=slice(GRID_BOX[0], GRID_BOX[1]), longitude=slice(GRID_BOX[2], GRID_BOX[3]))
+    return ds.sel(time=slice(np.datetime64(t0.replace(tzinfo=None)), np.datetime64(t1.replace(tzinfo=None)))), 'public ARCO store'
+
+
+def grid(now):
+    """The coast as a grid, every 3 hours from now for 48: land cells are null."""
+    t0 = now.replace(hour=now.hour - now.hour % GRID_EVERY)
+    want = [t0 + dt.timedelta(hours=h) for h in range(0, GRID_HOURS + 1, GRID_EVERY)]
+    ds, source = open_maps(t0, want[-1])
+    ds = ds.isel(latitude=slice(None, None, GRID_STEP), longitude=slice(None, None, GRID_STEP))
+    have = [str(t)[:16] for t in ds['time'].values]
+    times = [t.strftime('%Y-%m-%dT%H:%M') for t in want if t.strftime('%Y-%m-%dT%H:%M') in have]
+    ds = ds.sel(time=[np.datetime64(t) for t in times]).load()
+    lats, lngs = ds['latitude'].values, ds['longitude'].values
+    out = {'v': 1, 'source': source, 'dataset': DATASET, 'built': now.isoformat()[:16], 'times': times,
+           'lat0': round(float(lats[0]), 4), 'dlat': round(float(lats[1] - lats[0]), 5), 'nlat': len(lats),
+           'lng0': round(float(lngs[0]), 4), 'dlng': round(float(lngs[1] - lngs[0]), 5), 'nlng': len(lngs)}
+    for v, (name, scale) in GRID_VARS.items():
+        a = ds[v].values   # time, lat, lng
+        out[name] = [[None if not np.isfinite(x) else int(round(float(x) * scale)) for x in a[t].ravel()] for t in range(len(times))]
+    sea = sum(x is not None for x in out['h'][0])
+    print(f'{source}: grid {len(lats)}x{len(lngs)} ({sea} sea cells), {len(times)} steps {times[0]} to {times[-1]}', file=sys.stderr)
+    return out
+
+
+def post(path, body):
+    url, key = os.environ['FEEDBACK_URL'].rstrip('/'), os.environ['FEEDBACK_KEY']
+    req = urllib.request.Request(f'{url}{path}', data=body.encode(), method='POST',
+                                 headers={'Content-Type': 'application/json', 'User-Agent': 'allfield-surfcams/1.0', 'X-Surf-Key': key})
+    with urllib.request.urlopen(req, timeout=120) as r:
+        print('worker:', r.read().decode()[:300], file=sys.stderr)
 
 
 def clusters(cells, span=20):
@@ -72,9 +127,16 @@ def clusters(cells, span=20):
 
 def main():
     args = sys.argv[1:]
-    pts = json.load(open(args[0], encoding='utf-8'))
     out_path = args[args.index('--out') + 1] if '--out' in args else None
     now = dt.datetime.now(dt.timezone.utc).replace(minute=0, second=0, microsecond=0)
+    if '--grid' in args:
+        body = json.dumps(grid(now), separators=(',', ':'))
+        if out_path:
+            open(out_path, 'w', encoding='utf-8').write(body)
+        if '--post' in args:
+            post('/grid/swell', body)
+        return
+    pts = json.load(open(args[0], encoding='utf-8'))
     t0, t1 = now - dt.timedelta(hours=PAST_H), now + dt.timedelta(hours=AHEAD_H)
     ds, source = open_dataset(t0, t1)
     lats, lngs = ds['latitude'].values, ds['longitude'].values
@@ -113,11 +175,7 @@ def main():
     if out_path:
         open(out_path, 'w', encoding='utf-8').write(body)
     if '--post' in args:
-        url, key = os.environ['FEEDBACK_URL'].rstrip('/'), os.environ['FEEDBACK_KEY']
-        req = urllib.request.Request(f'{url}/ibi', data=body.encode(), method='POST',
-                                     headers={'Content-Type': 'application/json', 'User-Agent': 'allfield-surfcams/1.0', 'X-Surf-Key': key})
-        with urllib.request.urlopen(req, timeout=120) as r:
-            print('worker:', r.read().decode()[:300], file=sys.stderr)
+        post('/ibi', body)
 
 
 if __name__ == '__main__':

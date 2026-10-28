@@ -104,6 +104,25 @@ test('uploads: Copernicus IBI and the skill record', async () => {
   assert.equal((await call('GET', '/skill')).body.updated, '2026-10-28T00:00:00Z');
 });
 
+test('grids: the swell grid posted, the wind grid built, served together', async () => {
+  const { call } = await loadWorker();
+  const times = ['2026-10-28T21:00', '2026-10-29T00:00'], cells = 6;
+  const g = { built: '2026-10-28T21:00', times, lat0: 38, dlat: 0.05, nlat: 2, lng0: -9.5, dlng: 0.05, nlng: 3, h: times.map(() => [100, 120, null, 90, 80, null]), d: times.map(() => [300, 300, null, 290, 290, null]), p: times.map(() => [130, 130, null, 120, 120, null]) };
+  assert.equal((await call('POST', '/grid/swell', g, { origin: null })).status, 403);
+  assert.equal((await call('POST', '/grid/swell', { ...g, h: [[1]] }, { key: 'test-key', origin: null })).status, 400, 'wrong shape refused');
+  assert.equal((await call('POST', '/grid/swell', g, { key: 'test-key', origin: null })).body.cells, cells);
+  assert.equal((await call('GET', '/grid')).body.swell.h[0][1], 120);
+  // The hourly job builds the forecast, then the wind grid.
+  const w = await loadWorker();
+  let job;
+  await w.worker.scheduled({}, w.env, { waitUntil: (p) => { job = p; } });
+  await job;
+  const wind = (await w.call('GET', '/grid')).body.wind;
+  assert.equal(wind.nlat * wind.nlng, 14 * 8, 'a 0.25° grid over the box');
+  assert.equal(wind.times.length, 17, 'every 3 hours for 48');
+  assert.ok(wind.ws[0].every((x) => Number.isInteger(x) && x >= 0) && wind.wd[0].every((x) => x >= 0 && x <= 360));
+});
+
 test('forecast: the hourly build, end to end', async () => {
   const { call, kv } = await loadWorker();
   const times = Array.from({ length: 96 }, (_, i) => new Date(Date.now() + (i - 24) * 3.6e6).toISOString().slice(0, 13) + ':00');

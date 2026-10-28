@@ -191,7 +191,12 @@ async function handleForecast(req, env, url, json) {
   }
   if (url.pathname === '/forecast/refresh') {
     if (!(await isAdmin(req, env))) return json({ error: 'no' }, 403);
-    try { return json({ ok: true, ...(await buildForecast(env)) }); } catch (e) { return json({ error: String(e && e.message || e) }, 502); }
+    try {
+      const out = await buildForecast(env);
+      let wind = 'kept';
+      try { await env.FEEDBACK.delete('grid:wind'); await windGrid(env); wind = 'rebuilt'; } catch (e) { wind = 'error: ' + e.message; }
+      return json({ ok: true, ...out, windGrid: wind });
+    } catch (e) { return json({ error: String(e && e.message || e) }, 502); }
   }
   return null;
 }
