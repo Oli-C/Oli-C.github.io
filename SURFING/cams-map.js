@@ -112,9 +112,14 @@ function initMap() {
     maxZoom: 19,
     className: 'osm-tiles',
   });
+  // On sharp screens the imagery is fetched a zoom level deeper at half
+  // size (Leaflet's detectRetina), else 256 px tiles stretch and blur. Not
+  // the streets: their labels would shrink to half size.
   const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution: '&copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics',
-    maxZoom: 19,
+    maxZoom: 20,           // 19 once detectRetina has taken its level
+    maxNativeZoom: devicePixelRatio > 1 ? 18 : 19,   // + the retina level: 19, Esri's deepest along this coast
+    detectRetina: true,
   });
   let base = 'sat';
   try { base = localStorage.getItem('surf-base2') || 'sat'; } catch {}
