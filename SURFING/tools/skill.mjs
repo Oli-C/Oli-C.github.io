@@ -143,20 +143,28 @@ async function verifyWaves() {
    "Copy feedback log". A spot's calibration shrinks or grows its score by
    how lopsided the verdicts are: 60% "too high" and 0% "too low" → ×0.86. */
 const FB_FILE = new URL('../data/feedback.json', import.meta.url);
+const SS_FILE = new URL('../data/sessions.json', import.meta.url);
+const readList = (f) => { try { const l = JSON.parse(fs.readFileSync(f, 'utf8')); return Array.isArray(l) ? l : []; } catch { return []; } };
 async function pullFeedback() {
-  let list = [];
-  try { list = JSON.parse(fs.readFileSync(FB_FILE, 'utf8')); } catch {}
-  if (!Array.isArray(list)) list = [];
+  const list = readList(FB_FILE), sessions = readList(SS_FILE);
   const url = process.env.FEEDBACK_URL, key = process.env.FEEDBACK_KEY;
   if (url && key) {
-    const since = list.map((e) => e.t).sort().pop() || '';
+    // One export since the newest report of either kind we already hold.
+    const since = [...list, ...sessions].map((e) => e.t).sort().pop() || '';
     try {
       const j = await getJson(`${url.replace(/\/$/, '')}/export?key=${encodeURIComponent(key)}&since=${encodeURIComponent(since)}`);
       const seen = new Set(list.map((e) => `${e.t}|${e.id}|${e.verdict}`));
       for (const e of j.verdicts || []) { const k = `${e.t}|${e.id}|${e.verdict}`; if (!seen.has(k)) { list.push(e); seen.add(k); } }
-      console.log(`feedback: ${j.count || 0} pulled from the worker`);
+      const seenS = new Set(sessions.map((e) => `${e.t}|${e.id}|${e.local}`));
+      let nS = 0;
+      for (const e of j.sessions || []) { const k = `${e.t}|${e.id}|${e.local}`; if (!seenS.has(k)) { sessions.push(e); seenS.add(k); nS++; } }
+      console.log(`feedback: ${j.count || 0} verdicts and ${nS} sessions pulled from the worker`);
     } catch (e) { console.log('feedback: worker unavailable', e.message); }
   }
+  sessions.sort((a, b) => String(a.t).localeCompare(String(b.t)));
+  fs.mkdirSync(new URL('../data/', import.meta.url), { recursive: true });
+  fs.writeFileSync(SS_FILE, JSON.stringify(sessions, null, 0) + '\n');
+  try { out.learned = trainSessions(sessions); } catch (e) { console.log('sessions: training failed', e.message); }
   list.sort((a, b) => String(a.t).localeCompare(String(b.t)));
   fs.mkdirSync(new URL('../data/', import.meta.url), { recursive: true });
   fs.writeFileSync(FB_FILE, JSON.stringify(list, null, 0) + '\n');
@@ -170,6 +178,136 @@ async function pullFeedback() {
   }
   out.calibration = cal;
   console.log(`feedback: ${list.length} verdicts across ${Object.keys(cal).length} spots`);
+}
+
+/* ---------- Logged sessions → learned score adjustments ----------
+   Each session says what it was actually like (Flat … Epic, and the wave
+   size) for hours whose forecast we saved. We score those hours with the
+   plain rules (score.js, nothing learned applied, current spot settings)
+   and fit how far off we were, as small adjustments per kind of
+   conditions (score.js FEATURES: tide, wind, size, period, angle):
+
+     coast  ridge regression over every session on every spot
+     spot   ridge regression of what's left, per spot, on top of the coast
+
+   Ridge pulls every adjustment towards zero, so the hand-set spot
+   knowledge stays in charge until reports agree with each other. Sizes:
+   the log ratio of the face height people saw to the one we predicted,
+   shrunk the same way (coast, then spot), becomes a per-spot gain on how
+   much swell reaches the beach.
+
+   Honesty: a report more than 6 points from our score is set aside (wrong
+   spot, wrong day, or a wind-up); the rest are clipped at ±4. Each
+   sender's reports on a spot share one vote's weight as they pile up
+   (1/√n each), and a report loses half its weight per year of age. */
+const SC = new Function(read('../score.js') + '; return { score, features, faceRange, FEATURES, SESSION_TARGET, SIZE_FACE };')();
+const LAMBDA_COAST = 8, LAMBDA_SPOT = 5, OUTLIER = 6, CLIP = 4;
+
+// Solve A·x = b (small, symmetric positive definite) by Gaussian elimination.
+function solve(A, b) {
+  const n = b.length, M = A.map((row, i) => [...row, b[i]]);
+  for (let c = 0; c < n; c++) {
+    let p = c;
+    for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    [M[c], M[p]] = [M[p], M[c]];
+    if (Math.abs(M[c][c]) < 1e-12) continue;
+    for (let r = 0; r < n; r++) {
+      if (r === c) continue;
+      const f = M[r][c] / M[c][c];
+      if (f) for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k];
+    }
+  }
+  return M.map((row, i) => (Math.abs(row[i]) < 1e-12 ? 0 : row[n] / row[i]));
+}
+// Weighted ridge over one-hot features; rows are { x, r, w }.
+function ridge(rows, lambda) {
+  const F = SC.FEATURES, d = F.length;
+  const A = Array.from({ length: d }, () => Array(d).fill(0)), b = Array(d).fill(0);
+  for (const { x, r, w } of rows) {
+    const v = F.map((f) => x[f] || 0);
+    for (let i = 0; i < d; i++) {
+      if (!v[i]) continue;
+      b[i] += w * v[i] * r;
+      for (let j = 0; j < d; j++) if (v[j]) A[i][j] += w * v[i] * v[j];
+    }
+  }
+  for (let i = 0; i < d; i++) A[i][i] += lambda;
+  const sol = solve(A, b);
+  return Object.fromEntries(F.map((f, i) => [f, +sol[i].toFixed(3)]).filter(([, v]) => Math.abs(v) >= 0.005));
+}
+const dot = (w, x) => Object.keys(x).reduce((s, f) => s + ((w && w[f]) || 0) * x[f], 0);
+const rmse = (a) => (a.length ? +Math.sqrt(a.reduce((s, e) => s + e * e, 0) / a.length).toFixed(2) : null);
+
+function trainSessions(sessions) {
+  const now = Date.now(), rows = [];
+  let setAside = 0, unusable = 0;
+  for (const s of sessions) {
+    const c = CAMS.find((x) => x.id === s.id);
+    const hrs = (s.hours || []).filter((h) => h && h.k && h.k.h != null && h.k.ws != null);
+    if (!c || !hrs.length || SC.SESSION_TARGET[s.rating] == null) { unusable++; continue; }
+    const rs = hrs.map((h) => SC.score(c, h.k)).filter(Boolean);
+    // Dark or flat hours are never adjusted live, so they can't teach the adjustment.
+    if (!rs.length || rs.every((r) => r.total === 0 && r.cap)) { unusable++; continue; }
+    const model = rs.reduce((a, r) => a + r.total, 0) / rs.length;
+    const r = SC.SESSION_TARGET[s.rating] - model;
+    if (Math.abs(r) > OUTLIER) { setAside++; continue; }
+    const mid = hrs[Math.floor((hrs.length - 1) / 2)].k;
+    const faces = hrs.map((h) => SC.faceRange(c, h.k, true)), pred = faces.reduce((a, f) => a + (f[0] + f[1]) / 2, 0) / faces.length;
+    const age = (now - Date.parse(s.start || s.t)) / 864e5;
+    rows.push({ id: c.id, who: s.who || '?', x: SC.features(c, mid), r: Math.max(-CLIP, Math.min(CLIP, r)), model, ageW: Math.pow(0.5, Math.max(0, age) / 365),
+      size: s.size, pred });
+  }
+  // One sender's reports on one spot share out their weight as they pile up.
+  const per = {};
+  for (const x of rows) per[`${x.who}|${x.id}`] = (per[`${x.who}|${x.id}`] || 0) + 1;
+  for (const x of rows) x.w = x.ageW / Math.sqrt(per[`${x.who}|${x.id}`]);
+
+  const coastW = ridge(rows, LAMBDA_COAST);
+  const ids = [...new Set(rows.map((x) => x.id))];
+  const spotW = {};
+  for (const id of ids) spotW[id] = ridge(rows.filter((x) => x.id === id).map((x) => ({ ...x, r: x.r - dot(coastW, x.x) })), LAMBDA_SPOT);
+  const predict = (x) => Math.max(-3, Math.min(3, (rows.length >= 15 ? dot(coastW, x.x) : 0) + (rows.filter((y) => y.id === x.id).length >= 3 ? dot(spotW[x.id], x.x) : 0)));
+
+  // Leave-one-out error for an honest "did it help?", while it's cheap.
+  let loo = null;
+  if (rows.length >= 5 && rows.length <= 400) {
+    const errs = rows.map((x, i) => {
+      const rest = rows.filter((_, j) => j !== i);
+      const cw = ridge(rest, LAMBDA_COAST);
+      const mine = rest.filter((y) => y.id === x.id);
+      const sw = ridge(mine.map((y) => ({ ...y, r: y.r - dot(cw, y.x) })), LAMBDA_SPOT);
+      const p = Math.max(-3, Math.min(3, (rest.length >= 15 ? dot(cw, x.x) : 0) + (mine.length >= 3 ? dot(sw, x.x) : 0)));
+      return x.r - p;
+    });
+    loo = rmse(errs);
+  }
+
+  // Sizes: log(seen / predicted) faces, coast then spot, shrunk to no change.
+  const sz = rows.filter((x) => x.size > 0 && x.pred >= 0.2).map((x) => ({ ...x, lr: Math.max(-0.9, Math.min(0.9, Math.log(SC.SIZE_FACE[x.size] / x.pred))) }));
+  const sw = sz.reduce((a, x) => a + x.w, 0);
+  const coastLr = sz.reduce((a, x) => a + x.w * x.lr, 0) / (sw + 10);
+  const gain = (lr) => +Math.max(0.6, Math.min(1.6, Math.exp(lr))).toFixed(3);
+
+  const spots = {};
+  for (const id of ids) {
+    const mine = rows.filter((x) => x.id === id), ms = sz.filter((x) => x.id === id);
+    const msw = ms.reduce((a, x) => a + x.w, 0);
+    const spotLr = ms.reduce((a, x) => a + x.w * (x.lr - coastLr), 0) / (msw + 5);
+    spots[id] = {
+      n: mine.length, w: spotW[id],
+      bias: +(mine.reduce((a, x) => a + x.r, 0) / mine.length).toFixed(2),
+      rmse: { before: rmse(mine.map((x) => x.r)), after: rmse(mine.map((x) => x.r - predict(x))) },
+      size: { n: ms.length, gain: gain(coastLr + spotLr) },
+    };
+  }
+  const learned = {
+    updated: new Date().toISOString(), sessions: sessions.length, used: rows.length, setAside, unusable,
+    coast: { n: rows.length, w: coastW, size: { n: sz.length, gain: gain(coastLr) },
+      rmse: { before: rmse(rows.map((x) => x.r)), after: rmse(rows.map((x) => x.r - predict(x))), loo } },
+    spots,
+  };
+  console.log(`sessions: ${sessions.length} logged, ${rows.length} used, ${setAside} set aside, ${unusable} unusable; error ${learned.coast.rmse.before} → ${learned.coast.rmse.after} pts (leave-one-out ${loo ?? '-'})`);
+  return learned;
 }
 
 (async () => {

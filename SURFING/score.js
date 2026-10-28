@@ -63,7 +63,11 @@ function geoArrive(geo, d, p) {
 // hand-set rule applies: whole within 45° of the facing, fading to the
 // spot's exposure floor by 110°, long period wrapping a little better.
 const USE_GEO = false;
-function arrival(c, k) {
+// What surfers' logged sessions have taught us about a spot (data/skill.json
+// "learned", fitted by tools/skill.mjs); null until there are reports.
+const learnedSpot = (id) => (typeof sharedSkill !== 'undefined' && sharedSkill && sharedSkill.learned && sharedSkill.learned.spots && sharedSkill.learned.spots[id]) || null;
+// raw: leave out the learned size correction (training needs the plain rule).
+function arrival(c, k, raw) {
   const b = c.best, p = k.p || 0;
   const bend = k.d != null ? angleDiff(k.d, c.faces) : 0;
   const geo = USE_GEO && typeof GEO !== 'undefined' && GEO[c.id] && k.d != null;
@@ -76,14 +80,23 @@ function arrival(c, k) {
     arrive = bend <= 20 ? 1 : Math.max(floor, Math.cos(bend * Math.PI / 180));
     if (bend > 45 && p >= 12) arrive = Math.min(1, arrive * 1.15);
   }
-  return { arrive: arrive * (b.gain || 1), geo: !!geo };
+  // Logged sessions' wave sizes against ours: a gentle correction to how
+  // much swell reaches this beach, the spot's own once it has 3 sized
+  // sessions, else the coast's once there are 15.
+  let learned = 1;
+  if (!raw) {
+    const L = learnedSpot(c.id), C = typeof sharedSkill !== 'undefined' && sharedSkill && sharedSkill.learned && sharedSkill.learned.coast;
+    if (L && L.size && L.size.n >= 3) learned = L.size.gain;
+    else if (C && C.size && C.size.n >= 15) learned = C.size.gain;
+  }
+  return { arrive: arrive * (b.gain || 1) * learned, geo: !!geo };
 }
 // Breaking face height at the beach, as a [low, high] range in metres,
 // the way forecast apps quote surf. Faces run a little under the arriving
 // significant height, more so when the period is short.
-function faceRange(c, k) {
+function faceRange(c, k, raw) {
   if (!k || k.h == null) return [0, 0];
-  const sw = swellTrains(c, k), p = sw.main.p;
+  const sw = swellTrains(c, k, raw), p = sw.main.p;
   const face = sw.h * (p >= 12 ? 0.9 : p >= 9 ? 0.8 : 0.7);
   return [+(face * 0.8).toFixed(1), +(face * 1.1).toFixed(1)];
 }
@@ -107,11 +120,11 @@ function swellPts(c, t) {
 // main swell. Within 30° of each other they add up as energy (heights
 // combine as the root of the sum of squares); further apart, the other
 // one is a cross swell.
-function swellTrains(c, k) {
+function swellTrains(c, k, raw) {
   const ts = [{ h: k.h, p: k.p || 0, d: k.d }];
   if (k.h2 != null && k.h2 >= 0.2 && k.p2 >= 6 && k.d2 != null) ts.push({ h: k.h2, p: k.p2, d: k.d2, second: true });
   for (const t of ts) {
-    const a = arrival(c, t);
+    const a = arrival(c, t, raw);
     t.arrive = a.arrive; t.geo = a.geo; t.ha = t.h * a.arrive;
     t.pts = swellPts(c, t);
   }
@@ -241,6 +254,19 @@ function score(c, k) {
     total *= cal.f;
     f.push({ label: 'Verdicts', mult: cal.f, now: `${cal.n} people said ${cal.f < 1 ? 'too high' : 'too low'} more often`, likes: 'about right' });
   }
+  // Logged sessions: what surfers said it was actually like in conditions
+  // like these, here and across the coast (see learnedCorrection). Never
+  // lifts a dark or flat hour, and the size caps still hold.
+  if (!dark && h >= 0.3) {
+    const corr = learnedCorrection(c, k);
+    if (corr) {
+      const before = total;
+      total = Math.max(0, Math.min(10, total + corr.pts));
+      if (h > hi * 1.4) total = Math.min(total, 3);
+      else if (h < lo * 0.7) total = Math.min(total, 4);
+      f.push({ label: 'Sessions', mult: before > 0 ? total / before : 1, now: corr.text, likes: 'scores that match logged sessions' });
+    }
+  }
   total = Math.round(total * 2) / 2;
   const level = levelOf(total);
 
@@ -256,6 +282,63 @@ function score(c, k) {
     if (dOff >= 60 || sOff >= 18) notes.push(`${k.obs.station} measured ${kts(k.obs.ws)} kts ${dirName(k.obs.wd)} at ${k.obs.t}; models said ${kts(m.ws)} kts ${dirName(m.wd)}${k.obsW ? ' — the reading is weighted in' : ''}`);
   }
   return { total, level, label: dark ? 'Dark' : LEVELS[level], wind: rel, factors: f, cap, notes };
+}
+
+/* ---------- Learning from logged sessions ----------
+   A surfer logs when they surfed, how it was (Flat … Epic) and the wave
+   size they saw; the page saves the forecast for those hours with it.
+   tools/skill.mjs then fits, by ridge regression, how far our score was
+   off from what they said, as a sum of small adjustments for the kind of
+   conditions it was (tide, wind, size, period, angle):
+
+     prior   the hand-set spot knowledge in spots.js (no adjustment)
+     coast   adjustments learned from every session on every spot
+     spot    this spot's own sessions, on top of the coast's
+
+   Both levels are shrunk towards zero, so a handful of reports nudges and
+   only a consistent pattern moves a score far. Sizes are learned the same
+   way, as a per-spot correction to how much swell reaches the beach. */
+
+// What surfers pick, and what each means on our 0–10 scale.
+const SESSION_RATINGS = ['Flat', 'Poor', 'Fair', 'Good', 'Epic'];
+const SESSION_TARGET = [0, 2, 5, 7.5, 9.5];
+// Wave size seen (face), and the face height each band stands for.
+const SIZE_BANDS = ['Flat', 'Knee–thigh', 'Waist–chest', 'Shoulder–head', 'Overhead', 'Well overhead'];
+const SIZE_FACE = [0.15, 0.55, 1.05, 1.6, 2.3, 3.2];
+const SIZE_EDGES = [0.3, 0.8, 1.3, 1.9, 2.7];
+const sizeBand = (face) => { let i = 0; while (i < SIZE_EDGES.length && face >= SIZE_EDGES[i]) i++; return i; };
+const SESSION_WHY = { wind: 'Wind', small: 'Too small', big: 'Too big', tide: 'Wrong tide', closeouts: 'Closing out', inconsistent: 'Inconsistent', crowd: 'Crowded' };
+
+// The kinds of conditions an adjustment can attach to. One-hot buckets
+// plus an intercept; the same function scores live hours and training rows,
+// always on the plain rules (no learned size), so they stay comparable.
+const FEATURES = ['bias', 'tide:low', 'tide:mid', 'tide:high', 'wind:light', 'wind:off', 'wind:cross', 'wind:on',
+  'size:small', 'size:in', 'size:big', 'period:short', 'period:mid', 'period:long', 'dir:in', 'dir:near', 'dir:out'];
+function features(c, k) {
+  const x = { bias: 1 };
+  if (k.tn != null) x['tide:' + tideWord(k.tn)] = 1;
+  const rel = windRel(c, k);
+  x[k.ws < 10 ? 'wind:light' : rel === 'offshore' ? 'wind:off' : rel === 'onshore' ? 'wind:on' : 'wind:cross'] = 1;
+  const sw = swellTrains(c, k, true), [lo, hi] = c.best.size;
+  x[sw.h < lo ? 'size:small' : sw.h > hi ? 'size:big' : 'size:in'] = 1;
+  const p = sw.main.p;
+  x[p < 10 ? 'period:short' : p < 13 ? 'period:mid' : 'period:long'] = 1;
+  if (sw.main.d != null) { const dd = distToWindow(sw.main.d, c.best.swell); x[dd === 0 ? 'dir:in' : dd <= 30 ? 'dir:near' : 'dir:out'] = 1; }
+  return x;
+}
+const dotW = (w, x) => (w ? Object.keys(x).reduce((s, f) => s + (w[f] || 0) * x[f], 0) : 0);
+// Points to add to a live score: the coast-wide adjustment (once there are
+// enough sessions to trust it) plus this spot's own, capped at ±3.
+function learnedCorrection(c, k) {
+  const L = typeof sharedSkill !== 'undefined' && sharedSkill && sharedSkill.learned;
+  if (!L) return null;
+  const x = features(c, k), S = L.spots && L.spots[c.id];
+  const g = L.coast && L.coast.n >= 15 ? dotW(L.coast.w, x) : 0;
+  const s = S && S.n >= 3 ? dotW(S.w, x) : 0;
+  const pts = Math.max(-3, Math.min(3, g + s));
+  if (Math.abs(pts) < 0.25) return null;
+  const n = (S && S.n) || 0;
+  return { pts, text: `${pts > 0 ? '+' : '−'}${Math.abs(pts).toFixed(1)} from ${n ? `${n} session${n > 1 ? 's' : ''} here` : 'sessions on this coast'}${n && L.coast && L.coast.n >= 15 ? ` and ${L.coast.n} on the coast` : ''}` };
 }
 
 
@@ -468,6 +551,17 @@ function dayConfidence(hours, dayIdx) {
 
 // IPMA (Portugal's met office) reports wind direction as a compass class.
 const IPMA_DIR = [null, 0, 45, 90, 135, 180, 225, 270, 315, 0];
+
+// Sunrise and sunset for day i of a forecast response. Asking for several
+// models makes Open-Meteo name each daily series per model (sunrise_best_match,
+// …); they agree to the minute, so any one will do.
+function sunOf(w, i = 0) {
+  const d = w && w.daily;
+  if (!d) return null;
+  const pick = (name) => d[name] || d[Object.keys(d).find((k) => k.startsWith(name + '_'))];
+  const r = pick('sunrise'), s = pick('sunset');
+  return r && s && r[i] && s[i] ? { rise: r[i].slice(11, 16), set: s[i].slice(11, 16) } : null;
+}
 
 // Open-Meteo answers with an object for one location, an array for several.
 const asList = (r) => (Array.isArray(r) ? r : [r]);

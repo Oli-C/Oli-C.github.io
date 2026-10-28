@@ -249,7 +249,7 @@
      wind in two calls. */
   const DAYS = 7;
   const TTL = 60 * 60 * 1000;   // an hour; forecasts don't change faster than that
-  const VER = 3;
+  const VER = 4;
 
   const $ = (id) => document.getElementById(id);
   const list = $('list'), daysEl = $('days'), chips = $('chips'), empty = $('empty'), status = $('status');
@@ -302,7 +302,7 @@
       const days = Object.keys(byDate).sort().map((date, di) => {
         const hours = byDate[date];
         hours.forEach((k, j) => addTide(hours, k, j));   // tide relative to that day's range
-        const sun = w.daily && w.daily.sunrise && w.daily.sunrise[di] ? { rise: w.daily.sunrise[di].slice(11, 16), set: w.daily.sunset[di].slice(11, 16) } : null;
+        const sun = sunOf(w, di);
         return { date, hours, tides: tideEvents(hours), sun, conf: dayConfidence(hours, di) };
       });
       next[c.id] = { days };
