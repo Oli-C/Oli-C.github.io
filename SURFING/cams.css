@@ -699,6 +699,11 @@ header { display: none; }
 .pop-cond b { color: var(--fg); font-weight: 600; }
 .pop-cond .mini i.now { outline-color: var(--fg); }
 .pop-sum { margin-top: 4px; font-size: 12px; color: var(--fg-muted); }
+/* Room kept for the lines that come and go, so the popup holds its size
+   as the map's time slider moves. */
+.pop-cond { min-height: 2.9em; }   /* two lines, one holding the day bars */
+.pop-tide { min-height: calc(2 * 1.35em); }
+.pop-day { min-height: calc(3 * 1.35em); }
 .pop-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .pop-btn {
   display: inline-flex;

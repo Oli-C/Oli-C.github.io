@@ -33,8 +33,13 @@ function slidePins() {
   loadWorkerForecast().then((fc) => { pinFc = fc; }, () => {}).then(() => {
     for (const c of CAMS) markers[c.id].setIcon(pinIcon(c));
     declutter();
-    if (popSpot && popSpot.isOpen()) popSpot.setContent(popupHtml(popSpot.spot));
-    if (cardId) showMapCard(byId(cardId), false);
+    // An open popup / card keeps its size as the time moves: it may grow, never shrink.
+    if (popSpot && popSpot.isOpen()) {
+      const el = popSpot.getElement() && popSpot.getElement().querySelector('.leaflet-popup-content');
+      if (el) el.style.minHeight = el.getBoundingClientRect().height + 'px';
+      popSpot.setContent(popupHtml(popSpot.spot));
+    }
+    if (cardId) { mapCard.style.minHeight = mapCard.getBoundingClientRect().height + 'px'; showMapCard(byId(cardId), false); }
   });
 }
 
@@ -73,8 +78,8 @@ const popupHtml = (c) => {
       ${k ? badge(c, false, score(c, k)) : at ? badge(c, false, null) : badge(c)}
     </div>
     ${cond ? `<div class="pop-cond">${esc(when)} ${cond} ${k ? miniBars(c, at.hs, hourOf(k.t)) : miniBars(c)}</div>` : at ? '<div class="pop-cond">No forecast for that time yet.</div>' : ''}
-    ${tide ? `<div class="pop-sum">Tide${isToday ? '' : ' that day'}: ${esc(tide)}</div>` : ''}
-    ${sum ? `<div class="pop-sum">${esc(sum)}</div>` : ''}
+    <div class="pop-sum pop-tide">${tide ? `Tide: ${esc(tide)}` : ''}</div>
+    <div class="pop-sum pop-day">${sum ? esc(sum) : ''}</div>
     <div class="pop-actions">
       <button class="pop-btn" type="button" data-open="${esc(c.id)}${isToday ? '' : '@' + date}">
         ${noCam(c) ? 'Forecast' : '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>Watch live'}
@@ -165,7 +170,7 @@ function initMap() {
     const m = L.marker([c.lat, c.lng], { icon: pinIcon(c), title: c.name, keyboard: true });
     m.on('click', () => {
       if (phone.matches) return showMapCard(c);
-      popSpot = L.popup({ closeButton: false, maxWidth: 340, offset: [0, -14] }).setLatLng(m.getLatLng()).setContent(popupHtml(c)).openOn(map);
+      popSpot = L.popup({ closeButton: false, minWidth: 300, maxWidth: 300, offset: [0, -14] }).setLatLng(m.getLatLng()).setContent(popupHtml(c)).openOn(map);
       popSpot.spot = c;
       findCard(c.id);
     });
@@ -182,6 +187,7 @@ function initMap() {
 const mapCard = $('map-card');
 let cardId = null;
 function showMapCard(c, pan = true) {
+  if (pan) mapCard.style.minHeight = '';   // a new spot: its own size
   if (cardId) hotPin(cardId, false);
   cardId = c.id;
   hotPin(c.id, true);
@@ -197,6 +203,7 @@ function hideMapCard() {
   hotPin(cardId, false);
   cardId = null;
   mapCard.hidden = true;
+  mapCard.style.minHeight = '';
   $('map-wrap').classList.remove('has-card');
 }
 mapCard.addEventListener('click', (e) => {
