@@ -1130,6 +1130,18 @@ header { display: none; }
 
 /* Today: four bars, dawn → evening */
 .today-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* The row of days above the graphs. */
+.day-pick { display: flex; gap: 6px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; margin: 0 -2px; padding: 2px; }
+.day-pick::-webkit-scrollbar { display: none; }
+.day-pick button {
+  display: inline-flex; align-items: center; gap: 6px; flex: none; white-space: nowrap;
+  font: inherit; font-size: 12px; color: var(--fg-muted); cursor: pointer;
+  background: var(--bg-3); border: 1px solid var(--border-2); border-radius: 999px; padding: 4px 10px;
+}
+.day-pick button i { width: 8px; height: 8px; border-radius: 50%; background: var(--pin, var(--bg-2)); }
+.day-pick button.far { border-style: dashed; }
+.day-pick button:hover { color: var(--fg); }
+.day-pick button[aria-selected="true"] { color: var(--fg); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg-3)); }
 .today-bars {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

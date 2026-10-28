@@ -630,12 +630,12 @@ function waveBias(m) {
   if (!sh || !(sh.n >= 50) || sh.hBias == null) return 1;
   return Math.min(1.25, Math.max(0.8, 1 / (1 + sh.hBias)));
 }
-// Weights for every model at each lead day (0 = today … 9), worked out
+// Weights for every model at each lead day (0 = today … 15), worked out
 // once per fetch; leadOf says which applies to an hour.
-const leadWeights = (models, fn) => Array.from({ length: 10 }, (_, d) => models.map((m) => fn(m, d)));
+const leadWeights = (models, fn) => Array.from({ length: 16 }, (_, d) => models.map((m) => fn(m, d)));
 // "2026-10-28T14:00" (spot-local) → whole days ahead of now (0 for past hours).
 // `offset`: the spot's UTC offset in seconds.
-const leadOf = (t, offset = 0) => Math.max(0, Math.min(9, Math.floor((Date.parse(t + ':00Z') - offset * 1000 - Date.now()) / 864e5 + 1 / 24)));
+const leadOf = (t, offset = 0) => Math.max(0, Math.min(15, Math.floor((Date.parse(t + ':00Z') - offset * 1000 - Date.now()) / 864e5 + 1 / 24)));
 // dirErr may be null (light air, direction meaningless); then only speed counts.
 function learn(key, dirErr, spdErr) {
   const s = skill[key] || { n: 0, dir: 45, spd: 8 };
@@ -801,7 +801,9 @@ function dayConfidence(hours, dayIdx) {
   const sp = hours.map((k) => k.spread).filter(Boolean);
   if (!sp.length) return null;
   const wd = sp.reduce((a, s) => a + s.wd, 0) / sp.length, h = sp.reduce((a, s) => a + s.h, 0) / sp.length;
-  let c = 1 - lerp(wd, 30, 0, 120, 0.35) - lerp(h, 0.15, 0, 0.5, 0.3) - lerp(dayIdx, 1, 0, 6, 0.35);
+  // Past a week only ECMWF, GFS and GEM still reach, and skill fades fast:
+  // those days are a trend, and say so.
+  let c = 1 - lerp(wd, 30, 0, 120, 0.35) - lerp(h, 0.15, 0, 0.5, 0.3) - lerp(dayIdx, 1, 0, 6, 0.35) - lerp(dayIdx, 7, 0, 15, 0.3);
   return Math.max(0, Math.min(1, +c.toFixed(2)));
 }
 

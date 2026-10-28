@@ -87,10 +87,10 @@ const condText = (c) => {
 /* ---------- Today: four bars + a summary ---------- */
 
 // Average score per block of the day, daylight hours only.
-function dayBars(c) {
-  const hs = conditions[c.id] && conditions[c.id].hours;
+// `hs`: the day's hours (today's by default); only today has a past.
+function dayBars(c, hs = conditions[c.id] && conditions[c.id].hours, isToday = true) {
   if (!hs || !hs.length) return null;
-  const nowH = new Date().getHours();
+  const nowH = isToday ? new Date().getHours() : -1;
   return BUCKETS.map((b) => {
     const rows = hs.filter((k) => !isDark(c, k) && hourOf(k.t) >= b.from && hourOf(k.t) < b.to);
     const totals = rows.map((k) => score(c, k)).filter(Boolean).map((r) => r.total);
@@ -108,8 +108,7 @@ const miniBars = (c) => {
 };
 
 // A sentence or two on how the day goes: size trend, wind, best window.
-function daySummary(c) {
-  const hs = conditions[c.id] && conditions[c.id].hours;
+function daySummary(c, hs = conditions[c.id] && conditions[c.id].hours, isToday = true) {
   if (!hs) return '';
   const day = hs.filter((k) => !isDark(c, k) && hourOf(k.t) >= 6 && hourOf(k.t) < 19);
   if (day.length < 2) return 'No daylight hours left to call.';
@@ -126,7 +125,7 @@ function daySummary(c) {
   const windTxt = am === pm
     ? `${am} wind all day, ${kts(Math.min(...speeds))}–${kts(Math.max(...speeds))} kts`
     : `${am} early, turning ${pm} later and up to ${kts(Math.max(...speeds))} kts`;
-  const bars = (dayBars(c) || []).filter((b) => b.score != null);
+  const bars = (dayBars(c, hs, isToday) || []).filter((b) => b.score != null);
   const best = bars.slice().sort((a, b) => b.score - a.score)[0];
   const bestTxt = best ? (best.past ? `Best was ${best.label.toLowerCase()} (${fmt(best.score)}).` : `Best window: ${best.label.toLowerCase()} (${fmt(best.score)}).`) : '';
   return `${sizeTxt}; ${windTxt}. ${bestTxt}`.trim();

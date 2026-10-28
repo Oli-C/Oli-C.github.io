@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build c72157dfac. */
-const WORKER_BUILD = 'c72157dfac';
+   Build 7c7ca2b7ed. */
+const WORKER_BUILD = '7c7ca2b7ed';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (7-day outlook).
@@ -1054,12 +1054,12 @@ function waveBias(m) {
   if (!sh || !(sh.n >= 50) || sh.hBias == null) return 1;
   return Math.min(1.25, Math.max(0.8, 1 / (1 + sh.hBias)));
 }
-// Weights for every model at each lead day (0 = today … 9), worked out
+// Weights for every model at each lead day (0 = today … 15), worked out
 // once per fetch; leadOf says which applies to an hour.
-const leadWeights = (models, fn) => Array.from({ length: 10 }, (_, d) => models.map((m) => fn(m, d)));
+const leadWeights = (models, fn) => Array.from({ length: 16 }, (_, d) => models.map((m) => fn(m, d)));
 // "2026-10-28T14:00" (spot-local) → whole days ahead of now (0 for past hours).
 // `offset`: the spot's UTC offset in seconds.
-const leadOf = (t, offset = 0) => Math.max(0, Math.min(9, Math.floor((Date.parse(t + ':00Z') - offset * 1000 - Date.now()) / 864e5 + 1 / 24)));
+const leadOf = (t, offset = 0) => Math.max(0, Math.min(15, Math.floor((Date.parse(t + ':00Z') - offset * 1000 - Date.now()) / 864e5 + 1 / 24)));
 // dirErr may be null (light air, direction meaningless); then only speed counts.
 function learn(key, dirErr, spdErr) {
   const s = skill[key] || { n: 0, dir: 45, spd: 8 };
@@ -1225,7 +1225,9 @@ function dayConfidence(hours, dayIdx) {
   const sp = hours.map((k) => k.spread).filter(Boolean);
   if (!sp.length) return null;
   const wd = sp.reduce((a, s) => a + s.wd, 0) / sp.length, h = sp.reduce((a, s) => a + s.h, 0) / sp.length;
-  let c = 1 - lerp(wd, 30, 0, 120, 0.35) - lerp(h, 0.15, 0, 0.5, 0.3) - lerp(dayIdx, 1, 0, 6, 0.35);
+  // Past a week only ECMWF, GFS and GEM still reach, and skill fades fast:
+  // those days are a trend, and say so.
+  let c = 1 - lerp(wd, 30, 0, 120, 0.35) - lerp(h, 0.15, 0, 0.5, 0.3) - lerp(dayIdx, 1, 0, 6, 0.35) - lerp(dayIdx, 7, 0, 15, 0.3);
   return Math.max(0, Math.min(1, +c.toFixed(2)));
 }
 
@@ -1802,6 +1804,11 @@ async function handleFeedback(req, env, url, json, ipTag) {
 const FC_VER = 1;
 const SITE = 'https://allfield.online/SURFING/';
 const FC_PAST = 2, FC_DAYS = 7;
+// The far days, 8 to 15 ahead: only ECMWF, GFS and GEM reach that far and
+// they move little hour to hour, so they're fetched every six hours (keeping
+// the worker well inside Open-Meteo's daily allowance), kept in KV as
+// fc:ext, and added to each hourly build.
+const FC_EXT = 15, FC_EXT_EVERY = 6 * 3600e3;
 // Keep every field the pages and training read; numbers to 3 places.
 const FC_K = ['h', 'p', 'd', 'ws', 'wd', 'wg', 'day', 'tn', 'tdir', 'wwh', 'th', 'h2', 'p2', 'd2', 'sst', 'air', 'tide', 'obsW'];
 const roundK = (k) => {
@@ -1884,11 +1891,38 @@ async function buildForecast(env) {
     });
     spots[c.id] = { offset, days, src: f.kept, obs: ob };
   });
+  try {
+    const ext = await extendedDays(env);
+    for (const [id, s] of Object.entries(spots)) {
+      const last = s.days.length ? s.days[s.days.length - 1].date : '';
+      s.days.push(...((ext.spots[id] || []).filter((d) => d.date > last)));
+    }
+  } catch (e) { console.log('far days', e.message); }
   const built = new Date().toISOString();
   const payload = { v: FC_VER, built, skill: (sharedSkill && sharedSkill.updated) || null, ibi: ibi ? ibi.built : null, ms: Date.now() - started, spots };
   await env.FEEDBACK.put('fc:latest', JSON.stringify(payload));
   for (const [date, s] of Object.entries(byDay)) await env.FEEDBACK.put(`fc:day:${date}`, JSON.stringify({ date, built, spots: s }));
   return { built, spots: Object.keys(spots).length, days: Object.keys(byDay), ms: Date.now() - started };
+}
+
+async function extendedDays(env) {
+  try { const x = JSON.parse((await env.FEEDBACK.get('fc:ext')) || 'null'); if (x && Date.now() - Date.parse(x.built) < FC_EXT_EVERY) return x; } catch {}
+  const day = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+  const pts = CAMS.map(offshore);
+  const q = `latitude=${pts.map((p) => p[0]).join(',')}&longitude=${pts.map((p) => p[1]).join(',')}&start_date=${day(FC_DAYS)}&end_date=${day(FC_EXT)}&timezone=auto`;
+  const [marine, wind] = await Promise.all([
+    fetch(`https://marine-api.open-meteo.com/v1/marine?${q}&hourly=${MARINE.join()}&models=${modelIds(MARINE_MODELS)}`).then((r) => r.json()),
+    fetch(`https://api.open-meteo.com/v1/forecast?${q}&hourly=${WIND.join()}&models=${modelIds(WIND_MODELS)}&daily=sunrise,sunset`).then((r) => r.json()),
+  ]);
+  if (marine.error || wind.error) throw new Error(marine.reason || wind.reason);
+  const M = asList(marine), W = asList(wind), spots = {};
+  CAMS.forEach((c, i) => {
+    const m = M[i], w = W[i];
+    if (m && w && m.hourly && w.hourly) spots[c.id] = blendSpot(c, m, w).days.map((d) => ({ ...d, hours: d.hours.map(roundK) }));
+  });
+  const ext = { built: new Date().toISOString(), spots };
+  await env.FEEDBACK.put('fc:ext', JSON.stringify(ext));
+  return ext;
 }
 
 // The latest build, held in this isolate for a minute so a burst of page

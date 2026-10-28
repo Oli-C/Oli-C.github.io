@@ -35,14 +35,16 @@ export function openMeteo(url) {
   const q = url.searchParams, lats = q.get('latitude').split(','), models = (q.get('models') || 'best_match').split(',');
   const vars = (q.get('hourly') || '').split(',').filter(Boolean), past = +(q.get('past_days') || 0), days = +(q.get('forecast_days') || 7);
   const today = new Date(new Date().toISOString().slice(0, 10) + 'T00:00Z').getTime();
-  const start = today - past * 864e5, hoursN = (past + days) * 24, base = Math.floor(start / 3.6e6);
+  let start = today - past * 864e5, span = past + days;
+  if (q.get('start_date')) { start = Date.parse(q.get('start_date') + 'T00:00Z'); span = (Date.parse(q.get('end_date') + 'T00:00Z') - start) / 864e5 + 1; }
+  const hoursN = span * 24, base = Math.floor(start / 3.6e6);
   const time = Array.from({ length: hoursN }, (_, i) => new Date(start + i * 3.6e6).toISOString().slice(0, 16));
   const one = (li) => {
     const hourly = { time };
     models.forEach((m, mi) => { for (const v of vars) hourly[`${v}_${m}`] = time.map((_, i) => value(v, li, mi, base + i)); });
     const out = { latitude: +lats[li], utc_offset_seconds: 0, hourly };
     if (q.get('daily')) {
-      const dt = Array.from({ length: past + days }, (_, d) => new Date(start + d * 864e5).toISOString().slice(0, 10));
+      const dt = Array.from({ length: span }, (_, d) => new Date(start + d * 864e5).toISOString().slice(0, 10));
       out.daily = { time: dt };
       for (const m of models) { out.daily[`sunrise_${m}`] = dt.map((d) => `${d}T07:05`); out.daily[`sunset_${m}`] = dt.map((d) => `${d}T17:40`); }
     }

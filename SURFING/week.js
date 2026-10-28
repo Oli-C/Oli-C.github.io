@@ -10,9 +10,10 @@
    on the account when signed in) come first; Mine / All picks whether
    the rest of the coast shows too. The forecast is the worker's hourly
    build, or the same blend done here if that's unavailable. */
-const DAYS = 7;
+const DAYS = 16;       // today and fifteen ahead; past a week, a trend
+const NEAR = 7;        // days that count as a forecast (best bets, plain cards)
 const TTL = 60 * 60 * 1000;   // an hour; forecasts don't change faster than that
-const VER = 5;
+const VER = 6;
 
 const $ = (id) => document.getElementById(id);
 const list = $('list'), chips = $('chips'), empty = $('empty'), status = $('status'), bets = $('bets'), tools = $('tools');
@@ -129,7 +130,7 @@ const matches = (c) => spotMatches(c, q.value, area);   // toolbar.js
 // Best bets: the strongest windows of the week among the spots on show.
 function renderBets(spots) {
   const ds = dates(), cands = [];
-  for (const c of spots) ds.forEach((iso, i) => { const d = digestOf(c, i); if (d && d.best) cands.push({ c, i, iso, d, s: d.best.score }); });
+  for (const c of spots) ds.slice(0, NEAR).forEach((iso, i) => { const d = digestOf(c, i); if (d && d.best) cands.push({ c, i, iso, d, s: d.best.score }); });
   cands.sort((a, b) => b.s - a.s || a.i - b.i);
   const good = cands.filter((x) => x.s > 3.5).slice(0, 3);
   if (!cands.length) { bets.innerHTML = ''; return; }
@@ -178,12 +179,13 @@ function stripHtml(c) {
   const ds = dates();
   const cardsHtml = ds.map((iso, i) => {
     const d = digestOf(c, i), on = sel && sel.id === c.id && sel.i === i;
-    const day = `<span class="day${i === 0 ? ' today' : ''}">${i === 0 ? 'Today' : `${dayName(iso, i)} ${new Date(iso + 'T12:00').getDate()}`}</span>`;
+    const far = i >= NEAR ? ' far' : '';
+    const day = `<span class="day${i === 0 ? ' today' : ''}">${i === 0 ? 'Today' : `${dayName(iso, i)} ${new Date(iso + 'T12:00').getDate()}`}${far ? '<small>trend</small>' : ''}</span>`;
     if (!d) return `<button class="dcard lvl-x" type="button" data-id="${esc(c.id)}" data-i="${i}" aria-pressed="${on}"><span class="top">${day}<span><b>–</b></span></span><span class="body">No forecast</span></button>`;
     const size = Math.abs(d.hMax - d.hMin) < 0.25 ? hgt((d.hMin + d.hMax) / 2) : rng(d.hMin.toFixed(1), d.hMax.toFixed(1));
     const wind = d.wsMin === d.wsMax ? `${d.wsMin}` : `${d.wsMin}–${d.wsMax}`;
     const rel = d.rel === 'cross-shore' ? 'cross' : d.rel;
-    return `<button class="dcard lvl-${d.level}" type="button" data-id="${esc(c.id)}" data-i="${i}" aria-pressed="${on}" style="--conf:${d.conf != null ? d.conf : 1}"
+    return `<button class="dcard lvl-${d.level}${far}" type="button" data-id="${esc(c.id)}" data-i="${i}" aria-pressed="${on}" style="--conf:${d.conf != null ? d.conf : 1}"
       aria-label="${esc(c.name)}, ${dayName(iso, i, true)}: ${d.top === 0 ? 'flat' : `${fmt(d.top)} ${d.label}`}">
       <span class="top">${day}<span>${d.top === 0 ? '<b>Flat</b>' : `<b>${fmt(d.top)}</b><small>${d.label}</small>`}</span></span>
       <span class="body">
@@ -226,7 +228,7 @@ function detailHtml(c, i) {
     ${tide ? `<span class="chip2"><small>Tide</small>${tide}</span>` : ''}
     ${d.sun ? `<span class="chip2"><small>Light</small>${d.sun.rise}–${d.sun.set}</span>` : ''}
     ${d.conf != null ? `<span class="chip2 ${confCls}"><small>Forecast</small>${confWord(d.conf)} confidence</span>` : ''}
-    <a href="./#${esc(c.id)}">Open spot →</a>
+    <a href="./#${esc(c.id)}@${iso}">Open ${i === 0 ? 'today' : dayName(iso, i, true)} at the spot →</a>
   </div>`;
 }
 

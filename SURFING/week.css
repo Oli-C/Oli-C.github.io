@@ -133,6 +133,10 @@ html, body {
 }
 .dcard:hover { border-color: var(--border-3); }
 .dcard[aria-pressed="true"] { border-color: var(--fg); }
+/* Past a week: a trend, not a forecast. */
+.dcard.far { border-style: dashed; }
+.dcard.far .top small { font-size: 8px; margin-left: 4px; opacity: .8; }
+.dcard.far .body { opacity: .85; }
 /* The day and its score on the score's colour; greyer when less certain. */
 .dcard .top {
   display: flex; align-items: baseline; justify-content: space-between; gap: 6px; padding: 5px 9px 4px;

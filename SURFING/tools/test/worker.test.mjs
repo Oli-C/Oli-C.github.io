@@ -115,10 +115,14 @@ test('forecast: the hourly build, end to end', async () => {
   assert.equal(Object.keys(fc.spots).length, (await import('../site.mjs')).loadSite().CAMS.length, 'every spot');
   assert.ok(fc.ibi, 'built with the IBI run');
   for (const [id, x] of Object.entries(fc.spots)) {
-    assert.equal(x.days.length, 9, `${id}: 9 days`);
+    assert.equal(x.days.length, 2 + 16, `${id}: two days back, today and fifteen ahead`);
+    assert.ok(x.days.every((d, i) => i === 0 || d.date > x.days[i - 1].date), `${id}: days in order, none twice`);
     for (const d of x.days) for (const k of d.hours) for (const f of ['h', 'p', 'd', 'ws', 'wd', 'tn']) assert.ok(k[f] != null, `${id} ${k.t} ${f}`);
   }
   const src = Object.values(fc.spots['guincho-norte'].src)[0].src;
   assert.ok(src.swell.some((r) => r.name === 'Copernicus IBI'), 'IBI among the sources');
   assert.ok(kv.has(`fc:day:${new Date().toISOString().slice(0, 10)}`), 'today archived');
+  assert.ok(kv.has('fc:ext'), 'the far days kept for the next builds');
+  const far = fc.spots['guincho-norte'].days.at(-1), near = fc.spots['guincho-norte'].days[3];
+  assert.ok(far.conf < near.conf, 'the far days are less sure');
 });

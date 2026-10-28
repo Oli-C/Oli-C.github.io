@@ -175,28 +175,76 @@ function renderSrc(c) {
 // The whole day as four graph cards on one 24-hour axis: quality hour
 // by hour, surf (face height at the beach), wind with gusts and
 // direction, and the tide curve. Night is shaded; now is a solid line.
+/* Any day, hour by hour: the row of days above the graphs picks which
+   (today unless another is picked; the 16-day page links straight to a
+   day). The days come from the worker's build, else this spot's own
+   16-day blend; today's graphs keep "now", the others show the whole day. */
+let viewDay = null;          // the picked date, or null for today
+const spotDays = {};         // spot id → [{ date, hours, sun, tides }] from today on
+async function loadSpotDays(c) {
+  if (c.id in spotDays) return spotDays[c.id];
+  spotDays[c.id] = null;   // in flight
+  let days = [];
+  try {
+    const fc = await loadWorkerForecast(), s = fc.spots[c.id];
+    const today = spotNow(s.offset).slice(0, 10);
+    days = s.days.filter((d) => d.date >= today);
+  } catch {
+    try {
+      const [lat, lng] = offshore(c), q = `latitude=${lat}&longitude=${lng}&forecast_days=16&timezone=auto`;
+      const [m, w] = await Promise.all([
+        fetch(`https://marine-api.open-meteo.com/v1/marine?${q}&hourly=${MARINE.join()}&models=${modelIds(MARINE_MODELS)}`).then((r) => r.json()),
+        fetch(`https://api.open-meteo.com/v1/forecast?${q}&hourly=${WIND.join()}&models=${modelIds(WIND_MODELS)}&daily=sunrise,sunset`).then((r) => r.json()),
+      ]);
+      if (!m.error && !w.error) days = blendSpot(c, m, w).days;   // score.js
+    } catch {}
+  }
+  return (spotDays[c.id] = days.map((d) => ({ date: d.date, hours: d.hours, sun: d.sun, tides: d.tides })));
+}
+// The daylight average, for a day's dot in the row.
+function dayAverage(c, hs) {
+  const t = hs.filter((k) => !isDark(c, k) && hourOf(k.t) >= 6 && hourOf(k.t) < 20).map((k) => score(c, k)).filter(Boolean).map((r) => r.total);
+  return t.length ? Math.round(t.reduce((a, x) => a + x, 0) / t.length * 2) / 2 : null;
+}
+function dayPicker(c) {
+  const list = spotDays[c.id];
+  if (list === undefined) loadSpotDays(c).then(() => { if ($('v-go').dataset.go === c.id && !viewer.hidden) renderToday(c); });
+  if (!list || list.length < 2) return '<span class="k">Today</span>';
+  return '<div class="day-pick" role="tablist" aria-label="Pick a day">' + list.map((d, i) => {
+    const s = i === 0 && conditions[c.id] ? dayAverage(c, conditions[c.id].hours) : dayAverage(c, d.hours);
+    const on = i === 0 ? !viewDay : viewDay === d.date, dt = new Date(d.date + 'T12:00');
+    const label = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : `${DAY_NAMES[dt.getDay()]} ${dt.getDate()}`;
+    return `<button type="button" role="tab" aria-selected="${on}" data-vday="${i === 0 ? '' : d.date}"${i >= 7 ? ' class="far" title="A trend this far out"' : ''}>` +
+      `<i class="${s == null ? 'lvl-x' : 'lvl-' + levelOf(s)}" aria-hidden="true"></i>${label}</button>`;
+  }).join('') + '</div>';
+}
+
 function renderToday(c) {
-  const cnd = conditions[c.id], hs = cnd && cnd.hours, now = cnd && cnd.now;
+  const pick = viewDay && (spotDays[c.id] || []).find((d) => d.date === viewDay);
+  const isToday = !pick;
+  const cnd = pick || conditions[c.id], hs = cnd && cnd.hours;
   const el = $('v-today');
-  if (!hs || hs.length < 3 || !now) { el.hidden = true; el.innerHTML = ''; return; }
+  if (!hs || hs.length < 3 || (isToday && !cnd.now)) { el.hidden = true; el.innerHTML = ''; return; }
   const byHour = Array(24).fill(null);
   for (const k of hs) byHour[hourOf(k.t)] = k;
   const hhmm = (s) => (s ? parseInt(s.slice(0, 2), 10) * 60 + parseInt(s.slice(3, 5), 10) : null);
   const pct = (m) => (100 * m / 1440).toFixed(2) + '%';
   const pad = (n) => String(n).padStart(2, '0');
   const rise = cnd.sun && hhmm(cnd.sun.rise), set = cnd.sun && hhmm(cnd.sun.set);
-  const nowM = new Date().getHours() * 60 + new Date().getMinutes(), nowH = Math.floor(nowM / 60);
+  const nowM = isToday ? new Date().getHours() * 60 + new Date().getMinutes() : null, nowH = isToday ? Math.floor(nowM / 60) : -1;
+  // What the headlines describe before you scrub: now today, midday on another day.
+  const now = isToday ? cnd.now : byHour[12] || hs[Math.floor(hs.length / 2)];
   // Too dark to surf: the same rule as the score (sun 6° down), not sunset itself.
   const dark = (h) => (byHour[h] ? isDark(c, byHour[h]) : rise != null && set != null && ((h + 1) * 60 <= rise || h * 60 >= set));
   const cls = (h) => (h === nowH ? ' now' : h < nowH ? ' past' : '') + (dark(h) ? ' dark' : '');
   const night = rise != null && set != null
     ? `<span class="night" style="left:0;width:${pct(rise)}"></span><span class="night" style="left:${pct(set)};right:0"></span>` : '';
-  const nowLine = `<span class="nowline" style="left:${pct(nowM)}"></span>`;
+  const nowLine = isToday ? `<span class="nowline" style="left:${pct(nowM)}"></span>` : '';
   // Hour labels make room for the "now" tag.
   const axis = '<div class="axis">' +
-    [3, 6, 9, 12, 15, 18, 21].filter((x) => Math.abs(x * 60 - nowM) > 150)
+    [3, 6, 9, 12, 15, 18, 21].filter((x) => !isToday || Math.abs(x * 60 - nowM) > 150)
       .map((x) => `<span style="left:${pct(x * 60)}">${x === 12 ? 'Noon' : x}</span>`).join('') +
-    `<span class="now-tag" style="left:${pct(Math.min(1380, Math.max(60, nowM)))}">${fmtMins(nowM)}</span>` +
+    (isToday ? `<span class="now-tag" style="left:${pct(Math.min(1380, Math.max(60, nowM)))}">${fmtMins(nowM)}</span>` : '') +
     '<button class="sel-tag" type="button" aria-label="Back to now" hidden></button></div>';
   const plot = (kind, inner, extra = '') =>
     `<div class="plot ${kind}">${night}${inner}${nowLine}<span class="cursor" hidden></span></div>${extra}${axis}`;
@@ -278,7 +326,11 @@ function renderToday(c) {
   }).join('') + '</div>';
   const windTxt = (k) => [`${kts(k.ws)}<small>kts ${dirName(k.wd)}</small>`,
     esc(cap(windRel(c, k))) + (k.wg != null ? ` · gusts <b>${kts(k.wg)} kts</b>` : '')];
-  def.wind = windTxt(now);
+  if (isToday) def.wind = windTxt(now);
+  else {
+    const day = hs.filter((k) => !isDark(c, k)), ws = (day.length ? day : hs).map((k) => k.ws);
+    def.wind = [`${kts(Math.min(...ws))}–${kts(Math.max(...ws))}<small>kts</small>`, `${esc(cap(windRel(c, now)))} around midday, from ${dirName(now.wd)}`];
+  }
   hour.wind = (h) => { if (!byHour[h]) return null; const [b, s] = windTxt(byHour[h]); return [b, `<b>${pad(h)}:00</b> · ${s}`]; };
   const wind = card('wind', 'Wind', ...def.wind,
     plot('wind', windBars, arrows),
@@ -310,7 +362,7 @@ function renderToday(c) {
       return `<span class="tdot" style="left:${X(e.mins)}%;top:${top}"></span>` +
         `<span class="tlab ${e.kind === 'High' ? 'hi' : 'lo'}" style="left:${left};top:${top}">${fmtMins(e.mins)}<small>${e.kind}</small></span>`;
     }).join('');
-    const nowDot = `<span class="tdot now" style="left:${X(nowM)}%;top:${Y(at(nowM)).toFixed(1)}%"></span>`;
+    const nowDot = isToday ? `<span class="tdot now" style="left:${X(nowM)}%;top:${Y(at(nowM)).toFixed(1)}%"></span>` : '';
     const selDot = '<span class="tdot sel" hidden></span>';
     const inTxt = (from, m) => { const d = m - from; return d < 60 ? `${d} min` : `${Math.floor(d / 60)} h ${pad(d % 60)}`; };
     const tideTxt = (k, from) => {
@@ -318,7 +370,8 @@ function renderToday(c) {
       return [cap(k.tn != null ? tideWord(k.tn) : 'tide') + (k.tdir ? `<small>${k.tdir === 'rising' ? '▲ rising' : '▼ falling'}</small>` : ''),
         next ? `${next.kind} at <b>${fmtMins(next.mins)}</b> · in ${inTxt(from, next.mins)}` : esc(tideTimes(cnd))];
     };
-    def.tide = tideTxt(now, nowM);
+    def.tide = isToday ? tideTxt(now, nowM)
+      : ['High &amp; low', (cnd.tides || []).map((e) => `${e.kind} <b>${fmtMins(e.mins)}</b>`).join(' · ') || 'no times'];
     hour.tide = (h) => {
       if (!byHour[h]) return null;
       const [b, s] = tideTxt(byHour[h], h * 60 + 30);
@@ -330,8 +383,8 @@ function renderToday(c) {
 
   el.hidden = false;
   el.innerHTML =
-    `<div class="today-head"><span class="k">Today</span></div>` +
-    `<p class="today-sum">${esc(daySummary(c))}</p>` +
+    `<div class="today-head">${dayPicker(c)}</div>` +
+    `<p class="today-sum">${esc(daySummary(c, hs, isToday))}</p>` +
     `<div class="day-graphs">${quality}${surf}${wind}${tide}</div>`;
   el._scrub = { def, hour };
   el._sel = null;   // fresh render shows the day again
@@ -373,6 +426,13 @@ function selectHour(h) {
     if (h != null && s.hour.tideAt) { const [x, y] = s.hour.tideAt(h); dot.style.left = x + '%'; dot.style.top = y + '%'; }
   }
 }
+todayEl.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-vday]');
+  if (!b) return;
+  viewDay = b.dataset.vday || null;
+  const c = byId($('v-go').dataset.go);
+  if (c) renderToday(c);
+});
 todayEl.addEventListener('pointerdown', (e) => {
   if (e.target.closest('.sel-tag')) { selectHour(null); return; }
   const h = hourAt(e);
@@ -404,3 +464,97 @@ todayEl.addEventListener('keydown', (e) => {
     selectHour(Math.max(0, Math.min(23, cur + (e.key === 'ArrowRight' ? 1 : -1))));
   } else if (e.key === 'Escape' && todayEl._sel != null) { e.stopPropagation(); selectHour(null); }
 });
+
+/* ---------- Opening and closing a spot ---------- */
+
+function renderLocal(c) {
+  const b = c.best;
+  const item = (k, v) => `<span>${k} <b>${v}</b></span>`;
+  $('v-local').innerHTML = `
+    <div class="today-head"><span class="k">Local knowledge</span></div>
+    <div class="local-row">
+      ${item('Swell', windowText(b.swell))}
+      ${item('Size', rng(b.size[0], b.size[1]))}
+      ${item('Period', `${b.period} s+`)}
+      ${item('Wind', windowText(b.wind))}
+      ${item('Tide', esc(b.tide.text))}
+    </div>
+    <p class="local-notes">${esc(b.notes)}</p>
+    <div class="tags">${(c.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div>`;
+}
+
+function open(id, push = true) {
+  const [sid, day] = String(id).split('@');
+  const c = byId(sid);
+  if (!c) return;
+  viewDay = /^\d{4}-\d\d-\d\d$/.test(day || '') ? day : null;
+  if (viewDay) loadSpotDays(c).then(() => { if ($('v-go').dataset.go === c.id) renderToday(c); });
+  lastFocus = document.activeElement;
+  $('v-name').textContent = c.name;
+  $('v-where').textContent = `${c.zone && c.zone !== c.town ? c.zone + ' · ' : ''}${c.town} · ${c.area}`;
+  $('v-open').hidden = !c.link;
+  if (c.link) $('v-open').href = c.link;
+  $('v-go').dataset.go = c.id;
+  syncFav(c);
+  $('v-foot').innerHTML = noCam(c) ? 'No camera at this spot yet: forecast and local knowledge only.'
+    : `Stream by ${esc(c.source)} · <a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">open original</a>`;
+  renderScore(c);
+  renderFb(c);
+  renderSess(c);
+  renderSrc(c);
+  renderToday(c);
+  renderLocal(c);
+  renderTune(c);
+  clearTimeout(hideTimer);
+  stopPlayback();
+  // Don't stream the same cam twice: the tile rests while the viewer plays.
+  for (const t of Object.values(tiles)) t.hold = false;
+  if (tiles[c.id]) tiles[c.id].hold = true;
+  syncTiles();
+  frame.className = 'frame ' + (c.type === 'page' ? 'page' : noCam(c) ? 'video nocam' : 'video');
+  if (noCam(c)) frame.innerHTML = noCamHtml(c);
+  else if (offline.get(c.id) === 'blocked') frameMsg(`This cam only plays on ${sourceName(c)} for now.`, c);
+  else if (c.type === 'hls') playHls(c);
+  else frame.innerHTML = iframeHtml(c.embed, c);
+  viewer.hidden = false;
+  viewer.querySelector('.sheet').scrollTop = 0;
+  requestAnimationFrame(() => viewer.classList.add('open'));
+  document.body.classList.add('locked');
+  $('v-close').focus();
+  if (push) history.pushState(null, '', '#' + c.id);
+}
+
+// Where a spot has no camera, the frame shows a quiet swell line and
+// offers the nearest cams.
+const NOCAM_ART = '<svg class="nocam-art" viewBox="0 0 120 40" preserveAspectRatio="none" aria-hidden="true"><path d="M0 26c10 0 10-10 20-10s10 10 20 10 10-10 20-10 10 10 20 10 10-10 20-10 10 10 20 10" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+function noCamHtml(c) {
+  const near = CAMS.filter((o) => !noCam(o) && o.id !== c.id).map((o) => ({ o, km: km(c.lat, c.lng, o.lat, o.lng) }))
+    .sort((a, b) => a.km - b.km).slice(0, 2).filter((x) => x.km < 25);
+  const dist = (d) => (d < 0.95 ? `${Math.round(d * 1000 / 50) * 50} m` : `${d.toFixed(d < 10 ? 1 : 0)} km`);
+  return `<div class="frame-msg">${NOCAM_ART}<div><b>No camera at ${esc(c.name)} yet</b>${near.length ? `<span>Nearest cams</span><span class="near">${near.map((x) =>
+    `<button class="pop-btn" type="button" data-near="${esc(x.o.id)}">${esc(x.o.name)} <small>${dist(x.km)}</small></button>`).join('')}</span>` : ''}</div></div>`;
+}
+frame.addEventListener('click', (e) => { const b = e.target.closest('[data-near]'); if (b) open(b.dataset.near); });
+
+// The star: in or out of this person's spots (account.js keeps the list,
+// on the account when signed in), which lead the 7-day page.
+function syncFav(c) {
+  const on = Account.favs.has(c.id), b = $('v-fav');
+  b.setAttribute('aria-pressed', on);
+  b.title = b.ariaLabel = on ? 'In my spots: tap to remove' : 'Add to my spots (leads the 7-day page)';
+}
+$('v-fav').addEventListener('click', () => { const c = byId(location.hash.slice(1)) || byId($('v-go').dataset.go); if (c) { Account.favs.toggle(c.id); syncFav(c); } });
+Account.favs.onChange(() => { const c = byId($('v-go').dataset.go); if (c && !viewer.hidden) syncFav(c); });
+Account.favs.sync();
+
+function close(push = true) {
+  if (viewer.hidden) return;
+  viewer.classList.remove('open');
+  document.body.classList.remove('locked');
+  stopPlayback();
+  for (const t of Object.values(tiles)) t.hold = false;
+  syncTiles();
+  hideTimer = setTimeout(() => { viewer.hidden = true; }, 250);
+  if (push && location.hash) history.pushState(null, '', location.pathname + location.search);
+  if (lastFocus) lastFocus.focus();
+}

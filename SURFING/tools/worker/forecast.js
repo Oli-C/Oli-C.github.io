@@ -25,6 +25,11 @@
 const FC_VER = 1;
 const SITE = 'https://allfield.online/SURFING/';
 const FC_PAST = 2, FC_DAYS = 7;
+// The far days, 8 to 15 ahead: only ECMWF, GFS and GEM reach that far and
+// they move little hour to hour, so they're fetched every six hours (keeping
+// the worker well inside Open-Meteo's daily allowance), kept in KV as
+// fc:ext, and added to each hourly build.
+const FC_EXT = 15, FC_EXT_EVERY = 6 * 3600e3;
 // Keep every field the pages and training read; numbers to 3 places.
 const FC_K = ['h', 'p', 'd', 'ws', 'wd', 'wg', 'day', 'tn', 'tdir', 'wwh', 'th', 'h2', 'p2', 'd2', 'sst', 'air', 'tide', 'obsW'];
 const roundK = (k) => {
@@ -107,11 +112,38 @@ async function buildForecast(env) {
     });
     spots[c.id] = { offset, days, src: f.kept, obs: ob };
   });
+  try {
+    const ext = await extendedDays(env);
+    for (const [id, s] of Object.entries(spots)) {
+      const last = s.days.length ? s.days[s.days.length - 1].date : '';
+      s.days.push(...((ext.spots[id] || []).filter((d) => d.date > last)));
+    }
+  } catch (e) { console.log('far days', e.message); }
   const built = new Date().toISOString();
   const payload = { v: FC_VER, built, skill: (sharedSkill && sharedSkill.updated) || null, ibi: ibi ? ibi.built : null, ms: Date.now() - started, spots };
   await env.FEEDBACK.put('fc:latest', JSON.stringify(payload));
   for (const [date, s] of Object.entries(byDay)) await env.FEEDBACK.put(`fc:day:${date}`, JSON.stringify({ date, built, spots: s }));
   return { built, spots: Object.keys(spots).length, days: Object.keys(byDay), ms: Date.now() - started };
+}
+
+async function extendedDays(env) {
+  try { const x = JSON.parse((await env.FEEDBACK.get('fc:ext')) || 'null'); if (x && Date.now() - Date.parse(x.built) < FC_EXT_EVERY) return x; } catch {}
+  const day = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+  const pts = CAMS.map(offshore);
+  const q = `latitude=${pts.map((p) => p[0]).join(',')}&longitude=${pts.map((p) => p[1]).join(',')}&start_date=${day(FC_DAYS)}&end_date=${day(FC_EXT)}&timezone=auto`;
+  const [marine, wind] = await Promise.all([
+    fetch(`https://marine-api.open-meteo.com/v1/marine?${q}&hourly=${MARINE.join()}&models=${modelIds(MARINE_MODELS)}`).then((r) => r.json()),
+    fetch(`https://api.open-meteo.com/v1/forecast?${q}&hourly=${WIND.join()}&models=${modelIds(WIND_MODELS)}&daily=sunrise,sunset`).then((r) => r.json()),
+  ]);
+  if (marine.error || wind.error) throw new Error(marine.reason || wind.reason);
+  const M = asList(marine), W = asList(wind), spots = {};
+  CAMS.forEach((c, i) => {
+    const m = M[i], w = W[i];
+    if (m && w && m.hourly && w.hourly) spots[c.id] = blendSpot(c, m, w).days.map((d) => ({ ...d, hours: d.hours.map(roundK) }));
+  });
+  const ext = { built: new Date().toISOString(), spots };
+  await env.FEEDBACK.put('fc:ext', JSON.stringify(ext));
+  return ext;
 }
 
 // The latest build, held in this isolate for a minute so a burst of page
