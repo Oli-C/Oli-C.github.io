@@ -9,13 +9,40 @@ const windClass = (ws) => (ws < 12 ? 'w0' : ws < 25 ? 'w1' : ws < 40 ? 'w2' : 'w
 // Everything lives in the pin itself: score segment, then swell (arrow =
 // direction of travel, height, period), wind (arrow = blowing to, knots
 // coloured off / cross / on) and the day's four bars.
+// The time slider moves the pins too: each spot's forecast hour nearest
+// now + fieldHour, from the worker's build (else today and tomorrow), with
+// that day's bars.
+let pinFc = null;
+function pinAt(c) {
+  const cond = conditions[c.id];
+  if (!fieldHour) return { k: cond && cond.now };
+  const s = pinFc && pinFc.spots[c.id];
+  const days = s ? s.days : cond ? [{ hours: cond.hours }, { hours: cond.tomorrow || [] }] : [];
+  const from = s ? spotNow(s.offset) : cond && cond.now && cond.now.t;
+  if (!from) return {};
+  const at = Date.parse(from + ':00Z') + fieldHour * 3.6e6;
+  let best = null, bestD = 2 * 3.6e6;
+  for (const d of days) for (const k of d.hours) {
+    const dt = Math.abs(Date.parse(k.t + ':00Z') - at);
+    if (dt < bestD) { bestD = dt; best = { k, hs: d.hours }; }
+  }
+  return best || {};
+}
+function slidePins() {
+  if (!map) return;
+  loadWorkerForecast().then((fc) => { pinFc = fc; }, () => {}).then(() => {
+    for (const c of CAMS) markers[c.id].setIcon(pinIcon(c));
+    declutter();
+  });
+}
+
 const pinIcon = (c) => {
-  const r = scoreOf(c), k = conditions[c.id] && conditions[c.id].now;
+  const at = pinAt(c), k = at.k, r = k ? score(c, k) : null;
   const lvl = r ? (r.dark ? 'lvl-dark' : 'lvl-' + r.level) : 'lvl-x';
   const data = k ? `<span class="d">
       <span class="row swell"><span style="display:inline-flex;--rot:${k.d != null ? Math.round(k.d + 180) : 0}deg">${k.d != null ? GLYPH : ''}</span><em>${hgt(k.h)}</em>${Math.round(k.p)}s</span>
       <span class="row wind ${r ? REL_SHORT[r.wind] : ''}"><span style="display:inline-flex;--rot:${Math.round(k.wd + 180)}deg">${GLYPH}</span><em>${kts(k.ws)}kt</em></span>
-      ${miniBars(c)}</span>` : '';
+      ${at.hs ? miniBars(c, at.hs, hourOf(k.t)) : miniBars(c)}</span>` : '';
   return L.divIcon({
     className: 'pin-wrap',
     html: `<span class="pin ${lvl}" title="${esc(c.name)}"><span class="sc">${!r ? '·' : r.dark ? (r.lit ? fmt(r.lit) : MOON) : r.total === 0 ? '–' : fmt(r.total)}</span>${data}</span>`,
@@ -523,10 +550,10 @@ function makeTimeControl() {
     options: { position: phone.matches ? 'topleft' : 'bottomright' },
     onAdd() {
       const el = L.DomUtil.create('div', 'time-ctl');
-      el.innerHTML = '<label><span class="k">Wind &amp; swell</span><output>Now</output></label><input type="range" min="0" max="48" step="3" value="0" aria-label="Hours ahead for the wind and swell layers">';
+      el.innerHTML = '<label><span class="k">Forecast</span><output>Now</output></label><input type="range" min="0" max="48" step="3" value="0" aria-label="Hours ahead for the scores, wind and swell">';
       L.DomEvent.disableClickPropagation(el);
       L.DomEvent.disableScrollPropagation(el);
-      el.querySelector('input').addEventListener('input', (e) => { fieldHour = +e.target.value; updateFields(); });
+      el.querySelector('input').addEventListener('input', (e) => { fieldHour = +e.target.value; updateFields(); slidePins(); });
       return el;
     },
   });

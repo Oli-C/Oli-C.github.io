@@ -99,10 +99,11 @@ function dayBars(c, hs = conditions[c.id] && conditions[c.id].hours, isToday = t
   });
 }
 
-const miniBars = (c) => {
-  const bars = dayBars(c);
+// Today's bars by default; or a given day's, with the bar holding hour `at` marked.
+const miniBars = (c, hs, at) => {
+  const bars = at == null ? dayBars(c) : dayBars(c, hs, false).map((b) => ({ ...b, now: at >= b.from && at < b.to }));
   if (!bars) return '';
-  return `<span class="mini" aria-hidden="true" title="Today, dawn to evening">${bars.map((b) =>
+  return `<span class="mini" aria-hidden="true" title="${at == null ? 'Today' : 'That day'}, dawn to evening">${bars.map((b) =>
     `<i class="${b.level == null ? 'lvl-x' : 'lvl-' + b.level}${b.past ? ' past' : ''}${b.now ? ' now' : ''}" style="height:${b.score == null ? 2 : Math.max(2, b.score * 10)}%"></i>`
   ).join('')}</span>`;
 };
