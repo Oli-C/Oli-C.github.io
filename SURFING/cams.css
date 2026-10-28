@@ -536,7 +536,7 @@ header { display: none; }
 .legend i { width: 9px; height: 9px; border-radius: 50%; background: var(--pin); }
 .legend .lg-row[hidden] { display: none; }
 /* The swell-height heat map's key: the same colours as the map. */
-.legend .heat-bar i { width: 90px; height: 8px; border-radius: 2px; background: linear-gradient(90deg, rgb(29,59,90), rgb(47,111,159) 10%, rgb(63,167,196) 20%, rgb(92,200,168) 30%, rgb(166,217,106) 40%, rgb(254,224,139) 50%, rgb(253,174,97) 60%, rgb(244,109,67) 80%, rgb(215,48,39)); }
+.legend .heat-bar i { width: 90px; height: 8px; border-radius: 2px; background: linear-gradient(90deg, rgba(255,236,200,.35), rgb(253,200,120) 20%, rgb(249,150,60) 40%, rgb(235,95,40) 60%, rgb(200,50,30) 80%, rgb(150,25,25)); }
 .legend .heat-bar b { font-weight: 500; letter-spacing: 0; text-transform: none; }
 .leaflet-image-layer.heat { image-rendering: auto; }
 /* The time slider for the wind and swell layers. */

@@ -35,7 +35,8 @@ whoever builds it.
 | `toolbar.js` / `.css` | the bar on every surf page |
 | `account.js` / `.css` | accounts, favourites, the account button |
 | `cams.css`, `cams-*.js` | the cams page, in load order: `core` (state, conditions), `grid`, `map`, `viewer`, `sessions`, `tune`, `main` (wiring, last) |
-| `week.css`, `week.js` | the 7-day page |
+| `week.css`, `week.js` | the 16-day page |
+| `insights.html` / `.css` / `.js` | a spot's history beside its logged sessions: trends, what it likes, what the forecast has learned |
 | `data/` | public, anonymised: model skill, logged sessions |
 | `tools/worker/` | the worker's sources; `build-worker.mjs` bundles them |
 | `tools/skill.mjs`, `copernicus.py`, `points.mjs` | the scheduled jobs |

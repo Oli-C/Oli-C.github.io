@@ -487,6 +487,7 @@ function renderLocal(c) {
       ${item('Tide', esc(b.tide.text))}
     </div>
     <p class="local-notes">${esc(b.notes)}</p>
+    <p class="local-notes"><a href="insights.html?spot=${esc(c.id)}" style="color:var(--accent-ink);text-decoration:none">Its history and logged sessions →</a></p>
     <div class="tags">${(c.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div>`;
 }
 

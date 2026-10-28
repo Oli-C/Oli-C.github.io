@@ -106,6 +106,7 @@ function renderTools(hasFavs) {
       <button type="button" data-scope="all" aria-pressed="${scope === 'all'}">All</button>
     </div>` : ''}
     <button class="btn${editing ? ' on' : ''}" type="button" data-edit>${editing ? 'Done' : hasFavs ? 'Edit my spots' : '★ Pick my spots'}</button>
+    <a class="btn" href="insights.html${Account.favs.list()[0] ? '?spot=' + esc(Account.favs.list()[0]) : ''}" style="text-decoration:none">Trends &amp; sessions →</a>
     <div class="legend" aria-hidden="true">
       ${LEVELS.map((l, i) => `<span class="lvl-${i}"><i></i>${l}</span>`).join('')}
       <span class="unsure"><i></i>greyer = less sure</span>

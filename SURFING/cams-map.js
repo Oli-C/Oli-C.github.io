@@ -81,7 +81,7 @@ function initMap() {
   // and the swell-height heat map; the worker's grids drive all three.
   windLayer = L.layerGroup();
   swellLayer = L.layerGroup();
-  heatLayer = L.imageOverlay('data:image/gif;base64,R0lGODlhAQABAAAAACw=', [[36.8, -10.3], [40.1, -8.5]], { opacity: 0.7, className: 'heat', interactive: false });
+  heatLayer = L.imageOverlay('data:image/gif;base64,R0lGODlhAQABAAAAACw=', [[36.8, -10.3], [40.1, -8.5]], { opacity: 0.9, className: 'heat', interactive: false });
   if (!reducedMotion) {
     const PL = makeParticleLayer();
     const phone = matchMedia('(max-width: 640px)').matches;
@@ -424,8 +424,10 @@ const windColor = (ws) => (ws < 12 ? 'rgba(158,176,92,0.85)' : ws < 25 ? 'rgba(2
 // Swell: sea blue, slow long streaks, brighter the bigger it is.
 const swellColor = (h) => `rgba(79,195,220,${Math.min(0.95, 0.35 + h * 0.2)})`;
 
-// The heat map's colours: wave height, calm blue to big red.
-const HEAT = [[0, [29, 59, 90]], [0.5, [47, 111, 159]], [1, [63, 167, 196]], [1.5, [92, 200, 168]], [2, [166, 217, 106]], [2.5, [254, 224, 139]], [3, [253, 174, 97]], [4, [244, 109, 67]], [5, [215, 48, 39]]];
+// The heat map's colours: one warm hue, pale and faint for small waves to
+// deep and solid for big ones (a single ordered ramp, not a rainbow), so
+// the big water stands out over the dark sea of the imagery.
+const HEAT = [[0, [255, 236, 200, 40]], [1, [253, 200, 120, 110]], [2, [249, 150, 60, 165]], [3, [235, 95, 40, 195]], [4, [200, 50, 30, 215]], [5, [150, 25, 25, 230]]];
 function heatRGB(h) {
   for (let i = 1; i < HEAT.length; i++) {
     if (h <= HEAT[i][0]) {
@@ -444,8 +446,8 @@ function heatImage(g, s) {
   for (let i = 0; i < g.nlat; i++) for (let j = 0; j < g.nlng; j++) {
     const h = gridAt(g, 'h', g.lat0 + i * g.dlat, g.lng0 + j * g.dlng, s);
     if (h == null) continue;
-    const [r, gg, b] = heatRGB(h / 100), o = ((g.nlat - 1 - i) * g.nlng + j) * 4;
-    img.data[o] = r; img.data[o + 1] = gg; img.data[o + 2] = b; img.data[o + 3] = 190;
+    const [r, gg, b, a] = heatRGB(h / 100), o = ((g.nlat - 1 - i) * g.nlng + j) * 4;
+    img.data[o] = r; img.data[o + 1] = gg; img.data[o + 2] = b; img.data[o + 3] = a;
   }
   ctx.putImageData(img, 0, 0);
   return cv.toDataURL();

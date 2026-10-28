@@ -1,0 +1,74 @@
+/* The trends page (insights.html), on top of week.css (theme, fonts, score
+   colours) and the toolbar. */
+.ins-pick { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 16px; font-size: 13px; color: var(--fg-muted); }
+.ins-pick label { display: inline-flex; align-items: center; gap: 8px; }
+.ins-pick select {
+  font: inherit; font-size: 14px; color: var(--fg); background: var(--bg-3);
+  border: 1px solid var(--border-2); border-radius: 8px; padding: 5px 8px; cursor: pointer;
+}
+.ins-pick select:focus { outline: none; border-color: var(--accent); }
+
+.ins { max-width: 1100px; }
+.ins section { margin: 0 0 26px; }
+.ins h2 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 4px; }
+.ins .sub { font-size: 12px; color: var(--fg-muted); line-height: 1.45; margin-bottom: 10px; max-width: 760px; }
+.ins .none { font-size: 13px; color: var(--fg-muted); background: var(--bg-3); border: 1px dashed var(--border-2); border-radius: 10px; padding: 10px 12px; max-width: 760px; }
+
+/* At a glance: stat tiles. */
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
+.tile { background: var(--bg-3); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+.tile .k { display: block; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-muted); }
+.tile b { display: block; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; margin-top: 2px; }
+.tile small { display: block; font-size: 12px; color: var(--fg-muted); margin-top: 1px; }
+
+/* The calendar: a column a week, a cell a day, coloured by its score;
+   days with a logged session ringed. */
+.cal { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 14px); grid-auto-columns: 14px; justify-content: start; gap: 3px; overflow-x: auto; padding: 3px 3px 6px; scrollbar-width: thin; }
+.cal button { width: 14px; height: 14px; padding: 0; border: 0; border-radius: 3px; background: var(--pin, var(--bg-2)); cursor: pointer; }
+.cal button.lvl-x { background: var(--bg-2); opacity: .45; cursor: default; }
+.cal button.sess { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--fg); }
+.cal button[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cal .gap { width: 14px; height: 14px; }
+.keyrow { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 6px; font-size: 11px; color: var(--fg-muted); }
+.keyrow span { display: inline-flex; align-items: center; gap: 5px; }
+.keyrow i { width: 10px; height: 10px; border-radius: 3px; background: var(--pin); }
+.keyrow i.ring { background: transparent; box-shadow: inset 0 0 0 1.5px var(--fg); }
+.pickline { margin-top: 8px; font-size: 13px; color: var(--fg-muted); min-height: 2.8em; line-height: 1.4; }
+.pickline b { color: var(--fg); font-weight: 600; }
+
+/* Sessions against the forecast: a scatter and a table. */
+.vs { display: grid; grid-template-columns: minmax(240px, 340px) 1fr; gap: 16px; align-items: start; }
+@media (max-width: 760px) { .vs { grid-template-columns: 1fr; } }
+.scatter { width: 100%; height: auto; display: block; }
+.scatter .grid line { stroke: var(--border); stroke-width: 1; }
+.scatter .diag { stroke: var(--fg-muted); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.scatter text { font-size: 10px; fill: var(--fg-muted); }
+.scatter circle { fill: var(--accent); stroke: var(--bg); stroke-width: 2; cursor: pointer; }
+.scatter circle:hover, .scatter circle.on { r: 7; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.tbl th { text-align: left; font-weight: 500; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-muted); padding: 4px 6px; border-bottom: 1px solid var(--border-2); }
+.tbl td { padding: 5px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.tbl td small { color: var(--fg-muted); }
+.tbl tr.on td { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.diff { font-weight: 600; white-space: nowrap; }
+.wrap-tbl { overflow-x: auto; }
+
+/* What it likes: one row a condition; the model's average as a bar, what
+   sessions reported as a marker, both on the same 0–10 scale. */
+.likes { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px 24px; }
+.like h3 { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-muted); margin-bottom: 6px; }
+.lrow { display: grid; grid-template-columns: 92px 1fr 84px; gap: 8px; align-items: center; font-size: 12.5px; padding: 2px 0; }
+.lrow .lab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lrow .n { font-size: 11px; color: var(--fg-muted); text-align: right; white-space: nowrap; }
+.track { position: relative; height: 12px; background: color-mix(in srgb, var(--bg-2) 50%, transparent); border-radius: 3px; }
+.track i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0 4px 4px 0; background: var(--fg-muted); opacity: .55; }
+.track u { position: absolute; top: -3px; width: 8px; height: 18px; margin-left: -4px; border-radius: 3px; background: var(--accent); box-shadow: 0 0 0 2px var(--bg); }
+.lkey { display: flex; gap: 14px; font-size: 11px; color: var(--fg-muted); margin: 0 0 10px; }
+.lkey span { display: inline-flex; align-items: center; gap: 6px; }
+.lkey i { width: 18px; height: 8px; border-radius: 2px; background: var(--fg-muted); opacity: .55; }
+.lkey u { width: 6px; height: 12px; border-radius: 2px; background: var(--accent); }
+
+/* Taught by sessions. */
+.taught { display: flex; flex-wrap: wrap; gap: 6px; }
+.taught span { display: inline-flex; gap: 6px; align-items: baseline; font-size: 13px; background: var(--bg-3); border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; }
+.taught b { font-weight: 600; }

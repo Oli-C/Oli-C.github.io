@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="charcoal">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>allfield · surf spot trends</title>
+<meta name="description" content="A spot's history, day by day, beside what surfers reported: how good it's been, when, and in what conditions.">
+<link rel="icon" type="image/jpeg" href="../assets/favicon.jpg">
+<meta name="theme-color" content="#101820">
+<link rel="preload" href="../assets/fonts/anek-kannada-latin.woff2" as="font" type="font/woff2" crossorigin>
+<script>
+  document.documentElement.setAttribute('data-theme',
+    matchMedia('(prefers-color-scheme: dark)').matches ? 'charcoal' : 'light');
+</script>
+<link rel="stylesheet" href="toolbar.css">
+<link rel="stylesheet" href="account.css">
+<link rel="stylesheet" href="week.css">
+<link rel="stylesheet" href="insights.css">
+</head>
+<body>
+<main class="page">
+  <h1 class="sr-only">Surf spot trends</h1>
+
+  <!-- The toolbar, as on the other surf pages. -->
+  <div class="controls" id="controls">
+    <div class="row r1">
+      <a class="brand" href="../" title="Back to allfield"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>surf cams<span>.</span></a>
+      <nav class="seg" id="view-seg" aria-label="View">
+        <a href="./?view=grid" title="Cams only">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+          <span>Cams</span>
+        </a>
+        <a href="./?view=map" title="Map only">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg>
+          <span>Map</span>
+        </a>
+        <a id="seg-week" href="week.html" title="Sixteen-day outlook">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+          <span>16-day</span>
+        </a>
+      </nav>
+      <button class="more-btn" id="more-btn" type="button" aria-expanded="false" aria-controls="more" aria-label="More options" title="More options">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+      </button>
+    </div>
+    <div class="row r2">
+      <div class="more" id="more">
+        <div class="seg sm" id="units" role="group" aria-label="Height units">
+          <button type="button" data-units="m" aria-pressed="true">m</button>
+          <button type="button" data-units="ft" aria-pressed="false">ft</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ins-pick">
+    <label><span>Spot</span><select id="spot"></select></label>
+    <label><span>Over</span><select id="span">
+      <option value="30">the last 30 days</option>
+      <option value="90" selected>the last 90 days</option>
+      <option value="365">the last year</option>
+    </select></label>
+  </div>
+  <div id="out" aria-live="polite"><p class="status">Loading…</p></div>
+</main>
+
+<script src="spots.js"></script>
+<script src="score.js"></script>
+<script src="toolbar.js"></script>
+<script src="account.js"></script>
+<script src="insights.js"></script>
+</body>
+</html>
