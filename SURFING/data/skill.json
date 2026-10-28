@@ -1,35 +1,35 @@
 {
- "updated": "2026-10-28T05:37:52.703Z",
+ "updated": "2026-10-28T12:49:16.485Z",
  "wind": {
   "best_match": {
-   "n": 892,
-   "dir": 19.409,
-   "spd": 2.567
+   "n": 1088,
+   "dir": 35.979,
+   "spd": 3.294
   },
   "ecmwf_ifs025": {
-   "n": 892,
-   "dir": 21.52,
-   "spd": 6.528
+   "n": 1088,
+   "dir": 50.218,
+   "spd": 4.938
   },
   "gfs_seamless": {
-   "n": 892,
-   "dir": 18.851,
-   "spd": 5.776
+   "n": 1088,
+   "dir": 45.223,
+   "spd": 4.081
   },
   "icon_seamless": {
-   "n": 892,
-   "dir": 16.828,
-   "spd": 2.9
+   "n": 1088,
+   "dir": 36.191,
+   "spd": 3.197
   },
   "meteofrance_seamless": {
-   "n": 892,
-   "dir": 21.052,
-   "spd": 4.508
+   "n": 1088,
+   "dir": 35.685,
+   "spd": 4.211
   },
   "ukmo_seamless": {
-   "n": 892,
-   "dir": 38.825,
-   "spd": 4.945
+   "n": 1088,
+   "dir": 49.078,
+   "spd": 3.588
   }
  },
  "wave": {
@@ -64,9 +64,9 @@
    "dir": 4.112
   }
  },
- "lastWindObs": "2026-10-28T05:00",
+ "lastWindObs": "2026-10-28T12:00",
  "lastWaveObs": "2026-10-26T23:00:00Z",
- "runs": 7,
+ "runs": 8,
  "stations": [
   "Setúbal, Areias",
   "Alcochete / Campo Tiro",
@@ -112,7 +112,7 @@
    "name": "Nazaré / Pedrógão coastal buoy (IH)",
    "lat": 39.56,
    "lng": -9.21,
-   "hours": 24,
+   "hours": 0,
    "latest": "2026-10-26T23:00:00Z"
   },
   {
@@ -121,11 +121,9 @@
    "lat": 37.9211,
    "lng": -8.9289,
    "hours": 0,
-   "latest": "2026-10-23T14:00:00Z"
+   "latest": "2026-10-26T23:00:00Z"
   }
  ],
- "lastWave": {
-  "nazare": "2026-10-26T23:00:00Z"
- },
+ "lastWave": {},
  "calibration": {}
 }
