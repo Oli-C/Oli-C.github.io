@@ -45,6 +45,18 @@ The browser scripts are plain scripts sharing one scope, loaded in the order
 the page lists them; a file may use what an earlier one defines at load time,
 and anything later only inside functions it calls afterwards.
 
+## History
+
+The worker keeps, in D1 (`surf-history`), from 26 Oct 2026 on:
+
+- `spot_day`: every spot's finished days summed up (score, best part of the day,
+  size, swell and second swell, wind, surface, tides, light, and the build that
+  scored it): `GET /history/spot?id=&from=&to=`
+- `spot_hour`: the conditions behind them, hour by hour and raw, so a later
+  scoring can be rerun over them: `GET /history/spot/hours?id=&date=`
+- `obs`: what the IPMA stations, buoys and tide gauges measured; `fc`: every
+  wave model's forecast at the buoys by days ahead (`GET /skill/waves`)
+
 ## Tests
 
 ```
