@@ -90,7 +90,8 @@ async function buildForecast(env) {
   ]);
   if (marine.error || wind.error) throw new Error(marine.reason || wind.reason);
   const M = asList(marine), W = asList(wind);
-  const windW = WIND_MODELS.map(modelWeight), marineW = MARINE_MODELS.map(waveWeight);
+  // Weights by days ahead: models are trusted by their record that far out.
+  const windWL = leadWeights(WIND_MODELS, modelWeight), marineWL = leadWeights(MARINE_MODELS, waveWeight);
   const spots = {}, byDay = {};
   CAMS.forEach((c, i) => {
     const m = M[i], w = W[i];
@@ -104,9 +105,10 @@ async function buildForecast(env) {
     const byDate = {}, src = {};
     const n = Math.min(m.hourly.time.length, w.hourly.time.length);
     for (let j = 0; j < n; j++) {
-      const bh = blendHour(m.hourly, w.hourly, j, windW, marineW);
+      const t = m.hourly.time[j], lead = leadOf(t, offset);
+      const bh = blendHour(m.hourly, w.hourly, j, windWL[lead], marineWL[lead]);
       if (!bh) continue;
-      const t = m.hourly.time[j], k = { t, ...bh.k };
+      const k = { t, ...bh.k };
       // A fresh station reading leans on the hours around it.
       if (ob) {
         const away = (Date.parse(t + ':00Z') - Date.parse(obLocal + ':00Z')) / 3.6e6;
@@ -115,7 +117,7 @@ async function buildForecast(env) {
       (byDate[t.slice(0, 10)] = byDate[t.slice(0, 10)] || []).push(k);
       // Per-model values for the hours a page might call "now" before the next run.
       const dh = (Date.parse(t + ':00Z') - Date.parse(nowLocal + ':00Z')) / 3.6e6;
-      if (dh >= -1.5 && dh <= 2.5) src[t] = { src: fcSrc(bh.mRows, bh.wRows, windW, marineW), model: bh.k.model };
+      if (dh >= -1.5 && dh <= 2.5) src[t] = { src: fcSrc(bh.mRows, bh.wRows, windWL[lead], marineWL[lead]), model: bh.k.model };
     }
     const dates = Object.keys(byDate).sort(), todayIdx = dates.indexOf(today);
     const days = dates.map((date, di) => {

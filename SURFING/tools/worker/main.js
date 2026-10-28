@@ -1,7 +1,9 @@
 /* ---------- Entry points ----------
-   fetch      the routes in accounts.js, feedback.js and forecast.js, plus
-              /health, all behind the rate limits below
-   scheduled  the hourly Cron Trigger: rebuild the forecast
+   fetch      the routes in accounts.js, feedback.js, forecast.js and
+              history.js, plus /health, all behind the rate limits below
+   scheduled  the hourly Cron Trigger: rebuild the forecast, then add the
+              hour's measurements (and every 6 h the buoys and the wave
+              models' forecasts) to the history database
 
    Rate limits, per IP, checked before any route runs:
      read   GETs (forecast, health)                  120 a minute
@@ -61,17 +63,18 @@ export default {
       let forecast = 'not built yet';
       try { const f = JSON.parse((await env.FEEDBACK.get('fc:latest')) || 'null'); if (f) forecast = `built ${f.built} (${Object.keys(f.spots).length} spots, ${f.ms} ms)`; } catch {}
       const limits = Object.keys(LIMITS).map((c) => `${c} ${env[`RL_${c.toUpperCase()}`] ? 'edge' : 'local'}`).join(', ');
-      return json({ ok: true, build: WORKER_BUILD, kv: !!env.FEEDBACK, exportKey: exportKey ? `set, ${exportKey.length} characters` : 'missing', forecast, limits });
+      return json({ ok: true, build: WORKER_BUILD, kv: !!env.FEEDBACK, db: !!env.DB, exportKey: exportKey ? `set, ${exportKey.length} characters` : 'missing', forecast, limits });
     }
     // The IP is only ever kept as this keyed hash.
     const ipTag = await senderTag(ip, await readSecret(env.EXPORT_KEY));
     return (await handleForecast(req, env, url, json))
+      || (await handleHistory(req, env, url, json))
       || (await handleAccounts(req, env, url, json, ipTag))
       || (await handleFeedback(req, env, url, json, ipTag))
-      || json({ routes: ['GET /forecast', 'GET /forecast/day?d=', 'GET /health', 'POST /a/signup', 'POST /a/login', 'POST /a/recover', 'POST /a/password', 'POST /a/logout', 'GET /a/me', 'POST /s'] }, 404);
+      || json({ routes: ['GET /forecast', 'GET /forecast/day?d=', 'GET /health', 'POST /a/signup', 'POST /a/login', 'POST /a/recover', 'POST /a/password', 'POST /a/logout', 'GET /a/me', 'POST /s', 'GET /skill/waves?days=', 'GET /obs?src=&since=', 'GET /history/status'] }, 404);
   },
 
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(buildForecast(env));
+    ctx.waitUntil(buildForecast(env).catch((e) => console.log('forecast', e.message)).then(() => archiveHistory(env)));
   },
 };

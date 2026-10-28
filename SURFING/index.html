@@ -1668,7 +1668,7 @@
     leaflet: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js',
   };
   const COND_TTL = 30 * 60 * 1000; // re-fetch conditions after 30 minutes
-  const COND_VER = 7;              // bump when the cached shape changes
+  const COND_VER = 8;              // bump when the cached shape changes
   // Tiles keep a short buffer and start on the lowest rendition — they're
   // small, and ten of them at once adds up.
   const TILE_HLS = {
@@ -1922,7 +1922,7 @@
       let seen = [];
       try { seen = JSON.parse(localStorage.getItem('surf-skill-seen') || '[]'); } catch {}
       let learned = false;
-      const marineW = MARINE_MODELS.map(waveWeight);
+      const marineW = MARINE_MODELS.map((m) => waveWeight(m));
       CAMS.forEach((c, i) => {
         const m = M[i], w = W[i];
         if (!m || !w || !m.hourly || !w.hourly) return;
@@ -1944,7 +1944,7 @@
             seen.push(stamp); learned = true;
           }
         }
-        const windW = WIND_MODELS.map(modelWeight);
+        const windW = WIND_MODELS.map((m) => modelWeight(m));
         const hours = [], srcAt = [];
         const n = Math.min(m.hourly.time.length, w.hourly.time.length);
         for (let j = 0; j < n; j++) {
@@ -3345,7 +3345,7 @@
       fetch(`https://api.open-meteo.com/v1/forecast?${q}&hourly=${WIND.join()}&models=${modelIds(WIND_MODELS)}&daily=sunrise,sunset`).then((r) => r.json()),
     ]);
     if (m.error || w.error || !m.hourly || !w.hourly) throw new Error(m.reason || w.reason || 'no forecast');
-    const windW = WIND_MODELS.map(modelWeight), marineW = MARINE_MODELS.map(waveWeight);
+    const windW = WIND_MODELS.map((m) => modelWeight(m)), marineW = MARINE_MODELS.map((m) => waveWeight(m));
     const byDate = {};
     const n = Math.min(m.hourly.time.length, w.hourly.time.length);
     for (let j = 0; j < n; j++) {

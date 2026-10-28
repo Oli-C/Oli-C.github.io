@@ -402,32 +402,42 @@ const offshore = (c) => {
 
 // Secondary swell comes from Météo-France and NCEP; the DWD models don't
 // split it out.
-const MARINE = ['swell_wave_height', 'swell_wave_period', 'swell_wave_peak_period', 'swell_wave_direction', 'secondary_swell_wave_height', 'secondary_swell_wave_period', 'secondary_swell_wave_direction', 'wave_height', 'wave_period', 'wave_direction', 'wind_wave_height', 'sea_level_height_msl', 'sea_surface_temperature'];
+const MARINE = ['swell_wave_height', 'swell_wave_period', 'swell_wave_peak_period', 'swell_wave_direction', 'secondary_swell_wave_height', 'secondary_swell_wave_period', 'secondary_swell_wave_direction', 'wave_height', 'wave_period', 'wave_peak_period', 'wave_direction', 'wind_wave_height', 'sea_level_height_msl', 'sea_surface_temperature'];
 const WIND = ['wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m', 'is_day', 'temperature_2m'];
 
 // Several models per metric, so one model's quirk doesn't decide a score.
 // Open-Meteo suffixes each model's hourly series with its id; we blend
 // them per hour (median for sizes and speeds, circular mean for directions)
-// and keep the individual values to show alongside. ECMWF's wave model is
-// left out: its 0.25° grid is blank at these coastal points.
-// `w` is a base weight for how much we trust the model here: finer grids
-// and the better global models count for more. Wind weights are then
-// adjusted by each model's measured track record against nearby stations
-// (see `learn`), because for wind we have ground truth; swell has none.
+// and keep the individual values to show alongside.
+//
+// Which models, and their base weight `w`, come from checking them against
+// what was measured off Portugal (Oct 2026, 90 days: IH/Puertos buoys at
+// Nazaré, Sines, Leixões, Faro, Silleiro and Cádiz, and the anemometers on
+// three of them, at 0–5 days ahead). Mean miss in wave height: ECMWF WAM
+// ~10%, Météo-France ~15% (+9% too big), DWD EWAM ~15%, NCEP ~16%, DWD
+// GWAM ~21% (+15% too big). Wind: ICON best for today, ECMWF's AI model
+// (AIFS) best from tomorrow on, ECMWF IFS 9 km close behind; GFS, CMA, JMA
+// and NCEP's AIGFS were worst and are left out. The "best match" series
+// are left out too: here they're copies of a model already in the list,
+// which only counted it twice.
+// The running record in data/skill.json (tools/skill.mjs) then adjusts each
+// weight by days ahead (see modelWeight / waveWeight), and corrects each
+// wave model's size bias (waveBias).
 const WIND_MODELS = [
-  { key: 'best_match', name: 'Best match', w: 1.0 },
-  { key: 'ecmwf_ifs025', name: 'ECMWF', w: 1.4 },
-  { key: 'gfs_seamless', name: 'GFS', w: 0.7 },
-  { key: 'icon_seamless', name: 'ICON', w: 1.2 },
-  { key: 'meteofrance_seamless', name: 'Météo-France', w: 1.2 },
-  { key: 'ukmo_seamless', name: 'UKMO', w: 1.0 },
+  { key: 'icon_seamless', name: 'ICON', w: 1.2 },                  // DWD, ICON-EU 7 km here
+  { key: 'ecmwf_ifs', name: 'ECMWF', w: 1.2 },                     // IFS HRES 9 km
+  { key: 'ecmwf_aifs025_single', name: 'ECMWF AI', w: 1.2 },       // AIFS: no gusts, holds up best days ahead
+  { key: 'meteofrance_seamless', name: 'Météo-France', w: 1.0 },   // ARPEGE Europe here
+  { key: 'ukmo_seamless', name: 'UKMO', w: 1.0 },                  // Met Office global 10 km
+  { key: 'gem_global', name: 'GEM', w: 0.7 },                      // Canada
+  { key: 'gfs_seamless', name: 'GFS', w: 0.6 },                    // NOAA
 ];
 const MARINE_MODELS = [
-  { key: 'marine_best_match', id: 'best_match', name: 'Best match', w: 1.0 },
-  { key: 'meteofrance_wave', name: 'Météo-France', w: 1.3 },   // 0.1° MFWAM, good on this coast
-  { key: 'ncep_gfswave025', name: 'NCEP', w: 0.8 },           // 0.25° global
-  { key: 'ewam', name: 'DWD EWAM', w: 1.3 },                  // 0.05° European
-  { key: 'gwam', name: 'DWD GWAM', w: 0.8 },                  // 0.25° global
+  { key: 'ecmwf_wam', name: 'ECMWF', w: 1.4 },                 // 9 km; total sea only, no swell split
+  { key: 'meteofrance_wave', name: 'Météo-France', w: 1.1 },   // MFWAM 0.08°
+  { key: 'ewam', name: 'DWD EWAM', w: 1.0 },                   // 0.05° European
+  { key: 'ncep_gfswave025', name: 'NCEP', w: 0.8 },            // 0.25° global
+  { key: 'gwam', name: 'DWD GWAM', w: 0.6 },                   // 0.25° global
 ];
 const modelIds = (models) => models.map((m) => m.id || m.key).join();
 
@@ -501,23 +511,59 @@ async function loadSharedSkill(url = 'data/skill.json') {
   try { const r = await fetch(url, { cache: 'no-cache' }); if (r.ok) sharedSkill = await r.json(); } catch {}
   return sharedSkill;
 }
-function modelWeight(m) {
-  const sh = sharedSkill && sharedSkill.wind && sharedSkill.wind[m.key];
-  const lo = skill[m.key];
+// `lead` is how many days ahead the hour is (0 = today): models age at
+// different rates, so each is weighted by its record that far out.
+// Past the last day a model has a record for, its miss is assumed to grow
+// ~13% a day, about what the measured ones do.
+const atLead = (sh, lead) => {
+  const L = sh && sh.lead;
+  if (!L || !L.length || !lead) return sh;
+  for (let d = Math.min(lead, L.length - 1); d >= 0; d--) {
+    if (!L[d] || !(L[d].n >= 10)) continue;
+    if (d === lead) return L[d];
+    const g = 1 + 0.13 * (lead - d), o = { ...L[d] };
+    for (const f of ['spd', 'dir', 'hRel', 'p']) if (o[f] != null) o[f] *= g;
+    return o;
+  }
+  return sh;
+};
+function modelWeight(m, lead = 0) {
+  const sh = atLead(sharedSkill && sharedSkill.wind && sharedSkill.wind[m.key], lead);
+  const lo = lead ? null : skill[m.key];   // this device only sees today's hours against stations
   let dir = null, spd = null;
   if (sh && sh.n >= 10 && sh.spd != null) {
     dir = sh.dir == null ? 45 : sh.dir; spd = sh.spd;
     if (lo && lo.n >= 3) { dir = (dir * 3 + lo.dir) / 4; spd = (spd * 3 + lo.spd) / 4; }   // local nudge
   } else if (lo && lo.n >= 3) { dir = lo.dir; spd = lo.spd; }
   if (dir == null) return m.w;
-  return m.w / (1 + dir / 90 + spd / 20);    // a 90° or 20 km/h average miss halves the weight
+  // Once measured, the record decides: weight goes with the inverse square
+  // of the typical miss (5 km/h counts like 30°), as when combining
+  // estimates of known accuracy; twice the miss, a quarter of the say.
+  const e = spd / 5 + dir / 30;
+  return (2 / e) ** 2;
 }
-// Wave models have no local ground truth; only the shared buoy record counts.
-function waveWeight(m) {
-  const sh = sharedSkill && sharedSkill.wave && sharedSkill.wave[m.id || m.key];
+// Wave models: the shared buoy record (measured after bias correction).
+function waveWeight(m, lead = 0) {
+  const sh = atLead(sharedSkill && sharedSkill.wave && sharedSkill.wave[m.id || m.key], lead);
   if (!sh || sh.n < 10 || sh.hRel == null) return m.w;
-  return m.w / (1 + sh.hRel / 0.3 + (sh.p == null ? 0 : sh.p / 4));   // 30% height or 4 s period miss halves it
+  // Inverse square of the typical miss, as for wind: height (10% counts
+  // like 30° of direction) decides most of it.
+  const e = sh.hRel / 0.1 + (sh.dir == null ? 0.5 : sh.dir / 30);
+  return (2 / e) ** 2;
 }
+// A wave model's typical size error at the buoys (+0.15 = reads 15% big)
+// is taken out before blending, once there are enough hours to trust it.
+function waveBias(m) {
+  const sh = sharedSkill && sharedSkill.wave && sharedSkill.wave[m.id || m.key];
+  if (!sh || !(sh.n >= 50) || sh.hBias == null) return 1;
+  return Math.min(1.25, Math.max(0.8, 1 / (1 + sh.hBias)));
+}
+// Weights for every model at each lead day (0 = today … 9), worked out
+// once per fetch; leadOf says which applies to an hour.
+const leadWeights = (models, fn) => Array.from({ length: 10 }, (_, d) => models.map((m) => fn(m, d)));
+// "2026-10-28T14:00" (spot-local) → whole days ahead of now (0 for past hours).
+// `offset`: the spot's UTC offset in seconds.
+const leadOf = (t, offset = 0) => Math.max(0, Math.min(9, Math.floor((Date.parse(t + ':00Z') - offset * 1000 - Date.now()) / 864e5 + 1 / 24)));
 // dirErr may be null (light air, direction meaningless); then only speed counts.
 function learn(key, dirErr, spdErr) {
   const s = skill[key] || { n: 0, dir: 45, spd: 8 };
@@ -569,8 +615,9 @@ const confWord = (c) => (c == null ? '' : c >= 0.75 ? 'High' : c >= 0.45 ? 'Medi
 // (with the models' spread and a copy of the model-only wind, for
 // confidence and for comparing against a station) plus the raw rows.
 function blendHour(mH, wH, j, windW, marineW) {
-  const mRows = MARINE_MODELS.map((mod) => modelRow(mH, j, MARINE, mod));
+  const mRows = MARINE_MODELS.map((mod) => debias(modelRow(mH, j, MARINE, mod), waveBias(mod)));
   const wRows = WIND_MODELS.map((mod) => modelRow(wH, j, WIND, mod));
+  splitSwell(mRows);
   const k = toK(blend(mRows, MARINE, marineW), blend(wRows, WIND, windW));
   if (!k) return null;
   const wds = wRows.map((r) => r.wind_direction_10m).filter((v) => v != null);
@@ -579,6 +626,30 @@ function blendHour(mH, wH, j, windW, marineW) {
   k.model = { ws: k.ws, wd: k.wd };
   return { k, mRows, wRows };
 }
+// A wave model's heights scaled by its measured size bias (1 = none).
+function debias(r, f) {
+  if (f === 1) return r;
+  for (const v of ['swell_wave_height', 'secondary_swell_wave_height', 'wave_height', 'wind_wave_height']) if (r[v] != null) r[v] = +(r[v] * f).toFixed(2);
+  return r;
+}
+// ECMWF's 9 km wave model gives the total sea only, no swell split, yet it
+// verifies best. Its swell is taken as its total scaled by the swell share
+// the other models see; where swell dominates, its direction and peak
+// period stand in for the swell's. So the best model still votes on size.
+function splitSwell(rows) {
+  const shares = rows.filter((r) => r.swell_wave_height > 0.05 && r.wave_height > 0.05).map((r) => Math.min(1, r.swell_wave_height / r.wave_height));
+  if (!shares.length) return;
+  const share = median(shares);
+  for (const r of rows) {
+    if (r.swell_wave_height != null || !(r.wave_height > 0.05)) continue;
+    r.swell_wave_height = +(r.wave_height * share).toFixed(2);
+    if (share >= 0.6) {
+      if (r.swell_wave_direction == null) r.swell_wave_direction = r.wave_direction;
+      if (r.swell_wave_peak_period == null) r.swell_wave_peak_period = r.wave_peak_period;
+    }
+  }
+}
+
 // 0–1 confidence for a forecast day: model spread (averaged over its
 // hours) costs, and so does distance into the future.
 function dayConfidence(hours, dayIdx) {
