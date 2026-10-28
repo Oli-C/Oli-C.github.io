@@ -16,6 +16,12 @@
                         30 per IP per day, stored under a time-ordered key
      GET  /stats        public per-spot counts
      GET  /export?key=  everything (needs EXPORT_KEY); ?since=ISO for new ones only
+     GET  /health       is the KV bound, is EXPORT_KEY set (its length, never
+                        the value) — for checking the set-up
+
+   If /export says {"error":"no"} with the right key, /health shows why:
+   EXPORT_KEY missing means it was added as a *build* variable, on another
+   worker, or not deployed yet (the dashboard holds changes until Deploy).
 */
 export default {
   async fetch(req, env) {
@@ -27,6 +33,13 @@ export default {
     };
     if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
     const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
+
+    // Pasted secrets often pick up a trailing space or newline; ignore them.
+    const exportKey = (env.EXPORT_KEY || '').trim();
+
+    if (req.method === 'GET' && url.pathname === '/health') {
+      return json({ ok: true, kv: !!env.FEEDBACK, exportKey: exportKey ? `set, ${exportKey.length} characters` : 'missing' });
+    }
 
     if (req.method === 'POST' && url.pathname === '/v') {
       let v;
@@ -49,7 +62,7 @@ export default {
 
     if (req.method === 'GET' && (url.pathname === '/export' || url.pathname === '/stats')) {
       const isExport = url.pathname === '/export';
-      if (isExport && url.searchParams.get('key') !== env.EXPORT_KEY) return json({ error: 'no' }, 403);
+      if (isExport && (!exportKey || (url.searchParams.get('key') || '').trim() !== exportKey)) return json({ error: 'no' }, 403);
       const since = url.searchParams.get('since') || '';
       const out = [], stats = {};
       let cursor;
@@ -70,6 +83,6 @@ export default {
       return json(isExport ? { count: out.length, verdicts: out } : { stats });
     }
 
-    return json({ routes: ['POST /v', 'GET /stats', 'GET /export?key='] }, 404);
+    return json({ routes: ['POST /v', 'GET /stats', 'GET /export?key=', 'GET /health'] }, 404);
   },
 };
