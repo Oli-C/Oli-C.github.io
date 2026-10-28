@@ -39,7 +39,8 @@
    GET /skill/waves?days=60  every wave model's miss at the buoys by lead day
    GET /obs?src=&since=      stored measurements (one source, ≤ 31 days)
    GET /history/spot?id=&from=&to=    a spot's days (summaries; ≤ 400)
-   GET /history/spot/hours?id=&date=  a spot's hours on one day */
+   GET /history/spot/hours?id=&date=  a spot's hours on one day
+                    (or &from=&to=, up to 100 days) */
 
 // The buoys and gauges: stations.js (bundled in).
 const HIST_UA = { 'User-Agent': 'allfield-surfcams/1.0' };
@@ -237,10 +238,10 @@ async function handleHistory(req, env, url, json) {
     const id = url.searchParams.get('id') || '', D = /^\d{4}-\d\d-\d\d$/;
     if (!CAMS.some((c) => c.id === id)) return json({ error: 'id=<spot>' }, 400);
     if (url.pathname === '/history/spot/hours') {
-      const date = url.searchParams.get('date') || '';
-      if (!D.test(date)) return json({ error: 'date=YYYY-MM-DD' }, 400);
-      const r = await env.DB.prepare('SELECT * FROM spot_hour WHERE spot = ? AND t >= ? AND t < ? ORDER BY t').bind(id, date, date + 'T99').all();
-      return json({ id, date, hours: r.results }, 200, { 'Cache-Control': 'public, max-age=3600' });
+      const date = url.searchParams.get('date'), from = url.searchParams.get('from') || date, to = url.searchParams.get('to') || date;
+      if (!D.test(from || '') || !D.test(to || '') || to < from || Date.parse(to) - Date.parse(from) > 100 * 864e5) return json({ error: 'date=YYYY-MM-DD, or from= and to= up to 100 days apart' }, 400);
+      const r = await env.DB.prepare('SELECT * FROM spot_hour WHERE spot = ? AND t >= ? AND t < ? ORDER BY t').bind(id, from, to + 'T99').all();
+      return json({ id, from, to, hours: r.results }, 200, { 'Cache-Control': 'public, max-age=3600' });
     }
     const to = url.searchParams.get('to') || new Date().toISOString().slice(0, 10);
     const from = url.searchParams.get('from') || new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
