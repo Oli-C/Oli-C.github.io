@@ -82,9 +82,43 @@ function arrival(c, k) {
 // the way forecast apps quote surf. Faces run a little under the arriving
 // significant height, more so when the period is short.
 function faceRange(c, k) {
-  const { arrive } = arrival(c, k);
-  const p = k.p || 0, face = (k.h || 0) * arrive * (p >= 12 ? 0.9 : p >= 9 ? 0.8 : 0.7);
+  if (!k || k.h == null) return [0, 0];
+  const sw = swellTrains(c, k), p = sw.main.p;
+  const face = sw.h * (p >= 12 ? 0.9 : p >= 9 ? 0.8 : 0.7);
   return [+(face * 0.8).toFixed(1), +(face * 1.1).toFixed(1)];
+}
+
+// Size, period and direction points for one swell train at this spot
+// (t.ha is its height on arrival at the beach).
+function swellPts(c, t) {
+  const b = c.best, [lo, hi] = b.size, P = b.period, h = t.ha;
+  const sweet = lo + 0.4 * (hi - lo);
+  const size = h <= sweet ? lerp(h, lo * 0.5, 0, sweet, 4) : h <= hi ? 4 : lerp(h, hi, 4, hi * 1.4, 0);
+  const per = lerp(t.p, P - 2, 0, P + 5, 3);
+  const dir = t.d != null ? lerp(distToWindow(t.d, b.swell), 0, 3, 60, 0) : 2;
+  return { size, per, dir, total: size + per + dir };
+}
+
+// The swell trains as they reach this beach. Most days one groundswell
+// does the work, but a smaller swell from another angle can be the one
+// that actually gets into a sheltered spot (a SW swell into the Cascais
+// bay under a NW swell the cape blocks). Each train is arrived on its own
+// and the one bringing more energy to the beach (height² × period) is the
+// main swell. Within 30° of each other they add up as energy (heights
+// combine as the root of the sum of squares); further apart, the other
+// one is a cross swell.
+function swellTrains(c, k) {
+  const ts = [{ h: k.h, p: k.p || 0, d: k.d }];
+  if (k.h2 != null && k.h2 >= 0.2 && k.p2 >= 6 && k.d2 != null) ts.push({ h: k.h2, p: k.p2, d: k.d2, second: true });
+  for (const t of ts) {
+    const a = arrival(c, t);
+    t.arrive = a.arrive; t.geo = a.geo; t.ha = t.h * a.arrive;
+    t.pts = swellPts(c, t);
+  }
+  ts.sort((a, b) => b.ha * b.ha * b.p - a.ha * a.ha * a.p);
+  const [main, other = null] = ts;
+  const merged = !!other && main.d != null && other.d != null && angleDiff(main.d, other.d) <= 30;
+  return { main, other, merged, h: merged ? Math.sqrt(main.ha * main.ha + other.ha * other.ha) : main.ha };
 }
 
 function windRel(c, k) {
@@ -126,20 +160,22 @@ function windRel(c, k) {
    Blind to the banks — a nudge to open the cam, not a forecast. */
 function score(c, k) {
   if (!k || k.h == null || k.ws == null) return null;
-  const b = c.best, p = k.p || 0, P = b.period;
+  const b = c.best, P = b.period;
   const [lo, hi] = b.size;
   const f = [];
 
-  const dd = k.d != null ? distToWindow(k.d, b.swell) : 0;
-  const { arrive, geo } = arrival(c, k);
-  const h = k.h * arrive;
-  const hNow = (Math.abs(arrive - 1) < 0.05 ? hgt(h) : `${hgt(h)} at the beach (${hgt(k.h)} offshore)`) + (geo ? ' · by geometry' : '');
+  // The main swell is whichever train works best here; see swellTrains.
+  const sw = swellTrains(c, k), m = sw.main, p = m.p;
+  const h = sw.h;
+  let hNow = Math.abs(m.arrive - 1) < 0.05 ? hgt(h) : `${hgt(h)} at the beach (${hgt(m.h)} offshore)`;
+  if (sw.merged) hNow += `, two swells from the ${dirName(m.d)} combined`;
+  else if (m.second) hNow += `, from the ${dirName(m.d)} secondary swell`;
+  if (m.geo) hNow += ' · by geometry';
 
-  const sweet = lo + 0.4 * (hi - lo);
-  const size = h <= sweet ? lerp(h, lo * 0.5, 0, sweet, 4) : h <= hi ? 4 : lerp(h, hi, 4, hi * 1.4, 0);
+  const size = sw.merged ? swellPts(c, { ...m, ha: h }).size : m.pts.size;
   f.push({ label: 'Size', pts: size, max: 4, now: hNow, likes: rng(lo, hi) });
 
-  const per = lerp(p, P - 2, 0, P + 5, 3);
+  const per = m.pts.per;
   // Short-period swell is lumpy however clean the wind is, so it also
   // scales the whole score, not just its own 3 points.
   const clean = p < 8 ? 0.6 : p < 10 ? 0.8 : p < 12 ? 0.9 : 1;
@@ -147,8 +183,8 @@ function score(c, k) {
 
   // Angle still matters once the swell is in: straight into the window
   // lines up the banks; well outside it tends to bend in as closeouts.
-  const dir = k.d != null ? lerp(dd, 0, 3, 60, 0) : 2;
-  f.push({ label: 'Direction', pts: dir, max: 3, now: k.d != null ? `from ${dirName(k.d)}` : 'unknown', likes: windowText(b.swell) });
+  const dir = m.pts.dir;
+  f.push({ label: 'Direction', pts: dir, max: 3, now: m.d != null ? `from ${dirName(m.d)}` : 'unknown', likes: windowText(b.swell) });
 
   // Speeds are km/h. Under ~4 kt it's glassy whatever the direction; a
   // light onshore already textures the face (Surfline calls 5-6 kt onshore
@@ -164,19 +200,24 @@ function score(c, k) {
   f.push({ label: 'Wind', mult: wind, now: `${kts(ws)} kts ${dirName(k.wd)}, ${rel}${gusty ? `, gusting ${kts(k.wg)}` : ''}`, likes: `${windowText(b.wind)} offshore` });
 
   // Sea state: wind chop (sampled offshore, so an offshore wind grooms it
-  // and it counts half) plus any secondary swell crossing the main one,
-  // which shows up as total wave height above the swell height and no
-  // wind can tidy.
+  // and it counts half) plus any second swell crossing the main one, which
+  // no wind can tidy. That's the other train as it arrives here, plus any
+  // energy still unexplained: total wave height left over above both
+  // swells and the chop (third swells, models disagreeing), arrived like
+  // the main swell.
   let sea = 1;
-  if (h > 0 && (k.wwh != null || k.th != null)) {
-    const wwh = k.wwh || 0;
-    const cross = k.th != null ? Math.sqrt(Math.max(0, k.th * k.th - k.h * k.h - wwh * wwh)) : 0;
-    const r = (wwh * (rel === 'offshore' ? 0.5 : 1) + cross) / k.h;
+  if (h > 0 && (k.wwh != null || k.th != null || sw.other)) {
+    const wwh = k.wwh || 0, h2 = k.h2 || 0;
+    const rest = k.th != null ? Math.sqrt(Math.max(0, k.th * k.th - k.h * k.h - h2 * h2 - wwh * wwh)) * m.arrive : 0;
+    const other = sw.other && !sw.merged ? sw.other.ha : 0;
+    const cross = Math.sqrt(other * other + rest * rest);
+    const crossDir = other >= rest && sw.other ? sw.other.d : null;
+    const r = wwh * (rel === 'offshore' ? 0.5 : 1) / Math.max(m.h, 0.1) + cross / Math.max(h, 0.1);
     sea = r > 1 ? 0.5 : r > 0.6 ? 0.7 : r > 0.35 ? 0.85 : 1;
     const bits = [];
     if (wwh >= 0.1) bits.push(`${hgt(wwh)} wind chop`);
-    if (cross >= 0.2) bits.push(`${hgt(cross)} cross swell`);
-    f.push({ label: 'Sea state', mult: sea, now: bits.length ? `${bits.join(' + ')} on ${hgt(k.h)} swell` : 'clean', likes: 'one clean groundswell' });
+    if (cross >= 0.2) bits.push(`${hgt(cross)} cross swell${crossDir != null ? ' from ' + dirName(crossDir) : ''}`);
+    f.push({ label: 'Sea state', mult: sea, now: bits.length ? `${bits.join(' + ')} on ${hgt(h)} swell` : 'clean', likes: 'one clean groundswell' });
   }
 
   let tide = 1;
@@ -236,7 +277,9 @@ const offshore = (c) => {
   return [lat.toFixed(4), lng.toFixed(4)];
 };
 
-const MARINE = ['swell_wave_height', 'swell_wave_period', 'swell_wave_peak_period', 'swell_wave_direction', 'wave_height', 'wave_period', 'wave_direction', 'wind_wave_height', 'sea_level_height_msl', 'sea_surface_temperature'];
+// Secondary swell comes from Météo-France and NCEP; the DWD models don't
+// split it out.
+const MARINE = ['swell_wave_height', 'swell_wave_period', 'swell_wave_peak_period', 'swell_wave_direction', 'secondary_swell_wave_height', 'secondary_swell_wave_period', 'secondary_swell_wave_direction', 'wave_height', 'wave_period', 'wave_direction', 'wind_wave_height', 'sea_level_height_msl', 'sea_surface_temperature'];
 const WIND = ['wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m', 'is_day', 'temperature_2m'];
 
 // Several models per metric, so one model's quirk doesn't decide a score.
@@ -303,10 +346,13 @@ function outliers(vals, isDir) {
 function blend(rows, vars, weights) {
   const out = {};
   for (const v of vars) {
-    let pairs = rows.map((r, i) => [r[v], weights ? weights[i] : 1]).filter(([x]) => x != null && !Number.isNaN(x));
-    // A wave model with no coverage at a point reports 0, not null; don't
-    // let that vote when other models see real swell.
-    if (v.endsWith('_height') && pairs.some(([x]) => x > 0.05)) pairs = pairs.filter(([x]) => x > 0.05);
+    // A wave model with no coverage at a point (or no second swell) reports
+    // 0, not null; don't let it vote on height, period or direction when
+    // other models see real swell.
+    const hk = v.replace(/_(peak_period|period|direction)$/, '_height');
+    const hv = hk !== v && vars.includes(hk) ? hk : v.endsWith('_height') ? v : null;
+    const seen = hv && rows.some((r) => r[hv] > 0.05);
+    let pairs = rows.map((r, i) => [r[v], weights ? weights[i] : 1, r]).filter(([x, , r]) => x != null && !Number.isNaN(x) && (!seen || r[hv] > 0.05));
     if (!pairs.length) { out[v] = null; continue; }
     if (v !== 'is_day') { const drop = outliers(pairs.map((p) => p[0]), v.endsWith('_direction')); if (drop.size) pairs = pairs.filter((_, i) => !drop.has(i)); }
     const vals = pairs.map((p) => p[0]), ws = pairs.map((p) => p[1]);
@@ -435,6 +481,8 @@ const toK = (m, w) => {
   const p = m.swell_wave_peak_period ?? (m.swell_wave_period != null ? +(m.swell_wave_period * 1.25).toFixed(1) : m.wave_period);
   return {
     h, p, d: m.swell_wave_direction ?? m.wave_direction, wwh: m.wind_wave_height, th: m.wave_height,
+    // Secondary swell period is a mean period; a single swell's peak runs ~10% longer.
+    h2: m.secondary_swell_wave_height, p2: m.secondary_swell_wave_period != null ? +(m.secondary_swell_wave_period * 1.1).toFixed(1) : null, d2: m.secondary_swell_wave_direction,
     ws: w.wind_speed_10m, wd: w.wind_direction_10m, wg: w.wind_gusts_10m, day: w.is_day == null ? 1 : w.is_day,
     tide: m.sea_level_height_msl, sst: m.sea_surface_temperature, air: w.temperature_2m,
   };
