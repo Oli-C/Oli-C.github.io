@@ -112,14 +112,19 @@ function initMap() {
     maxZoom: 19,
     className: 'osm-tiles',
   });
-  // On sharp screens the imagery is fetched a zoom level deeper at half
-  // size (Leaflet's detectRetina), else 256 px tiles stretch and blur. Not
-  // the streets: their labels would shrink to half size.
+  // Esri's tiles are 256 px with no @2x set, so on sharp screens the
+  // imagery comes from deeper zoom levels drawn smaller: one level at half
+  // size on 1.5–2x screens, two levels at a quarter on 3x ones (iPhones;
+  // about three times the tiles, so not with Data saver on). Esri goes to
+  // zoom 19 along this coast; past that it can only stretch. Not the
+  // streets: their labels would shrink.
+  const dpr = window.devicePixelRatio || 1, deep = dpr >= 2.5 && !dataSaver ? 2 : dpr > 1 ? 1 : 0;
   const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution: '&copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics',
-    maxZoom: 20,           // 19 once detectRetina has taken its level
-    maxNativeZoom: devicePixelRatio > 1 ? 18 : 19,   // + the retina level: 19, Esri's deepest along this coast
-    detectRetina: true,
+    tileSize: 256 >> deep,
+    zoomOffset: deep,
+    maxNativeZoom: 19 - deep,
+    maxZoom: 19,
   });
   let base = 'sat';
   try { base = localStorage.getItem('surf-base2') || 'sat'; } catch {}
@@ -493,39 +498,63 @@ const swellColor = (h) => `rgba(79,195,220,${Math.min(0.95, 0.35 + h * 0.2)})`;
 
 // The heat map: swell height in steps, so it reads at a glance — half a
 // metre each to 3 m, then 3–4 and 4+ — one warm hue, paler and fainter
-// for small, deeper for big, with a thin line where one step meets the
-// next. Drawn per map tile at screen resolution, so the edges stay crisp
-// at any zoom; land stays clear.
+// for small, deeper for big, with a thin light line where one step meets
+// the next. Each map tile samples the grid every 8 px, then every screen
+// pixel (at the device's density) is interpolated from those and shaded
+// by its distance to the nearest step, so the lines and the coast come
+// out smooth at any zoom; land stays clear.
 const HEAT_EDGES = [0.5, 1, 1.5, 2, 2.5, 3, 4];   // metres
 const HEAT_COLS = [[255, 240, 210, 40], [254, 218, 150, 95], [253, 190, 105, 135], [249, 155, 65, 165],
   [240, 118, 45, 185], [222, 82, 35, 205], [190, 45, 30, 220], [130, 18, 25, 235]];
 const heatBand = (m) => { let i = 0; while (i < HEAT_EDGES.length && m >= HEAT_EDGES[i]) i++; return i; };
 const heatCss = (c) => `rgba(${c[0]},${c[1]},${c[2]},${(c[3] / 255).toFixed(2)})`;
 function makeHeatLayer() {
+  const LINE = 0.6, LINE_A = 150;   // the step lines: half-width in CSS px, alpha
   const Heat = L.GridLayer.extend({
     createTile(coords) {
       const size = this.getTileSize(), cv = document.createElement('canvas');
-      const P = 2, nx = size.x / P, ny = size.y / P;   // a sample every 2 px
-      cv.width = nx; cv.height = ny;
+      const dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.round(size.x * dpr), H = Math.round(size.y * dpr);
+      cv.width = W; cv.height = H;
       const g = grids && grids.swell;
       if (!g) return cv;
-      const s = stepOf(g, fieldHour), origin = coords.scaleBy(size);
-      // Bands for the tile plus a ring round it, so the lines meet across tiles.
-      const band = new Int8Array((nx + 2) * (ny + 2));
-      for (let y = -1; y <= ny; y++) for (let x = -1; x <= nx; x++) {
-        const ll = this._map.unproject(origin.add([x * P + P / 2, y * P + P / 2]), coords.z);
+      // The lattice: metres every 8 CSS px, one extra row and column each side.
+      const S = 8, n = size.x / S + 3, s = stepOf(g, fieldHour), origin = coords.scaleBy(size);
+      const lat = new Float32Array(n * n);
+      for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+        const ll = this._map.unproject(origin.add([(x - 1) * S, (y - 1) * S]), coords.z);
         const h = gridAt(g, 'h', ll.lat, ll.lng, s);
-        band[(y + 1) * (nx + 2) + x + 1] = h == null ? -1 : heatBand(h / 100);
+        lat[y * n + x] = h == null ? NaN : h / 100;
       }
-      const ctx = cv.getContext('2d'), img = ctx.createImageData(nx, ny);
-      for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) {
-        const at = (dx, dy) => band[(y + 1 + dy) * (nx + 2) + x + 1 + dx];
-        const bnd = at(0, 0);
-        if (bnd < 0) continue;
-        // On a step's edge (the bigger side draws it): a light line.
-        const edge = [at(1, 0), at(-1, 0), at(0, 1), at(0, -1)].some((n) => n >= 0 && n < bnd);
-        const c = edge ? [255, 255, 255, 150] : HEAT_COLS[bnd], o = (y * nx + x) * 4;
-        img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = c[3];
+      const ctx = cv.getContext('2d'), img = ctx.createImageData(W, H), d = img.data;
+      for (let py = 0; py < H; py++) {
+        const v = (py + 0.5) / dpr / S + 1, y0 = Math.floor(v), ty = v - y0;
+        for (let px = 0; px < W; px++) {
+          const u = (px + 0.5) / dpr / S + 1, x0 = Math.floor(u), tx = u - x0;
+          const a = lat[y0 * n + x0], b = lat[y0 * n + x0 + 1], c = lat[(y0 + 1) * n + x0], e = lat[(y0 + 1) * n + x0 + 1];
+          // Bilinear over the corners that are sea; mostly land: leave it clear.
+          let sum = 0, w = 0;
+          const add = (val, ww) => { if (val === val && ww) { sum += val * ww; w += ww; } };
+          add(a, (1 - tx) * (1 - ty)); add(b, tx * (1 - ty)); add(c, (1 - tx) * ty); add(e, tx * ty);
+          if (w < 0.4) continue;
+          const coast = Math.min(1, (w - 0.4) / 0.2);   // fades over the last bit, not a hard step
+          const h = sum / w, band = heatBand(h), col = HEAT_COLS[band];
+          // Distance to the nearest step, in CSS px, from the local slope.
+          let line = 0;
+          if (a === a && b === b && c === c && e === e) {
+            const gx = ((b - a) * (1 - ty) + (e - c) * ty) / S, gy = ((c - a) * (1 - tx) + (e - b) * tx) / S;
+            const grad = Math.hypot(gx, gy);
+            if (grad > 1e-6) {
+              let near = Infinity;
+              for (const edge of HEAT_EDGES) near = Math.min(near, Math.abs(h - edge));
+              line = Math.max(0, Math.min(1, 0.5 + (LINE - near / grad) * dpr));
+            }
+          }
+          const o = (py * W + px) * 4;
+          d[o] = col[0] + (255 - col[0]) * line;
+          d[o + 1] = col[1] + (255 - col[1]) * line;
+          d[o + 2] = col[2] + (255 - col[2]) * line;
+          d[o + 3] = (col[3] + (Math.max(LINE_A, col[3]) - col[3]) * line) * coast;
+        }
       }
       ctx.putImageData(img, 0, 0);
       return cv;
