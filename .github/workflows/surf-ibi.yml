@@ -4,8 +4,8 @@ name: surf ibi
 # and buoy, posted to the surf worker (POST /ibi), which adds it to the
 # hourly blend as one more wave model; and the coast as a grid for the
 # map's swell field and height heat map (POST /grid/swell). IBI runs twice
-# a day; every six
-# hours picks up each run soon after it's out. See SURFING/tools/copernicus.py.
+# a day; every six hours picks up each run soon after it's out. See
+# SURFING/tools/copernicus.py.
 #
 # Secrets: COPERNICUSMARINE_SERVICE_USERNAME / _PASSWORD (the Copernicus
 # Marine account; without them it reads the public store), FEEDBACK_URL
