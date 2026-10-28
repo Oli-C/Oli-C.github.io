@@ -2,6 +2,8 @@
    Plain script, no modules, so file:// and GitHub Pages both work. */
 
 const LEVELS = ['Flat', 'Poor', 'Fair', 'Good', 'Epic'];
+// The Cloudflare worker (tools/worker/): feedback in, hourly forecast out.
+const SURF_WORKER = 'https://surf-feedback.odj-clarke.workers.dev';
 // The day in four blocks, dawn → evening (local hours, [from, to)).
 const BUCKETS = [
   { label: 'Dawn', from: 6, to: 9 },

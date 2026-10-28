@@ -1046,6 +1046,17 @@
   .fb-btn:hover { border-color: var(--accent); }
   .fb-btn.sel { background: var(--accent); color: #101820; border-color: var(--accent); }
   .fb-note { font-size: 12px; color: var(--fg-muted); }
+  .who { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border-2); }
+  .who-q { display: block; font-size: 13px; font-weight: 600; margin-bottom: 7px; }
+  .who-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .who-in {
+    flex: 1 1 180px; min-width: 0; font: inherit; font-size: 16px; color: var(--fg); background: var(--bg-3);
+    border: 1px solid var(--border-2); border-radius: 999px; padding: 6px 13px; outline: none;
+  }
+  .who-in:focus { border-color: var(--accent); }
+  .who .fb-note { margin-top: 6px; }
+  .who-line { margin-top: 10px; }
+  .linkish { font: inherit; color: var(--accent-ink); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
   .sess-open { margin-top: 12px; }
   .sess-open .fb-btn { display: inline-flex; align-items: center; gap: 7px; }
   .sess-open .fb-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent-ink); }
@@ -1809,6 +1820,28 @@
     return out;
   }
 
+  // The worker's hourly forecast (see SURFING/tools/worker/forecast.js),
+  // fetched once and shared by the live scores and the session form.
+  // Refused if it's an unknown version or more than 3 hours old.
+  const FC_VER = 1;
+  let fcPromise = null, fcAt = 0;
+  function loadWorkerForecast() {
+    if (!fcPromise || Date.now() - fcAt > 20 * 60000) {
+      fcAt = Date.now();
+      fcPromise = (async () => {
+        if (!FEEDBACK_URL) throw new Error('no worker set');
+        const r = await fetch(FEEDBACK_URL.replace(/\/$/, '') + '/forecast');
+        if (!r.ok) throw new Error('worker said ' + r.status);
+        const fc = await r.json();
+        if (fc.v !== FC_VER) throw new Error('forecast version ' + fc.v);
+        if (Date.now() - Date.parse(fc.built) > 3 * 3600e3) throw new Error('forecast from ' + fc.built);
+        return fc;
+      })();
+      fcPromise.catch(() => { setTimeout(() => { fcPromise = null; }, 60000); });
+    }
+    return fcPromise;
+  }
+
   async function loadConditions() {
     const ids = CAMS.map((c) => c.id).join();
     const today = new Date().toDateString();
@@ -1820,6 +1853,32 @@
         return;
       }
     } catch {}
+
+    // First choice: the worker's hourly build (one small, pre-blended file).
+    try {
+      const fc = await loadWorkerForecast();
+      const next = {};
+      let when = '';
+      for (const c of CAMS) {
+        const s = fc.spots[c.id];
+        if (!s) throw new Error('spot missing from the worker forecast: ' + c.id);
+        const nowLocal = spotNow(s.offset), day = s.days.find((d) => d.date === nowLocal.slice(0, 10));
+        if (!day || !day.hours.length) throw new Error('no hours for today');
+        const hours = day.hours.map((k) => ({ ...k }));
+        let near = 0, nearD = Infinity;
+        hours.forEach((k, j) => { const d = Math.abs(Date.parse(k.t + ':00Z') - Date.parse(nowLocal + ':00Z')); if (d < nearD) { nearD = d; near = j; } });
+        const now = { ...hours[near] }, sx = s.src && s.src[now.t];
+        if (sx) { now.src = sx.src; now.model = sx.model; }
+        if (s.obs) now.obs = s.obs;
+        now.conf = confidence(now.src, s.obs, now);
+        next[c.id] = { now, hours, sun: day.sun, tides: day.tides, t: now.t };
+        when = when || now.t.slice(11, 16);
+      }
+      conditions = next;
+      condNote = `Scores from Open-Meteo swell, wind and tide at ${when} local, judged against each spot’s usual best.`;
+      try { localStorage.setItem('surf-cond', JSON.stringify({ v: COND_VER, ids, day: today, t: Date.now(), data: conditions, note: condNote })); } catch {}
+      return;
+    } catch (e) { console.info('surf: worker forecast unavailable, fetching directly —', e.message); }
 
     const pts = CAMS.map(offshore);
     const lat = pts.map((p) => p[0]).join(','), lng = pts.map((p) => p[1]).join(',');
@@ -3039,13 +3098,73 @@
   // the spot's numbers can be fitted later instead of guessed.
   const FB_KEY = 'surf-feedback';
   // Every verdict is pooled across all users: it goes to the Cloudflare
-  // Worker in tools/feedback-worker.js (no personal data: spot, score,
-  // factors, sea state, verdict) and the scheduled Action exports the pool
-  // into data/feedback.json, which becomes each spot's calibration in
+  // worker (tools/worker/feedback.js) with the spot, score, factors and sea
+  // state, plus the name and device (kept private there), and the
+  // scheduled Action exports the pool, names and devices stripped, into
+  // data/feedback.json, which becomes each spot's calibration in
   // data/skill.json. The device copy only lets a user see their own votes.
   // Public on purpose: browsers post here. Exporting needs EXPORT_KEY,
   // which lives only in Cloudflare and the repo's Actions secrets.
-  const FEEDBACK_URL = 'https://surf-feedback.odj-clarke.workers.dev';
+  const FEEDBACK_URL = SURF_WORKER;   // score.js
+  // Who's reporting: a name asked for once on this device (optional) and
+  // the device itself (a random id made here, plus its kind, system and
+  // browser). Both go with every report and stay private in the worker;
+  // the public repo only ever gets a hashed device id (tools/skill.mjs).
+  const NAME_OK = /^[\p{L}\p{M}\p{N} .'’_-]{1,40}$/u;
+  const getName = () => { try { return localStorage.getItem('surf-name') || ''; } catch { return ''; } };
+  const nameSkipped = () => { try { return localStorage.getItem('surf-name-skip') === '1'; } catch { return false; } };
+  let whoEdit = false, whoErr = '';
+  function deviceInfo() {
+    let id = '';
+    try { id = localStorage.getItem('surf-device') || ''; } catch {}
+    if (!/^[a-f0-9-]{16,40}$/.test(id)) {
+      id = crypto.randomUUID ? crypto.randomUUID() : [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
+      try { localStorage.setItem('surf-device', id); } catch {}
+    }
+    const ua = navigator.userAgent || '';
+    const os = /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? 'iPadOS' : /iPhone|iPod/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android'
+      : /CrOS/.test(ua) ? 'ChromeOS' : /Mac OS X/.test(ua) ? 'macOS' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : 'other';
+    const browser = /SamsungBrowser/.test(ua) ? 'Samsung' : /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Firefox|FxiOS/.test(ua) ? 'Firefox'
+      : /Chrome|CriOS/.test(ua) ? 'Chrome' : /Safari/.test(ua) ? 'Safari' : 'other';
+    const kind = os === 'iPadOS' || (/Android/.test(ua) && !/Mobile/.test(ua)) ? 'tablet' : /Mobi|iPhone|Android/.test(ua) ? 'phone' : 'desktop';
+    return { id, kind, os, browser };
+  }
+  const who = () => ({ name: getName() || null, dev: deviceInfo() });
+  // The name row: asked once (until saved or "Not now"), else a quiet
+  // "Reporting as …" with a way to change it.
+  function whoHtml() {
+    const name = getName();
+    if (whoEdit || (!name && !nameSkipped())) {
+      return `<div class="who">
+        <label class="who-q" for="who-in">${name ? 'Change your name' : 'What should we call you?'}</label>
+        <div class="who-row">
+          <input id="who-in" class="who-in" type="text" maxlength="40" autocomplete="nickname" enterkeyhint="done" placeholder="First name or nickname" value="${esc(name)}">
+          <button class="fb-btn" type="button" data-who-save>Save</button>
+          <button class="fb-btn" type="button" data-who-skip>${name ? 'Cancel' : 'Not now'}</button>
+        </div>
+        ${whoErr ? `<div class="sess-err">${esc(whoErr)}</div>` : ''}
+        <div class="fb-note">Asked once. Saved on this device and kept private with your reports, never shown on the site.</div>
+      </div>`;
+    }
+    return `<div class="fb-note who-line">${name ? `Reporting as <b>${esc(name)}</b>` : 'Reporting without a name'} · <button class="linkish" type="button" data-who-edit>${name ? 'change' : 'add your name'}</button></div>`;
+  }
+  function whoClick(e, c) {
+    const b = e.target.closest('[data-who-save], [data-who-skip], [data-who-edit]');
+    if (!b) return false;
+    if ('whoEdit' in b.dataset) { whoEdit = true; whoErr = ''; }
+    else if ('whoSkip' in b.dataset) { if (!getName()) try { localStorage.setItem('surf-name-skip', '1'); } catch {} whoEdit = false; whoErr = ''; }
+    else {
+      const v = ($('who-in').value || '').normalize('NFC').replace(/\s+/g, ' ').trim();
+      if (!v) { try { localStorage.removeItem('surf-name'); localStorage.setItem('surf-name-skip', '1'); } catch {} whoEdit = false; whoErr = ''; }
+      else if (!NAME_OK.test(v)) { whoErr = 'Letters, numbers, spaces and . \' - _ only, up to 40.'; }
+      else { try { localStorage.setItem('surf-name', v); } catch {} whoEdit = false; whoErr = ''; }
+    }
+    renderFb(c);
+    if (sess && sess.id === c.id) renderSess(c);
+    if (whoEdit) requestAnimationFrame(() => { const i = $('who-in'); if (i) i.focus(); });
+    return true;
+  }
+
   // The conditions snapshot saved with every verdict and session: the
   // blended forecast hour, every field the score and training use.
   const K_KEEP = ['h', 'p', 'd', 'ws', 'wd', 'wg', 'day', 'tn', 'tdir', 'wwh', 'th', 'h2', 'p2', 'd2', 'sst', 'air', 'tide', 'conf'];
@@ -3061,12 +3180,15 @@
     const list = loadFb();
     list.push(entry);
     saveFb(list);
-    if (FEEDBACK_URL) fetch(FEEDBACK_URL.replace(/\/$/, '') + '/v', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry), keepalive: true }).catch(() => {});
+    if (FEEDBACK_URL) fetch(FEEDBACK_URL.replace(/\/$/, '') + '/v', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...entry, ...who() }), keepalive: true }).catch(() => {});
     else console.warn('surf: FEEDBACK_URL not set, verdict kept on this device only');
   }
   function renderFb(c) {
     const el = $('v-fb');
     if (!scoreOf(c)) { el.hidden = true; el.innerHTML = ''; return; }
+    // A refresh mid-typing keeps what's been typed in the name box.
+    const typing = $('who-in') && document.activeElement === $('who-in') ? $('who-in').value : null;
+    requestAnimationFrame(() => { const i = $('who-in'); if (typing != null && i) { i.value = typing; i.focus(); } });
     const mine = loadFb().filter((e) => e.id === c.id);
     const last = mine[mine.length - 1], recent = last && Date.now() - new Date(last.t) < 60 * 60 * 1000;
     el.hidden = false;
@@ -3079,7 +3201,7 @@
       </div>
       <div class="fb-note">${(() => {
           const pool = sharedSkill && sharedSkill.calibration && sharedSkill.calibration[c.id];
-          const bits = ['Anonymous; everyone’s verdicts calibrate this spot'];
+          const bits = ['Everyone’s verdicts calibrate this spot'];
           if (pool) bits.push(`${pool.n} so far${pool.n >= 5 && Math.abs(pool.f - 1) >= 0.02 ? `, scores ×${pool.f.toFixed(2)}` : ''}`);
           if (mine.length) bits.push(`${mine.length} from you`);
           return bits.join(' · ');
@@ -3090,9 +3212,13 @@
           const L = learnedSpot(c.id), n = L ? L.n : 0, mineS = loadSess().filter((e) => e.id === c.id).length;
           return [n ? `${n} session${n > 1 ? 's' : ''} logged here` : 'Your sessions teach the scores', mineS ? `${mineS} from you` : ''].filter(Boolean).join(' · ');
         })()}</span>
-      </div>`;
+      </div>
+      ${whoHtml()}`;
     el.querySelectorAll('[data-fb]').forEach((b) => b.addEventListener('click', () => { logFeedback(c, b.dataset.fb); renderFb(c); if (TUNE) renderTune(c); }));
     el.querySelector('[data-sess-open]').addEventListener('click', () => (sess && sess.id === c.id ? closeSess() : openSess(c)));
+    el.onclick = (e) => whoClick(e, c);
+    const wi = $('who-in');
+    if (wi) wi.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); el.querySelector('[data-who-save]').click(); } });
   }
 
   /* ---------- Logged sessions ("I surfed here") ----------
@@ -3120,6 +3246,15 @@
   async function pastConditions(c) {
     const hit = pastCache[c.id];
     if (hit && Date.now() - hit.at < COND_TTL) return hit;
+    // The worker's build already holds the last 2 days and today, blended.
+    try {
+      const fc = await loadWorkerForecast(), s = fc.spots[c.id];
+      if (s) {
+        const today = spotNow(s.offset).slice(0, 10), byDate = {}, sun = {};
+        for (const d of s.days) if (d.date <= today) { byDate[d.date] = d.hours.map((k) => ({ ...k })); if (d.sun) sun[d.date] = d.sun; }
+        return (pastCache[c.id] = { at: Date.now(), byDate, sun, offset: s.offset });
+      }
+    } catch {}
     const [lat, lng] = offshore(c);
     const q = `latitude=${lat}&longitude=${lng}&past_days=2&forecast_days=1&timezone=auto`;
     const [m, w] = await Promise.all([
@@ -3234,7 +3369,7 @@
       ${sess.msg ? `<p class="sess-err">${esc(sess.msg)}</p>` : ''}
       <div class="sess-go">
         <button class="pop-btn" type="button" data-ssend${sess.busy ? ' disabled' : ''}>${sess.warn ? 'Yes, log it' : 'Log session'}</button>
-        <span class="fb-note">Anonymous. Saved with the forecast for those hours.</span>
+        <span class="fb-note">Saved with the forecast for those hours${getName() ? `, as ${esc(getName())}` : ''}.</span>
       </div>`;
   }
 
@@ -3277,7 +3412,7 @@
       mins: sess.mins, rating: sess.rating, size: sess.size, surface: sess.surface, shape: sess.shape, why: [...sess.why],
       hours: p.hrs.slice(0, 4).map((k) => ({ t: k.t, k: snapK(k) })),
       model: p.model == null ? null : +p.model.toFixed(2), ver: SESS_VER,
-      hp: hp ? hp.value : '', dt: Date.now() - sess.opened,
+      hp: hp ? hp.value : '', dt: Date.now() - sess.opened, ...who(),
     };
     sess.busy = true; sess.msg = ''; renderSess(c);
     const res = await sendSession(payload);

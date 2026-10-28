@@ -14,6 +14,7 @@
    Run by .github/workflows/surf-skill.yml every few hours; also fine by
    hand:  node SURFING/tools/skill.mjs */
 import fs from 'node:fs';
+import { createHmac } from 'node:crypto';
 
 const UA = 'allfield-surfcams/1.0 (oclarke@routeware.com)';
 const OUT = new URL('../data/skill.json', import.meta.url);
@@ -138,7 +139,7 @@ async function verifyWaves() {
 
 /* ---------- Pooled feedback → per-spot calibration ----------
    data/feedback.json holds every verdict we know about: pulled from the
-   Cloudflare Worker (tools/feedback-worker.js) when FEEDBACK_URL and
+   Cloudflare worker (tools/worker/feedback.js) when FEEDBACK_URL and
    FEEDBACK_KEY are set, and/or pasted in by hand from the tune panel's
    "Copy feedback log". A spot's calibration shrinks or grows its score by
    how lopsided the verdicts are: 60% "too high" and 0% "too low" → ×0.86. */
@@ -153,6 +154,16 @@ async function pullFeedback() {
     const since = [...list, ...sessions].map((e) => e.t).sort().pop() || '';
     try {
       const j = await getJson(`${url.replace(/\/$/, '')}/export?key=${encodeURIComponent(key)}&since=${encodeURIComponent(since)}`);
+      // This repo is public: names and device details stay in the worker.
+      // What lands here is the report plus a keyed hash of the device id
+      // (so one device's reports can still be weighed together).
+      const anon = (e) => {
+        const { name, dev, ...rest } = e;
+        if (dev && dev.id) rest.who = 'd' + createHmac('sha256', key).update(dev.id).digest('hex').slice(0, 12);
+        return rest;
+      };
+      j.verdicts = (j.verdicts || []).map(anon);
+      j.sessions = (j.sessions || []).map(anon);
       const seen = new Set(list.map((e) => `${e.t}|${e.id}|${e.verdict}`));
       for (const e of j.verdicts || []) { const k = `${e.t}|${e.id}|${e.verdict}`; if (!seen.has(k)) { list.push(e); seen.add(k); } }
       const seenS = new Set(sessions.map((e) => `${e.t}|${e.id}|${e.local}`));
