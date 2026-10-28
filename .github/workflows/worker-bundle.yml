@@ -1,10 +1,14 @@
 name: worker bundle
 
-# Keeps SURFING/tools/surf-worker.js (the file pasted into the Cloudflare
-# worker) in step with its sources: spots.js, score.js and tools/worker/*.
-# Rebuilds on any change to them and commits the bundle if it moved. The
-# deployed worker still has to be updated by hand (paste → Deploy); its
-# GET /health shows the build it's running, to compare with the file.
+# Keeps SURFING/tools/surf-worker.js in step with its sources: spots.js,
+# score.js and tools/worker/*. Rebuilds on any change to them, commits the
+# bundle if it moved, then deploys it to the surf-feedback Cloudflare worker
+# when the live build (GET /health) differs from the file's WORKER_BUILD.
+#
+# The deploy uploads code only (PUT …/content), so the worker's bindings
+# (FEEDBACK KV, EXPORT_KEY secret) and its cron trigger are left untouched.
+# Needs repo secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID; without
+# them the deploy step is skipped and the bundle can still be pasted by hand.
 
 on:
   push:
@@ -14,10 +18,15 @@ on:
       - 'SURFING/score.js'
       - 'SURFING/tools/worker/**'
       - 'SURFING/tools/build-worker.mjs'
+      - '.github/workflows/worker-bundle.yml'
   workflow_dispatch:
 
 permissions:
   contents: write
+
+env:
+  WORKER: surf-feedback
+  WORKER_URL: https://surf-feedback.odj-clarke.workers.dev
 
 jobs:
   bundle:
@@ -40,3 +49,26 @@ jobs:
             git commit -m "worker: rebuild surf-worker.js [skip ci]"
             git push
           fi
+      - name: Deploy to Cloudflare
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CF_TOKEN" ] || [ -z "$CF_ACCT" ]; then
+            echo "::notice::No Cloudflare secrets set; skipping deploy"; exit 0
+          fi
+          want=$(sed -n "s/^const WORKER_BUILD = '\(.*\)';/\1/p" SURFING/tools/surf-worker.js)
+          live=$(curl -s "$WORKER_URL/health" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{console.log(JSON.parse(s).build||'')}catch{console.log('')}})")
+          echo "bundle $want, live ${live:-unknown}"
+          if [ "$want" = "$live" ]; then echo "worker current"; exit 0; fi
+          res=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$CF_ACCT/workers/scripts/$WORKER/content" \
+            -H "Authorization: Bearer $CF_TOKEN" \
+            -F 'metadata={"main_module":"surf-worker.js"};type=application/json' \
+            -F "surf-worker.js=@SURFING/tools/surf-worker.js;filename=surf-worker.js;type=application/javascript+module")
+          echo "$res" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);if(!j.success){console.error(JSON.stringify(j.errors));process.exit(1)}console.log('deployed',j.result.modified_on)})"
+          for i in 1 2 3 4 5 6; do
+            live=$(curl -s "$WORKER_URL/health" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{console.log(JSON.parse(s).build||'')}catch{console.log('')}})")
+            [ "$live" = "$want" ] && { echo "live on $live"; exit 0; }
+            sleep 5
+          done
+          echo "::error::deployed but /health still reports ${live:-nothing}"; exit 1
