@@ -338,17 +338,16 @@
     .cards, .layout[data-view="grid"] .cards, .layout.filtered .cards { grid-template-columns: 1fr; gap: 12px; }
   }
 
-  /* A card: the live picture on top, the spot and its conditions under it. */
   .cam {
     position: relative;
-    display: flex;
-    flex-direction: column;
+    display: block;
     width: 100%;
-    padding: 0;
+    aspect-ratio: 16 / 9;
     font: inherit;
-    text-align: left;
-    color: var(--fg);
-    background: var(--bg-3);
+    color: #fff;
+    background:
+      radial-gradient(120% 90% at 20% 110%, color-mix(in srgb, var(--sea) 70%, transparent), transparent 60%),
+      linear-gradient(160deg, var(--bg-2), var(--bg));
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     overflow: hidden;
@@ -363,16 +362,6 @@
   .cam:focus-visible { border-color: var(--accent); }
   .cam.flash { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
 
-  .cam .media {
-    position: relative;
-    display: block;
-    aspect-ratio: 16 / 9;
-    overflow: hidden;
-    color: #fff;
-    background:
-      radial-gradient(120% 90% at 20% 110%, color-mix(in srgb, var(--sea) 70%, transparent), transparent 60%),
-      linear-gradient(160deg, var(--bg-2), var(--bg));
-  }
   /* Snapshot underneath, live video on top once it's actually playing. */
   .cam img, .cam video {
     position: absolute;
@@ -384,9 +373,16 @@
     transition: opacity .4s var(--ease);
   }
   .cam img.ready, .cam video.ready { opacity: 1; }
-  .cam .score { padding: 3px 8px 3px; }
-  .cam .score b { font-size: 15px; }
-  .cam .score small { font-size: 10px; }
+  .cam .score {
+    position: absolute;
+    z-index: 2;
+    right: 8px;
+    top: 8px;
+    padding: 2.5px 6px 2.5px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+  }
+  .cam .score b { font-size: 12px; }
+  .cam .score small { font-size: 9px; }
   .live {
     position: absolute;
     z-index: 2;
@@ -457,39 +453,48 @@
     .cam, .cam img, .cam video { transition: none; }
   }
 
-  /* Under the picture: name and score, where, then the conditions now as
-     arrows and numbers (swell from, wind from and how it sits on the
-     beach, the surface, the tide) beside the day's four bars. */
-  .info {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 2px 10px;
-    padding: 9px 12px 11px;
+  /* Small text overlay along the bottom of the picture */
+  /* Kept to a thin strip so the picture stays the point. */
+  .overlay {
+    position: absolute;
+    z-index: 1;
+    left: 0; right: 0; bottom: 0;
+    padding: 14px 8px 6px;
+    text-align: left;
+    background: linear-gradient(to top, rgba(0,0,0,0.72), rgba(0,0,0,0));
   }
-  .info .name { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; align-self: center; }
-  .info .score-slot { align-self: center; }
-  .info .where { grid-column: 1 / -1; font-size: 12px; color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .info .where .dist::before { content: " · "; }
-  .info .where .dist:empty::before { content: none; }
-  .info .cond-line { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 13px; color: var(--fg-muted); min-width: 0; }
-  .info .mini-slot { align-self: end; }
-  .info .mini { height: 22px; gap: 3px; }
-  .info .mini i { width: 8px; border-radius: 2px; }
-  .cr { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-  .cr b { color: var(--fg); font-weight: 600; }
-  .cr .arr { display: inline-flex; width: 14px; height: 14px; }
-  .cr .arr svg { width: 14px; height: 14px; fill: currentColor; transform: rotate(var(--rot)); }
-  .cr.swell .arr { color: var(--fg); }
-  .cr.wind.w-off .arr, .cr.wind.w-off em { color: #9eb05c; }
-  .cr.wind.w-cross .arr, .cr.wind.w-cross em { color: #9fb3c8; }
-  .cr.wind.w-on .arr, .cr.wind.w-on em { color: #ff5a5a; }
-  [data-theme="light"] .cr.wind.w-off .arr, [data-theme="light"] .cr.wind.w-off em { color: #5f7a1f; }
-  [data-theme="light"] .cr.wind.w-cross .arr, [data-theme="light"] .cr.wind.w-cross em { color: #4f6a85; }
-  [data-theme="light"] .cr.wind.w-on .arr, [data-theme="light"] .cr.wind.w-on em { color: #c0392b; }
-  .cr em { font-style: normal; }
-  /* Beside the map, cards are narrower: a touch smaller. */
-  .layout[data-view="split"] .info .name { font-size: 15px; }
-  .layout[data-view="split"] .info .cond-line { font-size: 12px; gap: 3px 10px; }
+  .overlay .name {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  }
+  .overlay .sub {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 6px;
+    margin-top: 1px;
+  }
+  .overlay .cond-line {
+    flex: 1;
+    font-size: 10px;
+    letter-spacing: 0.02em;
+    color: rgba(255,255,255,0.75);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .overlay .cond-line b { color: #fff; font-weight: 600; }
+  .overlay .sub .mini-slot { flex: none; }
+  .overlay .mini { height: 18px; gap: 3px; }
+  .overlay .mini i { width: 7px; border-radius: 2px; }
+
   /* The Order menu (toolbar options). */
   .order { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-muted); order: 4; }
   .order select {
@@ -2037,48 +2042,33 @@
     ).join('');
   }
 
-  // A card: the live picture, and under it the spot, its score and the
-  // conditions now. Spots without a camera (type 'none') stay out of the grid; they're on
+  // The tile is the preview; name, place and conditions overlay the bottom.
+  // Spots without a camera (type 'none') stay out of the grid; they're on
   // the map, in Best right now and on the 7-day page.
   const noCam = (c) => c.type === 'none';
   const cardHtml = (c) => `
     <button class="cam" type="button" data-id="${esc(c.id)}" aria-label="Watch ${esc(c.name)}, ${esc(c.town)}">
-      <span class="media">
       ${c.thumb ? `<img src="${esc(thumbUrl(c.thumb))}" alt="" loading="lazy" decoding="async" onload="this.classList.add('ready')" onerror="this.remove()">` : ''}
       ${c.type === 'hls' ? `<video muted playsinline preload="none"${c.poster ? ` poster="${esc(c.poster)}"` : ''} aria-hidden="true"></video>` : ''}
       <span class="live"><i></i>Live</span>
       <span class="off" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M15 15v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h2m4 0h4a1 1 0 0 1 1 1v3l5-3v9"/></svg><span class="t-off">Camera offline</span><span class="t-blk">Plays on ${esc(sourceName(c))} only</span></span>
-      </span>
-      <span class="info">
-        <span class="name">${esc(c.name)}</span>
-        <span class="score-slot">${badge(c)}</span>
-        <span class="where">${esc(c.zone && c.zone !== c.name ? c.zone : c.town)}<span class="dist">${distText(c)}</span></span>
-        <span class="cond-line">${condRows(c)}</span>
-        <span class="mini-slot">${miniBars(c)}</span>
-      </span>
+      <span class="score-slot">${badge(c)}</span>
+      <div class="overlay">
+        <div class="name">${esc(c.name)}</div>
+        <div class="sub">
+          <span class="cond-line">${condText(c)}</span>
+          <span class="mini-slot">${miniBars(c)}</span>
+        </div>
+      </div>
     </button>`;
 
-  // The conditions now, for a card: swell (arrow = the way it's travelling,
-  // height offshore, period, from), wind (arrow, knots, from, and how it
-  // sits on this beach, coloured), the surface and the tide.
-  const condRows = (c) => {
-    const k = conditions[c.id] && conditions[c.id].now, r = scoreOf(c);
-    if (!k || !r) return '';
-    const arr = (deg) => (deg == null ? '' : `<span class="arr" style="--rot:${Math.round(deg + 180)}deg">${GLYPH}</span>`);
-    const rel = REL_SHORT[r.wind];
-    return `<span class="cr swell">${arr(k.d)}<b>${hgt(k.h)}</b> ${Math.round(k.p)} s${k.d != null ? ' ' + dirName(k.d) : ''}</span>`
-      + `<span class="cr wind w-${rel}">${arr(k.wd)}<b>${kts(k.ws)} kts</b> ${dirName(k.wd)} <em>${rel === 'cross' ? 'cross' : rel + 'shore'}</em></span>`
-      + (r.surface ? `<span class="cr surf-word surf-${r.surface.i}">${esc(r.surface.label)}</span>` : '')
-      + (k.tn != null ? `<span class="cr">${tideWord(k.tn)} tide${k.tdir ? (k.tdir === 'rising' ? ' ▲' : ' ▼') : ''}</span>` : '');
-  };
-  // How far, once we know where you are (Order: nearest).
+  // Where you are, once known (Order: nearest).
   let here = null;
   const kmFrom = (c) => {
     if (!here) return null;
     const r = Math.PI / 180, x = (c.lng - here.lng) * r * Math.cos((c.lat + here.lat) / 2 * r), y = (c.lat - here.lat) * r;
     return Math.hypot(x, y) * 6371;
   };
-  const distText = (c) => { const d = kmFrom(c); return d == null ? '' : d < 1 ? 'here' : `${d < 10 ? d.toFixed(1) : Math.round(d)} km`; };
 
   // Built once; conditions are patched in later so the tiles keep streaming.
   function renderGrid() {
@@ -2107,9 +2097,8 @@
     for (const el of cards()) {
       const c = byId(el.dataset.id);
       el.querySelector('.score-slot').innerHTML = badge(c);
-      el.querySelector('.cond-line').innerHTML = condRows(c);
+      el.querySelector('.cond-line').innerHTML = condText(c);
       el.querySelector('.mini-slot').innerHTML = miniBars(c);
-      el.querySelector('.dist').textContent = distText(c);
     }
     if (order === 'best') { reorder(); applyFilter(); }
     const coast = coastTides();
