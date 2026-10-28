@@ -77,10 +77,11 @@ function initMap() {
   let base = 'sat';
   try { base = localStorage.getItem('surf-base2') || 'sat'; } catch {}
   (base === 'osm' ? osm : sat).addTo(map);
-  // Wind and swell overlays: animated particles plus labelled arrows, from
-  // the same Open-Meteo data as the scores. Reduced-motion gets arrows only.
+  // Wind and swell overlays: animated particles (not with reduced motion),
+  // and the swell-height heat map; the worker's grids drive all three.
   windLayer = L.layerGroup();
   swellLayer = L.layerGroup();
+  heatLayer = L.imageOverlay('data:image/gif;base64,R0lGODlhAQABAAAAACw=', [[36.8, -10.3], [40.1, -8.5]], { opacity: 0.7, className: 'heat', interactive: false });
   if (!reducedMotion) {
     const PL = makeParticleLayer();
     const phone = matchMedia('(max-width: 640px)').matches;
@@ -88,15 +89,22 @@ function initMap() {
       speed: (ws) => 0.25 + ws * 0.045, color: windColor });
     swellField = new PL({ max: phone ? 250 : 700, density: 3600, life: 160, fade: 0.95, width: 1.8, min: 0.15,
       speed: (h) => 0.25 + h * 0.3, color: swellColor });
-    loadFieldGrid().then(updateFields);
   }
-  let overlays = { wind: true, swell: true };
+  loadGrids().then(() => { if (grids && grids.swell) heatLayer.setBounds(heatBounds(grids.swell)); updateFields(); });
+  let overlays = { wind: true, swell: true, heat: false };
   try { overlays = { ...overlays, ...JSON.parse(localStorage.getItem('surf-overlays2') || '{}') }; } catch {}
   if (overlays.wind) windLayer.addTo(map);
   if (overlays.swell) swellLayer.addTo(map);
-  L.control.layers({ 'Satellite': sat, 'Streets': osm }, { 'Wind': windLayer, 'Swell': swellLayer }, { position: 'topright', collapsed: phone.matches }).addTo(map);
+  if (overlays.heat) heatLayer.addTo(map);
+  L.control.layers({ 'Satellite': sat, 'Streets': osm }, { 'Wind': windLayer, 'Swell': swellLayer, 'Swell height': heatLayer }, { position: 'topright', collapsed: phone.matches }).addTo(map);
+  makeTimeControl().addTo(map);
+  syncTimeControl();
+  // The heat map's key shows while the heat map does.
+  const heatKey = () => $('lg-heat').hidden = !map.hasLayer(heatLayer);
+  map.on('overlayadd overlayremove', heatKey);
+  heatKey();
   map.on('baselayerchange', (e) => { try { localStorage.setItem('surf-base2', e.layer === sat ? 'sat' : 'osm'); } catch {} });
-  const saveOverlays = () => { try { localStorage.setItem('surf-overlays2', JSON.stringify({ wind: map.hasLayer(windLayer), swell: map.hasLayer(swellLayer) })); } catch {} };
+  const saveOverlays = () => { try { localStorage.setItem('surf-overlays2', JSON.stringify({ wind: map.hasLayer(windLayer), swell: map.hasLayer(swellLayer), heat: map.hasLayer(heatLayer) })); } catch {} };
   map.on('overlayadd overlayremove', saveOverlays);
   // "Open in Windy" follows the map.
   const windy = $('windy');
@@ -243,16 +251,86 @@ function declutter() {
   });
 }
 
-/* ---------- Animated particle field ----------
-   A canvas in Leaflet's overlay pane. Each particle reads the local vector
-   (inverse-distance blend of the sample points), steps along it, and
-   leaves a fading trail — the Windy look, from our own data. */
+/* ---------- Wind and swell everywhere: the animated fields and the heat map ----------
+   The worker's grids (GET /grid, tools/worker/grid.js): swell from
+   Copernicus IBI, ~5.5 km with land masked; wind from ECMWF IFS 9 km on a
+   0.25° grid; both every 3 hours for 48. Values between grid points and
+   between steps are interpolated (directions as vectors). The time slider
+   on the map picks the hour; "now" by default. Wind particles move with
+   the wind's speed; swell particles with the swell's period (longer
+   swell travels faster) and brighten with its height, and stop at the
+   coast. If the grids can't be had, a coarse set of Open-Meteo samples
+   stands in, as before. */
+let grids = null;        // { swell, wind } from the worker
+let fieldHour = 0;       // hours ahead of now the fields show
+
+// Fractional step index in a grid for `hoursAhead` from now.
+function stepOf(g, hoursAhead) {
+  const t0 = Date.parse(g.times[0] + ':00Z'), dt = g.times.length > 1 ? Date.parse(g.times[1] + ':00Z') - t0 : 10800000;
+  return Math.max(0, Math.min(g.times.length - 1, (Date.now() + hoursAhead * 3.6e6 - t0) / dt));
+}
+// A grid's value at a point and fractional step: bilinear in space (over
+// the corners that have a value), linear in time; null outside or on land.
+// `dir`: the field is a bearing, averaged as a vector.
+function gridAt(g, field, lat, lng, s, dir) {
+  const fi = (lat - g.lat0) / g.dlat, fj = (lng - g.lng0) / g.dlng;
+  if (fi < 0 || fj < 0 || fi > g.nlat - 1 || fj > g.nlng - 1) return null;
+  const i0 = Math.floor(fi), j0 = Math.floor(fj), i1 = Math.min(i0 + 1, g.nlat - 1), j1 = Math.min(j0 + 1, g.nlng - 1);
+  const s0 = Math.floor(s), s1 = Math.min(s0 + 1, g.times.length - 1), ts = s - s0, ti = fi - i0, tj = fj - j0;
+  let a = 0, b = 0, w = 0;
+  for (const [si, sw] of [[s0, 1 - ts], [s1, ts]]) {
+    if (!sw) continue;
+    const arr = g[field][si];
+    for (const [i, wi] of [[i0, 1 - ti], [i1, ti]]) for (const [j, wj] of [[j0, 1 - tj], [j1, tj]]) {
+      const v = arr[i * g.nlng + j], ww = sw * wi * wj;
+      if (v == null || !ww) continue;
+      if (dir) { a += Math.sin(v * Math.PI / 180) * ww; b += Math.cos(v * Math.PI / 180) * ww; } else a += v * ww;
+      w += ww;
+    }
+  }
+  if (w < 0.25) return null;   // mostly land (or no data): call it land
+  return dir ? (Math.atan2(a, b) * 180 / Math.PI + 360) % 360 : a / w;
+}
+
+// What a particle layer reads: (lat, lng) → { to, mag, spd } or null.
+function windFieldAt(hoursAhead) {
+  const g = grids && grids.wind;
+  if (!g) return null;
+  const s = stepOf(g, hoursAhead);
+  return (lat, lng) => {
+    const ws = gridAt(g, 'ws', lat, lng, s), wd = gridAt(g, 'wd', lat, lng, s, true);
+    return ws == null || wd == null ? null : { to: wd + 180, mag: ws / 10, spd: 0.25 + (ws / 10) * 0.045 };
+  };
+}
+function swellFieldAt(hoursAhead) {
+  const g = grids && grids.swell;
+  if (!g) return null;
+  const s = stepOf(g, hoursAhead);
+  return (lat, lng) => {
+    const h = gridAt(g, 'h', lat, lng, s), d = gridAt(g, 'd', lat, lng, s, true), p = gridAt(g, 'p', lat, lng, s);
+    return h == null || d == null ? null : { to: d + 180, mag: h / 100, spd: 0.12 + ((p || 100) / 10) * 0.045 };
+  };
+}
+// The stand-in: inverse-distance blend of a few samples.
+function samplesField(samples, spd) {
+  if (!samples.length) return null;
+  return (lat, lng) => {
+    let x = 0, y = 0, m = 0, w = 0;
+    for (const s of samples) {
+      const d2 = (lat - s.lat) ** 2 + ((lng - s.lng) * 0.78) ** 2 + 0.0004, ww = 1 / (d2 * d2);
+      x += Math.sin(s.toward * Math.PI / 180) * ww; y += Math.cos(s.toward * Math.PI / 180) * ww; m += s.mag * ww; w += ww;
+    }
+    return { to: (Math.atan2(x, y) * 180 / Math.PI + 360) % 360, mag: m / w, spd: spd(m / w) };
+  };
+}
+
 // Defined lazily, once Leaflet is loaded.
 let ParticleLayerClass = null;
 function makeParticleLayer() {
   if (ParticleLayerClass) return ParticleLayerClass;
+  const CELL = 10;   // the field is looked up on a 10 px screen grid, then interpolated
   ParticleLayerClass = L.Layer.extend({
-    initialize(opts) { L.setOptions(this, opts); this.samples = []; this._pts = []; this._parts = []; this._raf = 0; },
+    initialize(opts) { L.setOptions(this, opts); this.field = null; this._parts = []; this._raf = 0; },
     onAdd(map) {
       this._map = map;
       this._canvas = L.DomUtil.create('canvas', 'particles leaflet-zoom-hide');
@@ -266,7 +344,7 @@ function makeParticleLayer() {
       map.off('moveend zoomend resize', this._reset, this);
       L.DomUtil.remove(this._canvas);
     },
-    setSamples(samples) { this.samples = samples; if (this._map) this._reset(); },
+    setField(fn) { this.field = fn; if (this._map) this._reset(); },
     _reset() {
       const map = this._map, size = map.getSize();
       const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -277,33 +355,47 @@ function makeParticleLayer() {
       this._ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       this._ctx.clearRect(0, 0, size.x, size.y);
       this._w = size.x; this._h = size.y;
-      // Project samples to screen space; store velocity as screen-space u,v.
-      this._pts = this.samples.map((s) => {
-        const p = map.latLngToContainerPoint([s.lat, s.lng]);
-        const to = (s.toward) * Math.PI / 180;
-        return { x: p.x, y: p.y, u: Math.sin(to) * s.mag, v: -Math.cos(to) * s.mag, mag: s.mag };
-      });
-      const n = this._pts.length ? Math.min(this.options.max, Math.floor((size.x * size.y) / this.options.density)) : 0;
-      this._parts = Array.from({ length: n }, () => this._spawn());
-    },
-    _spawn() { return { x: Math.random() * this._w, y: Math.random() * this._h, age: Math.floor(Math.random() * this.options.life) }; },
-    // Inverse-distance-weighted blend of the sample vectors at (x, y).
-    _vel(x, y) {
-      let su = 0, sv = 0, sm = 0, sw = 0;
-      for (const p of this._pts) {
-        const dx = x - p.x, dy = y - p.y;
-        const d2 = dx * dx + dy * dy + 400;
-        const w = 1 / (d2 * d2);
-        su += p.u * w; sv += p.v * w; sm += p.mag * w; sw += w;
+      // The field on a screen grid: unit direction (screen), size, speed.
+      const cols = Math.ceil(size.x / CELL) + 1, rows = Math.ceil(size.y / CELL) + 1;
+      const u = new Float32Array(cols * rows), v = new Float32Array(cols * rows), mag = new Float32Array(cols * rows).fill(NaN), spd = new Float32Array(cols * rows);
+      if (this.field) {
+        for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+          const ll = map.containerPointToLatLng([c * CELL, r * CELL]), f = this.field(ll.lat, ll.lng), i = r * cols + c;
+          if (!f) continue;
+          const to = f.to * Math.PI / 180;
+          u[i] = Math.sin(to); v[i] = -Math.cos(to); mag[i] = f.mag; spd[i] = f.spd;
+        }
       }
-      return sw ? { u: su / sw, v: sv / sw, mag: sm / sw } : { u: 0, v: 0, mag: 0 };
+      this._g = { cols, rows, u, v, mag, spd };
+      const n = this.field ? Math.min(this.options.max, Math.floor((size.x * size.y) / this.options.density)) : 0;
+      this._parts = Array.from({ length: n }, () => this._spawn(true));
+    },
+    // Somewhere the field has a value (swell: at sea), a few tries.
+    _spawn(any) {
+      for (let k = 0; k < 8; k++) {
+        const p = { x: Math.random() * this._w, y: Math.random() * this._h, age: any ? Math.floor(Math.random() * this.options.life) : 0 };
+        if (this._vel(p.x, p.y)) return p;
+      }
+      return { x: -1, y: -1, age: this.options.life };
+    },
+    _vel(x, y) {
+      const g = this._g, fc = x / CELL, fr = y / CELL, c0 = Math.floor(fc), r0 = Math.floor(fr);
+      if (c0 < 0 || r0 < 0 || c0 >= g.cols - 1 || r0 >= g.rows - 1) return null;
+      const tc = fc - c0, tr = fr - r0;
+      let u = 0, v = 0, m = 0, s = 0, w = 0;
+      for (const [r, wr] of [[r0, 1 - tr], [r0 + 1, tr]]) for (const [c, wc] of [[c0, 1 - tc], [c0 + 1, tc]]) {
+        const i = r * g.cols + c, ww = wr * wc;
+        if (Number.isNaN(g.mag[i]) || !ww) continue;
+        u += g.u[i] * ww; v += g.v[i] * ww; m += g.mag[i] * ww; s += g.spd[i] * ww; w += ww;
+      }
+      return w < 0.5 ? null : { u: u / w, v: v / w, mag: m / w, spd: s / w };
     },
     _start() { if (!this._raf) this._raf = requestAnimationFrame(() => this._frame()); },
     _stop() { if (this._raf) cancelAnimationFrame(this._raf); this._raf = 0; },
     _frame() {
       this._raf = 0;
       if (!this._map) return;
-      if (document.hidden || !this._pts.length) { this._raf = requestAnimationFrame(() => this._frame()); return; }
+      if (document.hidden || !this._parts.length) { this._raf = requestAnimationFrame(() => this._frame()); return; }
       const ctx = this._ctx, o = this.options;
       // Fade what's there, then draw each particle's next step.
       ctx.globalCompositeOperation = 'destination-in';
@@ -313,14 +405,13 @@ function makeParticleLayer() {
       ctx.lineWidth = o.width;
       ctx.lineCap = 'round';
       for (const p of this._parts) {
-        const v = this._vel(p.x, p.y);
-        const speed = o.speed(v.mag);
-        const len = Math.hypot(v.u, v.v) || 1;
-        const nx = p.x + (v.u / len) * speed, ny = p.y + (v.v / len) * speed;
-        ctx.strokeStyle = o.color(v.mag);
+        const f = this._vel(p.x, p.y);
+        if (!f || p.age > o.life || f.mag < o.min) { Object.assign(p, this._spawn(false)); continue; }
+        const len = Math.hypot(f.u, f.v) || 1;
+        const nx = p.x + (f.u / len) * f.spd, ny = p.y + (f.v / len) * f.spd;
+        ctx.strokeStyle = o.color(f.mag);
         ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(nx, ny); ctx.stroke();
         p.x = nx; p.y = ny; p.age++;
-        if (p.age > o.life || nx < 0 || ny < 0 || nx > this._w || ny > this._h || v.mag < o.min) Object.assign(p, this._spawn(), { age: 0 });
       }
       this._raf = requestAnimationFrame(() => this._frame());
     },
@@ -333,8 +424,35 @@ const windColor = (ws) => (ws < 12 ? 'rgba(158,176,92,0.85)' : ws < 25 ? 'rgba(2
 // Swell: sea blue, slow long streaks, brighter the bigger it is.
 const swellColor = (h) => `rgba(79,195,220,${Math.min(0.95, 0.35 + h * 0.2)})`;
 
-// Coarse sample grid along the coast so particles flow between the spots.
-// Wind comes back everywhere; swell only over sea cells (land is null).
+// The heat map's colours: wave height, calm blue to big red.
+const HEAT = [[0, [29, 59, 90]], [0.5, [47, 111, 159]], [1, [63, 167, 196]], [1.5, [92, 200, 168]], [2, [166, 217, 106]], [2.5, [254, 224, 139]], [3, [253, 174, 97]], [4, [244, 109, 67]], [5, [215, 48, 39]]];
+function heatRGB(h) {
+  for (let i = 1; i < HEAT.length; i++) {
+    if (h <= HEAT[i][0]) {
+      const [h0, c0] = HEAT[i - 1], [h1, c1] = HEAT[i], t = (h - h0) / (h1 - h0);
+      return c0.map((x, k) => Math.round(x + (c1[k] - x) * t));
+    }
+  }
+  return HEAT[HEAT.length - 1][1];
+}
+// The swell grid at a step as an image (one pixel a cell, north up); the
+// browser smooths it as it scales. Land stays clear.
+function heatImage(g, s) {
+  const cv = document.createElement('canvas');
+  cv.width = g.nlng; cv.height = g.nlat;
+  const ctx = cv.getContext('2d'), img = ctx.createImageData(g.nlng, g.nlat);
+  for (let i = 0; i < g.nlat; i++) for (let j = 0; j < g.nlng; j++) {
+    const h = gridAt(g, 'h', g.lat0 + i * g.dlat, g.lng0 + j * g.dlng, s);
+    if (h == null) continue;
+    const [r, gg, b] = heatRGB(h / 100), o = ((g.nlat - 1 - i) * g.nlng + j) * 4;
+    img.data[o] = r; img.data[o + 1] = gg; img.data[o + 2] = b; img.data[o + 3] = 190;
+  }
+  ctx.putImageData(img, 0, 0);
+  return cv.toDataURL();
+}
+const heatBounds = (g) => [[g.lat0 - g.dlat / 2, g.lng0 - g.dlng / 2], [g.lat0 + (g.nlat - 0.5) * g.dlat, g.lng0 + (g.nlng - 0.5) * g.dlng]];
+
+// The stand-in samples (only if the worker's grids can't be had).
 const GRID = [];
 for (let lat = 36.9; lat <= 40.0; lat += 0.3) for (const lng of [-10.3, -9.95, -9.6, -9.25, -8.9]) GRID.push([+lat.toFixed(2), lng]);
 async function loadFieldGrid() {
@@ -361,23 +479,57 @@ async function loadFieldGrid() {
     try { localStorage.setItem(key, JSON.stringify({ day: today, t: Date.now(), data: fieldGrid })); } catch {}
   } catch { fieldGrid = []; }
 }
-// Feed both particle layers from the grid plus the per-spot readings.
+// The grids, once; the stand-in if they can't be had.
+async function loadGrids() {
+  try {
+    const r = await fetch(SURF_WORKER + '/grid');
+    if (r.ok) { const g = await r.json(); if (g.swell || g.wind) grids = g; }
+  } catch {}
+  if (!grids || !grids.wind || !grids.swell) await loadFieldGrid();
+}
+// Feed the particle layers and the heat map for the hour picked.
 function updateFields() {
-  if (!windField) return;
-  const wind = [], swell = [];
-  for (const g of fieldGrid || []) {
-    if (g.ws != null && g.wd != null) wind.push({ lat: g.lat, lng: g.lng, toward: g.wd + 180, mag: g.ws });
-    if (g.h != null && g.d != null) swell.push({ lat: g.lat, lng: g.lng, toward: g.d + 180, mag: g.h });
+  if (windField) {
+    const stand = (fieldGrid || []).filter((g) => g.ws != null && g.wd != null).map((g) => ({ lat: g.lat, lng: g.lng, toward: g.wd + 180, mag: g.ws }));
+    windField.setField(windFieldAt(fieldHour) || samplesField(stand, (ws) => 0.25 + ws * 0.045));
   }
-  for (const c of CAMS) {
-    const k = conditions[c.id] && conditions[c.id].now;
-    if (!k) continue;
-    const [la, lo] = seaward(c, 4);
-    wind.push({ lat: la, lng: lo, toward: k.wd + 180, mag: k.ws });
-    if (k.d != null) swell.push({ lat: la, lng: lo, toward: k.d + 180, mag: k.h });
+  if (swellField) {
+    const stand = (fieldGrid || []).filter((g) => g.h != null && g.d != null).map((g) => ({ lat: g.lat, lng: g.lng, toward: g.d + 180, mag: g.h }));
+    swellField.setField(swellFieldAt(fieldHour) || samplesField(stand, (h) => 0.25 + h * 0.3));
   }
-  windField.setSamples(wind);
-  swellField.setSamples(swell);
+  if (heatLayer && grids && grids.swell) heatLayer.setUrl(heatImage(grids.swell, stepOf(grids.swell, fieldHour)));
+  syncTimeControl();
+}
+
+// The time slider: now, then every 3 hours to 48 ahead (as far as the grids go).
+let timeCtl = null;
+function syncTimeControl() {
+  if (!timeCtl) return;
+  const g = grids && (grids.swell || grids.wind), el = timeCtl.getContainer();
+  el.hidden = !g;
+  if (!g) return;
+  const last = Math.floor((Date.parse(g.times[g.times.length - 1] + ':00Z') - Date.now()) / 3.6e6 / 3) * 3;
+  const input = el.querySelector('input');
+  input.max = Math.max(0, last);
+  input.value = fieldHour;
+  const t = new Date(Date.now() + fieldHour * 3.6e6);
+  el.querySelector('output').textContent = fieldHour === 0 ? 'Now' : `${DAY_NAMES[t.getDay()]} ${String(t.getHours()).padStart(2, '0')}:00 · +${fieldHour} h`;
+}
+function makeTimeControl() {
+  const Ctl = L.Control.extend({
+    // Phones: top left, under the bar (the legend has the bottom); else bottom right.
+    options: { position: phone.matches ? 'topleft' : 'bottomright' },
+    onAdd() {
+      const el = L.DomUtil.create('div', 'time-ctl');
+      el.innerHTML = '<label><span class="k">Wind &amp; swell</span><output>Now</output></label><input type="range" min="0" max="48" step="3" value="0" aria-label="Hours ahead for the wind and swell layers">';
+      L.DomEvent.disableClickPropagation(el);
+      L.DomEvent.disableScrollPropagation(el);
+      el.querySelector('input').addEventListener('input', (e) => { fieldHour = +e.target.value; updateFields(); });
+      return el;
+    },
+  });
+  timeCtl = new Ctl();
+  return timeCtl;
 }
 
 // The Wind / Swell overlays are the animated particle fields; the numbers

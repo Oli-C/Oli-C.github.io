@@ -534,6 +534,18 @@ header { display: none; }
 .lg-k { color: var(--fg-muted); min-width: 34px; }
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
 .legend i { width: 9px; height: 9px; border-radius: 50%; background: var(--pin); }
+.legend .lg-row[hidden] { display: none; }
+/* The swell-height heat map's key: the same colours as the map. */
+.legend .heat-bar i { width: 90px; height: 8px; border-radius: 2px; background: linear-gradient(90deg, rgb(29,59,90), rgb(47,111,159) 10%, rgb(63,167,196) 20%, rgb(92,200,168) 30%, rgb(166,217,106) 40%, rgb(254,224,139) 50%, rgb(253,174,97) 60%, rgb(244,109,67) 80%, rgb(215,48,39)); }
+.legend .heat-bar b { font-weight: 500; letter-spacing: 0; text-transform: none; }
+.leaflet-image-layer.heat { image-rendering: auto; }
+/* The time slider for the wind and swell layers. */
+.time-ctl { display: grid; gap: 4px; padding: 7px 10px 6px; min-width: 190px; font-size: 11px; color: var(--fg); background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border: 1px solid var(--border); border-radius: var(--radius); }
+.time-ctl[hidden] { display: none; }
+.time-ctl label { display: flex; justify-content: space-between; gap: 10px; }
+.time-ctl .k { color: var(--fg-muted); letter-spacing: 0.06em; text-transform: uppercase; }
+.time-ctl output { font-weight: 600; }
+.time-ctl input { width: 100%; accent-color: var(--accent); }
 /* The legend says what the pins mean; just the Windy link floats on the
    map, under the zoom buttons. */
 .map-hint {

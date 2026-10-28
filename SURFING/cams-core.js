@@ -38,7 +38,7 @@ let hls = null, player = null;
 let hideTimer = 0, goTimer = 0;
 let conditions = {};   // cam id -> { now: {...}, hours: [{...}], t }
 let condNote = '';
-let map = null, windLayer = null, swellLayer = null, windField = null, swellField = null;
+let map = null, windLayer = null, swellLayer = null, heatLayer = null, windField = null, swellField = null;
 let fieldGrid = null;  // coarse wind/swell samples along the coast, for the particle field
 const markers = {};
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
