@@ -1,6 +1,6 @@
 {
  "v": 2,
- "updated": "2026-10-28T17:24:47.079Z",
+ "updated": "2026-10-28T17:34:35.205Z",
  "wind": {
   "icon_seamless": {
    "lead": [
@@ -637,7 +637,7 @@
   "silleiro": "2026-10-28T12:00:00Z",
   "cadiz": "2026-10-28T12:00:00Z"
  },
- "runs": 10,
+ "runs": 11,
  "stations": [
   "Alcobaça",
   "Cabo Carvoeiro",
@@ -654,7 +654,7 @@
    "name": "Nazaré coastal buoy (IH)",
    "lat": 39.56,
    "lng": -9.21,
-   "hours": 1241,
+   "hours": 0,
    "latest": "2026-10-28T12:00:00Z"
   },
   {
@@ -662,7 +662,7 @@
    "name": "Sines coastal buoy (IH)",
    "lat": 37.9211,
    "lng": -8.9289,
-   "hours": 1165,
+   "hours": 0,
    "latest": "2026-10-28T08:26:45Z"
   },
   {
@@ -670,7 +670,7 @@
    "name": "Leixões coastal buoy (IH)",
    "lat": 41.3167,
    "lng": -8.9833,
-   "hours": 1145,
+   "hours": 0,
    "latest": "2026-10-28T09:26:43Z"
   },
   {
@@ -678,7 +678,7 @@
    "name": "Faro coastal buoy (IH)",
    "lat": 36.9047,
    "lng": -7.8983,
-   "hours": 637,
+   "hours": 0,
    "latest": "2026-10-28T09:26:37Z"
   },
   {
@@ -686,7 +686,7 @@
    "name": "Cabo Silleiro buoy (Puertos del Estado)",
    "lat": 42.12,
    "lng": -9.43,
-   "hours": 1246,
+   "hours": 0,
    "latest": "2026-10-28T12:00:00Z"
   },
   {
@@ -694,12 +694,12 @@
    "name": "Golfo de Cádiz buoy (Puertos del Estado)",
    "lat": 36.49,
    "lng": -6.96,
-   "hours": 1270,
+   "hours": 0,
    "latest": "2026-10-28T12:00:00Z"
   }
  ],
  "learned": {
-  "updated": "2026-10-28T17:26:52.172Z",
+  "updated": "2026-10-28T17:34:59.638Z",
   "sessions": 0,
   "used": 0,
   "setAside": 0,
