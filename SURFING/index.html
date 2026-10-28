@@ -746,29 +746,17 @@
     border-radius: 999px;
   }
   .map-hint a:hover { border-color: var(--accent); }
-  /* A pin slid off an overlapping neighbour keeps a leader to its spot. */
-  .leaflet-marker-icon.moved::before {
-    content: "";
-    position: absolute;
-    left: -1px;
-    top: 0;
-    width: 2px;
-    height: max(0px, calc(var(--dy) - 10px));
-    background: rgba(255, 255, 255, 0.75);
-    border-radius: 1px;
-    pointer-events: none;
-  }
-  .leaflet-marker-icon.moved::after {
-    content: "";
-    position: absolute;
-    left: -3px;
-    top: -3px;
+  /* A pin slid off an overlapping neighbour keeps a leader to its spot
+     (up or down; the pin covers the far end). Drawn in a pane under the
+     pins. */
+  .leaders, .leaders > * { position: absolute; left: 0; top: 0; pointer-events: none; }
+  .leader { width: 2px; background: rgba(255, 255, 255, 0.75); border-radius: 1px; }
+  .leader-dot {
     width: 6px;
     height: 6px;
     border-radius: 50%;
     background: #fff;
-    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
-    pointer-events: none;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
   }
 
   /* OSM's street tiles are light; in the charcoal theme we invert them.
@@ -922,7 +910,15 @@
   }
   .map-card[hidden] { display: none; }
   .map-card .pop-head { padding-right: 34px; }
-  .map-card .pop-actions { gap: 8px; margin-top: 12px; }
+  /* If the card has to scroll, Watch live and Directions stay in reach. */
+  .map-card .pop-actions {
+    position: sticky;
+    bottom: -14px;
+    gap: 8px;
+    margin: 2px -16px -14px;
+    padding: 10px 16px 14px;
+    background: var(--bg-3);
+  }
   .map-card .pop-btn, .map-card .nav { flex: 1; justify-content: center; padding: 10px 14px 8px; font-size: 14px; }
   .map-card-x {
     position: absolute;
@@ -1653,15 +1649,23 @@
        frosted pills beneath; the tide/best line steps aside. */
     html:has(.layout[data-view="map"]),
     html:has(.layout[data-view="map"]) body { overflow: hidden; overscroll-behavior: none; }
+    /* Sized to the part of the screen you can actually see (--vvh tracks
+       the visual viewport), not the layout viewport: on iOS and Android
+       that runs on under the browser's bottom bar, which swallowed the
+       spot card. */
     .layout[data-view="map"] .map-pane {
       position: fixed;
-      inset: 0;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 100vh;
+      height: 100dvh;
+      height: var(--vvh, 100dvh);
       z-index: 0;
     }
     .layout[data-view="map"] .map-pane > div { height: 100%; }
     .layout[data-view="map"] #map {
-      height: 100vh;
-      height: 100dvh;
+      height: 100%;
       min-height: 0;
       border: 0;
       border-radius: 0;
@@ -1712,7 +1716,12 @@
     .layout[data-view="map"] .leaflet-top { top: calc(var(--controls-h) - 4px); }
     .layout[data-view="map"] .leaflet-bottom { bottom: env(safe-area-inset-bottom); }
     .layout[data-view="map"] .legend { bottom: calc(10px + env(safe-area-inset-bottom)); }
-    .layout[data-view="map"] .map-card { bottom: calc(10px + env(safe-area-inset-bottom)); left: 10px; right: 10px; }
+    .layout[data-view="map"] .map-card {
+      bottom: calc(10px + env(safe-area-inset-bottom));
+      left: 10px;
+      right: 10px;
+      max-height: calc(100% - var(--controls-h) - 24px - env(safe-area-inset-bottom));
+    }
     /* Pinch to zoom; the layers switch folds to a button. */
     .leaflet-control-zoom { display: none; }
     .leaflet-control-layers-toggle { width: 38px; height: 38px; }
@@ -2592,6 +2601,10 @@
     map.on('moveend', syncWindy);
     // Pins show their data segment only once there's room for it.
     const labels = () => map.getContainer().classList.toggle('labels', map.getZoom() >= 11);
+    // Pane for the pins' leaders: above the tiles and particles, below the
+    // pins (markerPane is 600); hidden while a zoom animates.
+    map.createPane('leaders').style.zIndex = 590;
+    leaderBox = L.DomUtil.create('div', 'leaders leaflet-zoom-hide', map.getPane('leaders'));
     map.on('zoomend', () => { labels(); declutter(); });
     labels();
     // Keep the map's idea of its size right whenever its box changes
@@ -2674,10 +2687,14 @@
   }
 
   // Cams on the same stretch of beach (Guincho Norte and Sul, the Caparica
-  // run) put their pins on top of each other. Working down the map, any pin
-  // that would overlap one already placed slides down just below it, and
-  // gets a short leader back to its real spot.
-  let declutterRaf = 0;
+  // run) put their pins on top of each other. Pins that touch form a group,
+  // and each group is stacked into a neat column centred on where its spots
+  // really are, keeping their north-to-south order, so no pin wanders far
+  // and the stack reads like the coast. A stack can grow into a neighbour,
+  // so groups that then touch are merged and restacked until nothing
+  // overlaps. Each pin that moved keeps a leader and a dot on its spot.
+  const PIN_GAP = 3;
+  let declutterRaf = 0, leaderBox = null;
   function declutter() {
     cancelAnimationFrame(declutterRaf);
     declutterRaf = requestAnimationFrame(() => {
@@ -2687,23 +2704,40 @@
         if (!pin) continue;
         pin.style.translate = '';
         const p = map.latLngToLayerPoint(m.getLatLng());
-        items.push({ el, pin, x: p.x, y0: p.y, w: pin.offsetWidth, h: pin.offsetHeight });
+        items.push({ el, pin, x: p.x, y0: p.y, y: p.y, w: pin.offsetWidth, h: pin.offsetHeight });
       }
-      items.sort((a, b) => a.y0 - b.y0 || a.x - b.x);
-      const placed = [];
-      for (const it of items) {
-        it.y = it.y0;
-        for (let n = 0; n < items.length; n++) {
-          const hit = placed.find((o) => Math.abs(o.x - it.x) < (o.w + it.w) / 2 + 2 && Math.abs(o.y - it.y) < (o.h + it.h) / 2 + 2);
-          if (!hit) break;
-          it.y = hit.y + (hit.h + it.h) / 2 + 3;
+      const touch = (a, b) => Math.abs(a.x - b.x) < (a.w + b.w) / 2 + PIN_GAP && Math.abs(a.y - b.y) < (a.h + b.h) / 2 + PIN_GAP;
+      const stack = (g) => {
+        g.sort((a, b) => a.y0 - b.y0 || a.x - b.x);
+        const total = g.reduce((s, it) => s + it.h, 0) + PIN_GAP * (g.length - 1);
+        let y = g.reduce((s, it) => s + it.y0, 0) / g.length - total / 2;
+        for (const it of g) { it.y = y + it.h / 2; y += it.h + PIN_GAP; }
+      };
+      const groups = items.map((it) => [it]);
+      for (let guard = 0; guard < 100; guard++) {
+        let pair = null;
+        for (let i = 0; i < groups.length && !pair; i++) {
+          for (let j = i + 1; j < groups.length; j++) {
+            if (groups[i].some((a) => groups[j].some((b) => touch(a, b)))) { pair = [i, j]; break; }
+          }
         }
-        placed.push(it);
+        if (!pair) break;
+        const [i, j] = pair;
+        groups[i].push(...groups[j]);
+        groups.splice(j, 1);
+        stack(groups[i]);
+      }
+      // Leaders live in their own pane under all the pins, so a line or
+      // dot never paints over a neighbouring pin. A nudge needs none.
+      let html = '';
+      for (const it of items) {
         const dy = Math.round(it.y - it.y0);
         it.pin.style.translate = dy ? `0 ${dy}px` : '';
-        it.el.classList.toggle('moved', dy > 0);
-        it.el.style.setProperty('--dy', dy + 'px');
+        if (Math.abs(dy) < 4) continue;
+        const x = Math.round(it.x), y = Math.round(it.y0);
+        html += `<i class="leader" style="left:${x - 1}px;top:${y + Math.min(0, dy)}px;height:${Math.abs(dy)}px"></i><b class="leader-dot" style="left:${x - 3}px;top:${y - 3}px"></b>`;
       }
+      leaderBox.innerHTML = html;
     });
   }
 
@@ -3514,6 +3548,15 @@
     const id = location.hash.slice(1);
     id ? open(id, false) : close(false);
   });
+
+  // The height you can actually see, browser bars and keyboard taken off;
+  // the phone map is sized to it so nothing hides under the bottom bar.
+  const vv = window.visualViewport;
+  if (vv) {
+    const setVvh = () => document.documentElement.style.setProperty('--vvh', Math.round(vv.height) + 'px');
+    vv.addEventListener('resize', setVvh);
+    setVvh();
+  }
 
   // The sticky map sits just under the sticky controls, whatever their height.
   const controls = $('controls');
