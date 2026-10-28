@@ -1,0 +1,334 @@
+/* The surf toolbar, shared by every surfing page (cams, map, 7-day), so
+   they can't drift apart. One sticky bar:
+
+     brand (back to allfield) · search · Cams / Split / Map / 7-day · options
+     area chips
+     a slim info line (the page fills it)
+
+   Wide screens put the first two rows on one line. Phones fold the search
+   to an icon (Enter folds it again) and the options into the ⋯ menu.
+   Each page brings its own colour tokens and font; this is only the bar.
+   Load it before the page's own <style> so a page can still adjust it. */
+
+.page { padding-top: 0; }
+
+.controls {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: 0 -16px 14px;
+  padding: max(10px, env(safe-area-inset-top)) 16px 8px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.r2 { margin-top: 6px; }
+
+/* Brand: the page's name and the way back to allfield. */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  margin-right: 6px;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--fg);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.brand svg { color: var(--fg-muted); margin-left: -3px; transition: transform .2s var(--ease), color .2s var(--ease); }
+.brand:hover svg, .brand:focus-visible svg { color: var(--accent-ink); transform: translateX(-2px); }
+.brand span { color: var(--accent-ink); }
+
+/* Search */
+.search { position: relative; flex: 1; min-width: 0; }
+.search svg {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  width: 15px;
+  height: 15px;
+  transform: translateY(-50%);
+  color: var(--fg-muted);
+  pointer-events: none;
+}
+.search input {
+  width: 100%;
+  font: inherit;
+  font-size: 14px;
+  color: var(--fg);
+  background: var(--bg-3);
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  padding: 6px 10px 6px 32px;
+  outline: none;
+  transition: border-color .2s var(--ease);
+}
+.search input::placeholder { color: var(--fg-muted); }
+.search input:focus { border-color: var(--accent); }
+
+/* Segmented controls: the views (buttons on the cams page, where they
+   switch in place; links elsewhere) and the m / ft units. */
+.seg {
+  flex: none;
+  display: inline-flex;
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  padding: 2px;
+  background: var(--bg-3);
+}
+.seg button, .seg a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  color: var(--fg-muted);
+  text-decoration: none;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  padding: 4px 9px 4px;
+  cursor: pointer;
+  transition: color .2s var(--ease), background .2s var(--ease);
+}
+.seg a:hover { color: var(--fg); }
+.seg button[aria-pressed="true"], .seg a[aria-current="page"] {
+  color: #101820;
+  background: var(--accent);
+}
+.seg svg { width: 13px; height: 13px; flex: none; }
+.seg.sm button { padding: 3px 8px 3px; font-size: 11px; min-width: 30px; justify-content: center; }
+/* Split needs the width for cams beside a map. */
+@media (max-width: 999px) { #seg-split { display: none; } }
+
+/* Area chips */
+.chips {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none;
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 1px solid var(--border-2);
+  border-radius: 999px;
+  padding: 3px 10px 3px;
+  cursor: pointer;
+  transition: color .2s var(--ease), border-color .2s var(--ease), background .2s var(--ease);
+}
+.chip:hover { color: var(--fg); border-color: var(--border-3); }
+.chip[aria-pressed="true"] {
+  color: var(--fg);
+  background: var(--bg-2);
+  border-color: var(--border-3);
+}
+
+/* On/off switch (data saver on the cams page). */
+.switch {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 0;
+  padding: 2px 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.switch i {
+  position: relative;
+  width: 26px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-2);
+  transition: background .2s var(--ease);
+}
+.switch i::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--fg-muted);
+  transition: transform .2s var(--ease), background .2s var(--ease);
+}
+.switch[aria-checked="true"] { color: var(--fg); }
+.switch[aria-checked="true"] i { background: var(--accent); border-color: var(--accent); }
+.switch[aria-checked="true"] i::after { background: #101820; transform: translateX(10px); }
+
+/* Options: inline on wider screens, the ⋯ menu on phones. */
+.more-btn { display: none; }
+.more { display: contents; }
+
+/* The info line under the bar. */
+.m-info {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-top: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.m-info::-webkit-scrollbar { display: none; }
+.m-info:not(:has(> :not([hidden]))) { display: none; }
+
+/* Wide: brand · search · areas · views · options on one line, the info
+   line under it. */
+@media (min-width: 1100px) {
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .row { display: contents; }
+  .brand { order: 0; }
+  .search { flex: 0 1 300px; order: 1; }
+  /* Where the areas run out of room they fade at the edge and scroll. */
+  .chips {
+    order: 2;
+    padding-right: 28px;
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+  .seg { order: 3; }
+  .seg.sm { order: 5; }
+  .switch { order: 6; }
+  .m-info { order: 10; flex: 1 0 100%; margin-top: -2px; }
+}
+/* Phones: 16px input stops iOS zooming on focus */
+@media (max-width: 640px) {
+  .search input { font-size: 16px; padding: 7px 10px 7px 32px; }
+}
+
+/* ---------- Phones: one compact bar ---------- */
+@media (max-width: 700px) {
+  .controls {
+    margin: 0 -16px 10px;
+    padding: max(8px, env(safe-area-inset-top)) 12px 7px;
+  }
+  .r2 { margin-top: 7px; }
+  .brand { gap: 1px; font-size: 17px; margin-right: auto; padding-right: 4px; }
+  /* One height, border and radius for every control in the bar. */
+  .r1 { gap: 6px; align-items: center; }
+  /* Search folds to an icon button; tapping it opens the field across
+     the bar, Enter folds it again. A folded search with a query in it
+     gets an accent ring and dot so the filter isn't forgotten. */
+  .search { flex: 0 0 36px; transition: flex-basis .2s var(--ease); }
+  .search input { height: 36px; padding: 5.5px 8px 5.5px 34px; border-radius: 10px; }
+  .search svg { left: 10px; width: 16px; height: 16px; color: var(--fg); }
+  .r1:not(:has(.search input:focus)) .search input {
+    padding-right: 0;   /* folded: 34px icon inset + borders = exactly 36px */
+    color: transparent;
+    cursor: pointer;
+  }
+  .r1:not(:has(.search input:focus)) .search input::placeholder { color: transparent; }
+  .r1:has(.search input:focus) .search { flex: 1 1 auto; }
+  .r1:has(.search input:focus) .brand,
+  .r1:has(.search input:focus) #view-seg { display: none; }
+  .r1:has(.search input:not(:placeholder-shown)) .search input { border-color: var(--accent); }
+  .r1:not(:has(.search input:focus)):has(.search input:not(:placeholder-shown)) .search svg { color: var(--accent-ink); }
+  .r1:not(:has(.search input:focus)):has(.search input:not(:placeholder-shown)) .search::after {
+    content: "";
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    pointer-events: none;
+  }
+  /* Views: labelled, high-contrast, the same 36px as their neighbours. */
+  #view-seg { height: 36px; padding: 3px; gap: 2px; border-color: var(--border-2); border-radius: 10px; }
+  #view-seg button, #view-seg a {
+    height: 28px;
+    padding: 1px 11px 1px;
+    border-radius: 7px;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--fg);
+    gap: 6px;
+  }
+  #view-seg button span, #view-seg a span { display: inline; }
+  #view-seg button[aria-pressed="true"], #view-seg a[aria-current="page"] { color: #101820; }
+  #view-seg svg { width: 16px; height: 16px; }
+  .more-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 36px;
+    height: 36px;
+    color: var(--fg);
+    background: var(--bg-3);
+    border: 1px solid var(--border-2);
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .more-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent-ink); }
+  .more { display: none; }
+  .controls.more-open .more {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    position: absolute;
+    right: 12px;
+    top: calc(max(8px, env(safe-area-inset-top)) + 40px);
+    z-index: 10;
+    min-width: 200px;
+    padding: 12px;
+    background: var(--bg-3);
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  }
+  .more .seg.sm { align-self: stretch; }
+  .more .seg.sm button { flex: 1; font-size: 13px; padding: 5px 8px 5px; }
+  .more .switch { font-size: 13px; justify-content: space-between; flex-direction: row-reverse; }
+  .chip { font-size: 12px; padding: 3px 10px 3px; }
+  .m-info { gap: 12px; margin-top: 7px; font-size: 12px; }
+}
+/* Most phones (up to 420px): the views you're not on show as their icons,
+   so brand, search, views and ⋯ fit with even gaps. */
+@media (max-width: 420px) {
+  #view-seg button:not([aria-pressed="true"]),
+  #view-seg a:not([aria-current="page"]) { padding: 1px 8px 1px; }
+  #view-seg button:not([aria-pressed="true"]) span,
+  #view-seg a:not([aria-current="page"]) span { display: none; }
+}
+/* Small phones (360px and so on): a touch tighter all round so the bar
+   still fits on one line. */
+@media (max-width: 380px) {
+  .controls { padding-left: 10px; padding-right: 10px; }
+  .r1 { gap: 4px; }
+  .brand { font-size: 15px; padding-right: 2px; }
+  #view-seg button:not([aria-pressed="true"]),
+  #view-seg a:not([aria-current="page"]) { padding: 1px 6px 1px; }
+}
