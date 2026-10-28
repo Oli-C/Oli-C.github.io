@@ -535,10 +535,16 @@ header { display: none; }
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
 .legend i { width: 9px; height: 9px; border-radius: 50%; background: var(--pin); }
 .legend .lg-row[hidden] { display: none; }
-/* The swell-height heat map's key: the same colours as the map. */
-.legend .heat-bar i { width: 90px; height: 8px; border-radius: 2px; background: linear-gradient(90deg, rgba(255,236,200,.35), rgb(253,200,120) 20%, rgb(249,150,60) 40%, rgb(235,95,40) 60%, rgb(200,50,30) 80%, rgb(150,25,25)); }
-.legend .heat-bar b { font-weight: 500; letter-spacing: 0; text-transform: none; }
-.leaflet-image-layer.heat { image-rendering: auto; }
+/* The swell-height heat map's key: a swatch a step, the heights at the
+   edges between them. */
+.legend .heat-key { display: grid; gap: 1px; padding-bottom: 1px; }
+.legend .heat-key .sw { display: flex; gap: 0; }
+.legend .heat-key .sw i { width: 20px; height: 9px; border-radius: 0; background: none; }
+.legend .heat-key .sw i:first-child { border-radius: 2px 0 0 2px; }
+.legend .heat-key .sw i:last-child { border-radius: 0 2px 2px 0; }
+.legend .heat-key .tk { position: relative; display: block; height: 11px; }
+.legend .heat-key .tk b { position: absolute; top: 0; transform: translateX(-50%); font-size: 9px; font-weight: 500; letter-spacing: 0; text-transform: none; line-height: 1; }
+.legend .heat-key .tk b.u { transform: none; color: var(--fg-muted); }
 /* The time slider for the wind and swell layers. */
 .time-ctl { display: grid; gap: 4px; padding: 7px 10px 6px; min-width: 190px; font-size: 11px; color: var(--fg); background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border: 1px solid var(--border); border-radius: var(--radius); }
 .time-ctl[hidden] { display: none; }

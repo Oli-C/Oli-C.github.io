@@ -128,7 +128,7 @@ function initMap() {
   // and the swell-height heat map; the worker's grids drive all three.
   windLayer = L.layerGroup();
   swellLayer = L.layerGroup();
-  heatLayer = L.imageOverlay('data:image/gif;base64,R0lGODlhAQABAAAAACw=', [[36.8, -10.3], [40.1, -8.5]], { opacity: 0.9, className: 'heat', interactive: false });
+  heatLayer = makeHeatLayer();
   if (!reducedMotion) {
     const PL = makeParticleLayer();
     const phone = matchMedia('(max-width: 640px)').matches;
@@ -137,7 +137,7 @@ function initMap() {
     swellField = new PL({ max: phone ? 250 : 700, density: 3600, life: 160, fade: 0.95, width: 1.8, min: 0.15,
       speed: (h) => 0.25 + h * 0.3, color: swellColor });
   }
-  loadGrids().then(() => { if (grids && grids.swell) heatLayer.setBounds(heatBounds(grids.swell)); updateFields(); });
+  loadGrids().then(() => { if (grids && grids.swell) heatLayer.options.bounds = L.latLngBounds(heatBounds(grids.swell)); updateFields(); });
   let overlays = { wind: true, swell: true, heat: false };
   try { overlays = { ...overlays, ...JSON.parse(localStorage.getItem('surf-overlays2') || '{}') }; } catch {}
   if (overlays.wind) windLayer.addTo(map);
@@ -491,33 +491,55 @@ const windColor = (ws) => (ws < 12 ? 'rgba(158,176,92,0.85)' : ws < 25 ? 'rgba(2
 // Swell: sea blue, slow long streaks, brighter the bigger it is.
 const swellColor = (h) => `rgba(79,195,220,${Math.min(0.95, 0.35 + h * 0.2)})`;
 
-// The heat map's colours: one warm hue, pale and faint for small waves to
-// deep and solid for big ones (a single ordered ramp, not a rainbow), so
-// the big water stands out over the dark sea of the imagery.
-const HEAT = [[0, [255, 236, 200, 40]], [1, [253, 200, 120, 110]], [2, [249, 150, 60, 165]], [3, [235, 95, 40, 195]], [4, [200, 50, 30, 215]], [5, [150, 25, 25, 230]]];
-function heatRGB(h) {
-  for (let i = 1; i < HEAT.length; i++) {
-    if (h <= HEAT[i][0]) {
-      const [h0, c0] = HEAT[i - 1], [h1, c1] = HEAT[i], t = (h - h0) / (h1 - h0);
-      return c0.map((x, k) => Math.round(x + (c1[k] - x) * t));
-    }
-  }
-  return HEAT[HEAT.length - 1][1];
+// The heat map: swell height in steps, so it reads at a glance — half a
+// metre each to 3 m, then 3–4 and 4+ — one warm hue, paler and fainter
+// for small, deeper for big, with a thin line where one step meets the
+// next. Drawn per map tile at screen resolution, so the edges stay crisp
+// at any zoom; land stays clear.
+const HEAT_EDGES = [0.5, 1, 1.5, 2, 2.5, 3, 4];   // metres
+const HEAT_COLS = [[255, 240, 210, 40], [254, 218, 150, 95], [253, 190, 105, 135], [249, 155, 65, 165],
+  [240, 118, 45, 185], [222, 82, 35, 205], [190, 45, 30, 220], [130, 18, 25, 235]];
+const heatBand = (m) => { let i = 0; while (i < HEAT_EDGES.length && m >= HEAT_EDGES[i]) i++; return i; };
+const heatCss = (c) => `rgba(${c[0]},${c[1]},${c[2]},${(c[3] / 255).toFixed(2)})`;
+function makeHeatLayer() {
+  const Heat = L.GridLayer.extend({
+    createTile(coords) {
+      const size = this.getTileSize(), cv = document.createElement('canvas');
+      const P = 2, nx = size.x / P, ny = size.y / P;   // a sample every 2 px
+      cv.width = nx; cv.height = ny;
+      const g = grids && grids.swell;
+      if (!g) return cv;
+      const s = stepOf(g, fieldHour), origin = coords.scaleBy(size);
+      // Bands for the tile plus a ring round it, so the lines meet across tiles.
+      const band = new Int8Array((nx + 2) * (ny + 2));
+      for (let y = -1; y <= ny; y++) for (let x = -1; x <= nx; x++) {
+        const ll = this._map.unproject(origin.add([x * P + P / 2, y * P + P / 2]), coords.z);
+        const h = gridAt(g, 'h', ll.lat, ll.lng, s);
+        band[(y + 1) * (nx + 2) + x + 1] = h == null ? -1 : heatBand(h / 100);
+      }
+      const ctx = cv.getContext('2d'), img = ctx.createImageData(nx, ny);
+      for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) {
+        const at = (dx, dy) => band[(y + 1 + dy) * (nx + 2) + x + 1 + dx];
+        const bnd = at(0, 0);
+        if (bnd < 0) continue;
+        // On a step's edge (the bigger side draws it): a light line.
+        const edge = [at(1, 0), at(-1, 0), at(0, 1), at(0, -1)].some((n) => n >= 0 && n < bnd);
+        const c = edge ? [255, 255, 255, 150] : HEAT_COLS[bnd], o = (y * nx + x) * 4;
+        img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = c[3];
+      }
+      ctx.putImageData(img, 0, 0);
+      return cv;
+    },
+  });
+  return new Heat({ className: 'heat', zIndex: 250, updateWhenZooming: false });
 }
-// The swell grid at a step as an image (one pixel a cell, north up); the
-// browser smooths it as it scales. Land stays clear.
-function heatImage(g, s) {
-  const cv = document.createElement('canvas');
-  cv.width = g.nlng; cv.height = g.nlat;
-  const ctx = cv.getContext('2d'), img = ctx.createImageData(g.nlng, g.nlat);
-  for (let i = 0; i < g.nlat; i++) for (let j = 0; j < g.nlng; j++) {
-    const h = gridAt(g, 'h', g.lat0 + i * g.dlat, g.lng0 + j * g.dlng, s);
-    if (h == null) continue;
-    const [r, gg, b, a] = heatRGB(h / 100), o = ((g.nlat - 1 - i) * g.nlng + j) * 4;
-    img.data[o] = r; img.data[o + 1] = gg; img.data[o + 2] = b; img.data[o + 3] = a;
-  }
-  ctx.putImageData(img, 0, 0);
-  return cv.toDataURL();
+// The key: a swatch a step, labelled at the edges (in the units picked).
+function renderHeatKey() {
+  const el = document.querySelector('#lg-heat .heat-key');
+  if (!el) return;
+  const lab = (m) => (units === 'ft' ? String(Math.round(m * 3.281)) : String(m));
+  el.innerHTML = `<span class="sw">${HEAT_COLS.map((c) => `<i style="background:${heatCss(c)}"></i>`).join('')}</span>`
+    + `<span class="tk">${HEAT_EDGES.map((m, i) => `<b style="left:${(i + 1) * 20}px">${lab(m)}</b>`).join('')}<b class="u" style="left:${HEAT_COLS.length * 20 + 5}px">${units === 'ft' ? 'ft' : 'm'}</b></span>`;
 }
 const heatBounds = (g) => [[g.lat0 - g.dlat / 2, g.lng0 - g.dlng / 2], [g.lat0 + (g.nlat - 0.5) * g.dlat, g.lng0 + (g.nlng - 0.5) * g.dlng]];
 
@@ -566,7 +588,8 @@ function updateFields() {
     const stand = (fieldGrid || []).filter((g) => g.h != null && g.d != null).map((g) => ({ lat: g.lat, lng: g.lng, toward: g.d + 180, mag: g.h }));
     swellField.setField(swellFieldAt(fieldHour) || samplesField(stand, (h) => 0.25 + h * 0.3));
   }
-  if (heatLayer && grids && grids.swell) heatLayer.setUrl(heatImage(grids.swell, stepOf(grids.swell, fieldHour)));
+  if (heatLayer && grids && grids.swell && map.hasLayer(heatLayer)) heatLayer.redraw();
+  renderHeatKey();
   syncTimeControl();
 }
 
