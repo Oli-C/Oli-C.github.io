@@ -449,8 +449,8 @@
         const d = digestOf(c, i), on = sel && sel.id === c.id && sel.i === i;
         const parts = d ? `<span class="parts" aria-hidden="true">${d.blocks.map((b) => `<i style="height:${b.score == null ? 1 : Math.max(1, b.score * 10)}%"></i>`).join('')}</span>` : '';
         return `<button class="tile lvl-${d ? d.level : 'x'}" type="button" data-id="${esc(c.id)}" data-i="${i}" aria-pressed="${on}"
-          aria-label="${esc(c.name)}, ${dayName(iso, i, true)}: ${d ? `${fmt(d.top)} ${d.label}` : 'no forecast'}" style="--conf:${d && d.conf != null ? d.conf : 1}">
-          <span><b>${d ? fmt(d.top) : '–'}</b><em>${d ? d.label : ''}</em></span>${parts}</button>`;
+          aria-label="${esc(c.name)}, ${dayName(iso, i, true)}: ${!d ? 'no forecast' : d.top === 0 ? 'flat' : `${fmt(d.top)} ${d.label}`}" style="--conf:${d && d.conf != null ? d.conf : 1}">
+          <span><b>${!d ? '–' : d.top === 0 ? 'Flat' : fmt(d.top)}</b><em>${d && d.top > 0 ? d.label : ''}</em></span>${parts}</button>`;
       }).join('');
       return `<a class="nm" href="./#${esc(c.id)}" title="Open ${esc(c.name)}"><span>${esc(c.name)}</span><small>${esc(c.zone && c.zone !== c.name ? c.zone : c.town)}</small></a>${tiles}${sel && sel.id === c.id ? detailHtml(c, sel.i) : ''}`;
     }).join('')}</div>`;

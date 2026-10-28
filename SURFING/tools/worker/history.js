@@ -24,6 +24,9 @@
    fc rows (6 buoys × 5 models × 24 h × ~8 leads), ~100 bytes each: about
    250 MB a year, against D1's 5 GB included (10 GB per database).
 
+   POST /ibi?key=            a Copernicus IBI run from tools/copernicus.py: kept in KV
+                             (ibi:latest) for the forecast build, and its forecasts at
+                             the buoys filed in fc like the other wave models'
    GET /skill/waves?days=60  every wave model's miss at the buoys by lead day
    GET /obs?src=&since=      stored measurements (one source, ≤ 31 days) */
 
@@ -156,8 +159,41 @@ async function archiveHistory(env, force) {
   return out;
 }
 
-// Routes: GET /skill/waves, GET /obs, GET /history/status. Null otherwise.
+// A Copernicus IBI run: { built, times: [UTC hours], spots: { id: { <marine var>: [..] } }, buoys: {...} }.
+async function receiveIbi(req, env, json) {
+  const key = await readSecret(env.EXPORT_KEY);
+  if (!key || (new URL(req.url).searchParams.get('key') || '').trim() !== key) return json({ error: 'no' }, 403);
+  if ((req.headers.get('Content-Length') | 0) > 3e6) return json({ error: 'too big' }, 413);
+  let b;
+  try { b = await req.json(); } catch { return json({ error: 'bad json' }, 400); }
+  const T = /^\d{4}-\d\d-\d\dT\d\d:\d\d$/;
+  if (!b || !Array.isArray(b.times) || !b.times.every((t) => T.test(t)) || !b.spots || typeof b.spots !== 'object' || !T.test(b.built || '')) return json({ error: 'bad run' }, 400);
+  const n = b.times.length, keep = ['cell', 'km', ...MARINE];
+  const clean = (rec) => Object.fromEntries(Object.entries(rec || {}).filter(([k, v]) => keep.includes(k) && Array.isArray(v) && (k === 'cell' || v.length === n)));
+  const known = new Set(CAMS.map((c) => c.id));
+  const run = { v: 1, built: b.built, source: String(b.source || '').slice(0, 60), times: b.times, spots: {}, buoys: {} };
+  for (const [id, rec] of Object.entries(b.spots)) if (known.has(id)) run.spots[id] = clean(rec);
+  for (const [id, rec] of Object.entries(b.buoys || {})) if (HIST_BUOYS.some((x) => x.id === id)) run.buoys[id] = clean(rec);
+  await env.FEEDBACK.put('ibi:latest', JSON.stringify(run));
+  // Its forecasts at the buoys, by lead day, for its record (as archiveWaveForecasts).
+  let filed = 0;
+  if (env.DB) {
+    const now = Date.now(), issued = new Date(now).toISOString().slice(0, 16), rows = [];
+    for (const [id, rec] of Object.entries(run.buoys)) {
+      run.times.forEach((t, i) => {
+        const ahead = (Date.parse(t + ':00Z') - now) / 3.6e6, hv = (rec.wave_height || [])[i];
+        if (ahead < 0 || hv == null || !(hv > 0.05)) return;
+        rows.push([sqlStr(id), sqlStr(IBI_MODEL.key), sqlStr(t), Math.floor(ahead / 24), sqlNum(hv), sqlNum((rec.wave_peak_period || [])[i]), sqlNum((rec.wave_direction || [])[i]), sqlStr(issued)]);
+      });
+    }
+    try { filed = await insertRows(env.DB, 'fc', ['pt', 'model', 't', 'lead', 'h', 'p', 'd', 'issued'], rows); } catch (e) { console.log('ibi fc', e.message); }
+  }
+  return json({ ok: true, built: run.built, spots: Object.keys(run.spots).length, buoys: Object.keys(run.buoys).length, hours: n, filed });
+}
+
+// Routes: POST /ibi, GET /skill/waves, GET /obs, GET /history/status. Null otherwise.
 async function handleHistory(req, env, url, json) {
+  if (req.method === 'POST' && url.pathname === '/ibi') return receiveIbi(req, env, json);
   if (req.method !== 'GET' || !['/skill/waves', '/obs', '/history/status', '/history/refresh'].includes(url.pathname)) return null;
   if (!env.DB) return json({ error: 'no history database bound' }, 503);
   if (url.pathname === '/history/refresh') {

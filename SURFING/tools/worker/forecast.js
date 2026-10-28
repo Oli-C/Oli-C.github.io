@@ -7,7 +7,8 @@
         weights the models exactly as the pages do;
      2. fetches every wind and wave model's hourly series for every spot,
         from 2 days ago to 7 days ahead (one call each for all spots), and
-        IPMA's latest station readings;
+        IPMA's latest station readings; adds Copernicus IBI, the regional
+        wave model tools/copernicus.py posts every few hours (POST /ibi);
      3. blends each hour (outliers set aside, models weighted), folds a
         fresh nearby station reading into the hours around it, and works
         out each day's tide range, highs and lows, light and confidence;
@@ -61,9 +62,9 @@ async function fcObs() {
 }
 
 // The Sources panel's per-model values for one hour (as the page builds them).
-function fcSrc(mRows, wRows, windW, marineW) {
+function fcSrc(mRows, wRows, windW, marineW, mModels = MARINE_MODELS) {
   const wind = wRows.map((r, x) => ({ name: WIND_MODELS[x].name, w: +windW[x].toFixed(2), n: 0, ws: r.wind_speed_10m, wd: r.wind_direction_10m })).filter((r) => r.ws != null);
-  const swell = mRows.map((r, x) => ({ name: MARINE_MODELS[x].name, w: +marineW[x].toFixed(2), h: r.swell_wave_height ?? r.wave_height, p: r.swell_wave_period ?? r.wave_period, d: r.swell_wave_direction ?? r.wave_direction })).filter((r) => r.h != null && r.h > 0.05);
+  const swell = mRows.map((r, x) => ({ name: mModels[x].name, w: +marineW[x].toFixed(2), h: r.swell_wave_height ?? r.wave_height, p: r.swell_wave_period ?? r.wave_period, d: r.swell_wave_direction ?? r.wave_direction })).filter((r) => r.h != null && r.h > 0.05);
   const wdOut = outliers(wind.map((r) => r.wd), true), wsOut = outliers(wind.map((r) => r.ws), false);
   wind.forEach((r, x) => { r.out = wdOut.has(x) || wsOut.has(x); });
   const hOut = outliers(swell.map((r) => r.h), false), dOut = outliers(swell.map((r) => r.d).filter((v) => v != null), true);
@@ -90,6 +91,13 @@ async function buildForecast(env) {
   ]);
   if (marine.error || wind.error) throw new Error(marine.reason || wind.reason);
   const M = asList(marine), W = asList(wind);
+  // Copernicus IBI, if a recent run has been posted: its hours by UTC time.
+  let ibi = null;
+  try { ibi = JSON.parse((await env.FEEDBACK.get('ibi:latest')) || 'null'); } catch {}
+  if (ibi && Date.now() - Date.parse(ibi.built + ':00Z') > 36 * 3600e3) ibi = null;   // too old to trust
+  const ibiAt = ibi ? Object.fromEntries(ibi.times.map((t, i) => [t, i])) : null;
+  const ibiWL = leadWeights([IBI_MODEL], waveWeight);
+  const ibiRow = (s, i) => Object.fromEntries(MARINE.map((v) => [v, s[v] ? s[v][i] : null]));
   // Weights by days ahead: models are trusted by their record that far out.
   const windWL = leadWeights(WIND_MODELS, modelWeight), marineWL = leadWeights(MARINE_MODELS, waveWeight);
   const spots = {}, byDay = {};
@@ -104,9 +112,12 @@ async function buildForecast(env) {
     if (ob) { ob.day = obLocal.slice(0, 10); ob.t = obLocal.slice(11, 16); ob.ageH = +((Date.now() - Date.parse(ob.utc + ':00Z')) / 3.6e6).toFixed(1); }
     const byDate = {}, src = {};
     const n = Math.min(m.hourly.time.length, w.hourly.time.length);
+    const ib = ibi && ibi.spots[c.id];
     for (let j = 0; j < n; j++) {
       const t = m.hourly.time[j], lead = leadOf(t, offset);
-      const bh = blendHour(m.hourly, w.hourly, j, windWL[lead], marineWL[lead]);
+      const ii = ib ? ibiAt[new Date(Date.parse(t + ':00Z') - offset * 1000).toISOString().slice(0, 16)] : null;
+      const extra = ii != null && ib.wave_height[ii] != null ? [{ model: IBI_MODEL, row: ibiRow(ib, ii), w: ibiWL[lead][0] }] : null;
+      const bh = blendHour(m.hourly, w.hourly, j, windWL[lead], marineWL[lead], extra);
       if (!bh) continue;
       const k = { t, ...bh.k };
       // A fresh station reading leans on the hours around it.
@@ -117,7 +128,7 @@ async function buildForecast(env) {
       (byDate[t.slice(0, 10)] = byDate[t.slice(0, 10)] || []).push(k);
       // Per-model values for the hours a page might call "now" before the next run.
       const dh = (Date.parse(t + ':00Z') - Date.parse(nowLocal + ':00Z')) / 3.6e6;
-      if (dh >= -1.5 && dh <= 2.5) src[t] = { src: fcSrc(bh.mRows, bh.wRows, windWL[lead], marineWL[lead]), model: bh.k.model };
+      if (dh >= -1.5 && dh <= 2.5) src[t] = { src: fcSrc(bh.mRows, bh.wRows, windWL[lead], bh.mW, bh.mModels), model: bh.k.model };
     }
     const dates = Object.keys(byDate).sort(), todayIdx = dates.indexOf(today);
     const days = dates.map((date, di) => {
@@ -131,7 +142,7 @@ async function buildForecast(env) {
     spots[c.id] = { offset, days, src, obs: ob };
   });
   const built = new Date().toISOString();
-  const payload = { v: FC_VER, built, skill: (sharedSkill && sharedSkill.updated) || null, ms: Date.now() - started, spots };
+  const payload = { v: FC_VER, built, skill: (sharedSkill && sharedSkill.updated) || null, ibi: ibi ? ibi.built : null, ms: Date.now() - started, spots };
   await env.FEEDBACK.put('fc:latest', JSON.stringify(payload));
   for (const [date, s] of Object.entries(byDay)) await env.FEEDBACK.put(`fc:day:${date}`, JSON.stringify({ date, built, spots: s }));
   return { built, spots: Object.keys(spots).length, days: Object.keys(byDay), ms: Date.now() - started };

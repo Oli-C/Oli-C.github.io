@@ -252,10 +252,14 @@ async function verifyWaves() {
   try {
     const j = await getJson(`${WORKER}/skill/waves?days=60`);
     let used = 0;
+    // Models checked above have today's record already; one that isn't on
+    // Open-Meteo (Copernicus IBI) takes every lead, today's too, from here.
+    const onOpenMeteo = new Set(MARINE_MODELS.map((m) => m.id || m.key));
     for (const r of j.rows || []) {
-      if (r.lead < 1 || r.lead >= LEADS || r.n < 24 || !out.wave[r.model]) continue;
-      const s = out.wave[r.model];
+      if (r.lead >= LEADS || r.n < 24 || (r.lead < 1 && onOpenMeteo.has(r.model))) continue;
+      const s = out.wave[r.model] = out.wave[r.model] || { lead: [] };
       s.lead[r.lead] = { n: r.n, hRel: r.hRelC ?? r.hRel, hBias: r.hBias, p: r.p, dir: r.dir, at: out.updated };
+      if (r.lead === 0) Object.assign(s, { n: r.n, hRel: s.lead[0].hRel, hBias: r.hBias, p: r.p, dir: r.dir });
       used++;
     }
     for (const s of Object.values(out.wave)) for (let d = 0; d < s.lead.length; d++) if (!s.lead[d]) s.lead[d] = null;

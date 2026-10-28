@@ -502,6 +502,10 @@ const MARINE_MODELS = [
   { key: 'meteofrance_currents', name: 'Météo-France ocean', w: 1, ocean: true },
 ];
 const modelIds = (models) => models.map((m) => m.id || m.key).join();
+// Copernicus Marine's Iberian wave model (IBI, ~2.5 km, swell split into
+// trains). Not on Open-Meteo: tools/copernicus.py samples it at every spot
+// and the worker adds it to the blend as one more wave model.
+const IBI_MODEL = { key: 'cmems_ibi', name: 'Copernicus IBI', w: 1.3 };
 
 // Weighted median: the value where half the weight sits on either side.
 function wMedian(vals, ws) {
@@ -676,17 +680,21 @@ const confWord = (c) => (c == null ? '' : c >= 0.75 ? 'High' : c >= 0.45 ? 'Medi
 // One forecast hour from every model, blended. Returns the blended row
 // (with the models' spread and a copy of the model-only wind, for
 // confidence and for comparing against a station) plus the raw rows.
-function blendHour(mH, wH, j, windW, marineW) {
+// `extra`: more wave rows from outside Open-Meteo, [{ model, row, w }]
+// (the worker's Copernicus IBI).
+function blendHour(mH, wH, j, windW, marineW, extra) {
+  const mModels = MARINE_MODELS.slice(), mW = marineW.slice();
   const mRows = MARINE_MODELS.map((mod) => debias(modelRow(mH, j, MARINE, mod), waveBias(mod)));
+  for (const e of extra || []) { mModels.push(e.model); mRows.push(debias({ ...e.row }, waveBias(e.model))); mW.push(e.w); }
   const wRows = WIND_MODELS.map((mod) => modelRow(wH, j, WIND, mod));
   splitSwell(mRows);
-  const k = toK(blend(mRows, MARINE, marineW), blend(wRows, WIND, windW));
+  const k = toK(blend(mRows, MARINE, mW), blend(wRows, WIND, windW));
   if (!k) return null;
   const wds = wRows.map((r) => r.wind_direction_10m).filter((v) => v != null);
   const hs = mRows.map((r) => r.swell_wave_height ?? r.wave_height).filter((v) => v != null && v > 0.05);
   k.spread = { wd: dirSpread(wds), h: hs.length > 1 ? +((Math.max(...hs) - Math.min(...hs)) / Math.max(...hs)).toFixed(2) : 0 };
   k.model = { ws: k.ws, wd: k.wd };
-  return { k, mRows, wRows };
+  return { k, mRows, wRows, mModels, mW };
 }
 // A wave model's heights scaled by its measured size bias (1 = none).
 function debias(r, f) {

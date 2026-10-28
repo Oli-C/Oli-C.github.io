@@ -1,0 +1,45 @@
+name: surf ibi
+
+# Copernicus Marine's Iberian wave forecast (IBI, ~2.5 km) at every spot
+# and buoy, posted to the surf worker (POST /ibi), which adds it to the
+# hourly blend as one more wave model. IBI runs twice a day; every six
+# hours picks up each run soon after it's out. See SURFING/tools/copernicus.py.
+#
+# Secrets: COPERNICUSMARINE_SERVICE_USERNAME / _PASSWORD (the Copernicus
+# Marine account; without them it reads the public store), FEEDBACK_URL
+# and FEEDBACK_KEY (the worker and its key, as surf-skill uses).
+
+on:
+  schedule:
+    - cron: '50 */6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: surf-ibi
+  cancel-in-progress: true
+
+jobs:
+  ibi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: SURFING/tools/requirements-ibi.txt
+      - name: Install
+        run: pip install -r SURFING/tools/requirements-ibi.txt
+      - name: Sample IBI at the spots and buoys, post to the worker
+        env:
+          COPERNICUSMARINE_SERVICE_USERNAME: ${{ secrets.COPERNICUSMARINE_SERVICE_USERNAME }}
+          COPERNICUSMARINE_SERVICE_PASSWORD: ${{ secrets.COPERNICUSMARINE_SERVICE_PASSWORD }}
+          FEEDBACK_URL: ${{ secrets.FEEDBACK_URL }}
+          FEEDBACK_KEY: ${{ secrets.FEEDBACK_KEY }}
+        run: |
+          node SURFING/tools/points.mjs > points.json
+          python SURFING/tools/copernicus.py points.json --post

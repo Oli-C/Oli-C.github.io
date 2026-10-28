@@ -1717,7 +1717,8 @@
   const MOON = '<svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
   const badge = (c, lg) => {
     const r = scoreOf(c);
-    if (r && r.dark) return `<span class="score lvl-dark${lg ? ' lg' : ''}" title="After dark${r.lit != null ? ` · ${fmt(r.lit)} in daylight` : ''}">${MOON}<small>Dark</small></span>`;
+    if (r && r.dark) return `<span class="score lvl-dark${lg ? ' lg' : ''}" title="After dark: ${r.lit ? `${fmt(r.lit)} with light to see by` : 'flat anyway'}">${MOON}${r.lit ? `<b>${fmt(r.lit)}</b>` : ''}<small>Dark</small></span>`;
+    if (r && r.total === 0) return `<span class="score lvl-0${lg ? ' lg' : ''}" title="${esc(r.cap || 'Flat')}"><small>Flat</small></span>`;
     return r
       ? `<span class="score lvl-${r.level}${lg ? ' lg' : ''}"><b>${fmt(r.total)}</b><small>${r.label}</small></span>`
       : `<span class="score lvl-x${lg ? ' lg' : ''}"><b>–</b><small>no data</small></span>`;
@@ -1727,7 +1728,7 @@
     if (!r) return '';
     // Wind and how clean it leaves the surface, e.g. "9 kts cross, bumpy".
     const rel = r.wind === 'cross-shore' ? 'cross' : r.wind;
-    return `<b>${hgt(k.h)}</b> · <b>${Math.round(k.p)} s</b> · <b>${kts(k.ws)} kts</b> ${rel}${r.surface && !r.dark ? `, <span class="surf-word surf-${r.surface.i}">${esc(r.surface.label.toLowerCase())}</span>` : ''}`;
+    return `<b>${hgt(k.h)}</b> · <b>${Math.round(k.p)} s</b> · <b>${kts(k.ws)} kts</b> ${rel}${r.surface ? `, <span class="surf-word surf-${r.surface.i}">${esc(r.surface.label.toLowerCase())}</span>` : ''}`;
   };
 
   /* ---------- Today: four bars + a summary ---------- */
@@ -2338,7 +2339,7 @@
         ${miniBars(c)}</span>` : '';
     return L.divIcon({
       className: 'pin-wrap',
-      html: `<span class="pin ${lvl}" title="${esc(c.name)}"><span class="sc">${r ? (r.dark ? MOON : fmt(r.total)) : '·'}</span>${data}</span>`,
+      html: `<span class="pin ${lvl}" title="${esc(c.name)}"><span class="sc">${!r ? '·' : r.dark ? (r.lit ? fmt(r.lit) : MOON) : r.total === 0 ? '–' : fmt(r.total)}</span>${data}</span>`,
       iconSize: [0, 0],
       iconAnchor: [0, 0],
       popupAnchor: [0, -14],
@@ -2846,7 +2847,7 @@
     const chip = (label, v, s) => `<span class="chip-now"><span class="k">${label}</span><b>${v}</b>${s ? `<small>${s}</small>` : ''}</span>`;
     const chips = [];
     // How clean it should be, first: what most people want to know.
-    if (r.surface && k && !r.dark) chips.push(`<span class="chip-now surf-${r.surface.i}" title="${esc(r.surface.learned || 'From the wind, gusts, chop and any cross swell')}"><span class="k">Surface</span><b>${esc(r.surface.label)}</b>${r.surface.learned ? '<small>from sessions</small>' : ''}</span>`);
+    if (r.surface && k) chips.push(`<span class="chip-now surf-${r.surface.i}" title="${esc(r.surface.learned || 'From the wind, gusts, chop and any cross swell')}"><span class="k">Surface</span><b>${esc(r.surface.label)}</b>${r.surface.learned ? '<small>from sessions</small>' : ''}</span>`);
     if (k && k.sst != null) chips.push(chip('Water', `${Math.round(k.sst)}°C`, esc(suit(k.sst))));
     if (k && k.air != null) chips.push(chip('Air', `${Math.round(k.air)}°C`));
     if (cnd && cnd.sun && cnd.sun.rise) chips.push(chip('Light', `${cnd.sun.rise}–${cnd.sun.set}`));
@@ -2941,9 +2942,11 @@
     const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
     // Quality: one segment per hour, and the best three daylight hours.
+    // Night hours show what they'd score with light, dimmed.
     const scores = byHour.map((k) => (k ? score(c, k) : null));
+    const sc = (r) => (r ? (r.dark ? r.lit || 0 : r.total) : 0);
     const band = plot('band', '<span class="bars">' + scores.map((r, h) =>
-      `<span class="${r && r.total > 0 ? 'lvl-' + r.level : 'lvl-x'}${cls(h)}" title="${pad(h)}:00${r ? ' · ' + fmt(r.total) : ''}"><i></i></span>`).join('') + '</span>');
+      `<span class="${sc(r) > 0 ? 'lvl-' + levelOf(sc(r)) : 'lvl-x'}${cls(h)}" title="${pad(h)}:00${r ? ' · ' + fmt(sc(r)) + (r.dark ? ' if it were light' : '') : ''}"><i></i></span>`).join('') + '</span>');
     const lit = scores.filter((r, h) => r && r.total > 0 && !dark(h)).map((r) => r.total);
     const qLo = lit.length ? levelOf(Math.min(...lit)) : null, qHi = lit.length ? levelOf(Math.max(...lit)) : null;
     let best = null;
@@ -2959,6 +2962,8 @@
     hour.quality = (h) => {
       const r = scores[h];
       if (!r) return null;
+      if (r.dark) return [`${r.lit ? fmt(r.lit) : '–'}<small>/10 if it were light</small>`, `<b>${pad(h)}:00</b> · dark`];
+      if (r.total === 0) return [`Flat<small></small>`, `<b>${pad(h)}:00</b> · ${r.cap ? esc(r.cap) : 'too small'}`];
       return [`${fmt(r.total)}<small>/10 ${LEVELS[r.level]}</small>`,
         `<b>${pad(h)}:00</b> · ${r.cap ? esc(r.cap) : esc(cap(r.wind)) + ' wind'}`];
     };
