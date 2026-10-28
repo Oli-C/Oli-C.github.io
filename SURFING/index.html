@@ -2995,8 +2995,9 @@
   // factors, sea state, verdict) and the scheduled Action exports the pool
   // into data/feedback.json, which becomes each spot's calibration in
   // data/skill.json. The device copy only lets a user see their own votes.
-  // Deploy the worker once and paste its URL here.
-  const FEEDBACK_URL = '';
+  // Public on purpose: browsers post here. Exporting needs EXPORT_KEY,
+  // which lives only in Cloudflare and the repo's Actions secrets.
+  const FEEDBACK_URL = 'https://surf-feedback.odj-clarke.workers.dev';
   const loadFb = () => { try { return JSON.parse(localStorage.getItem(FB_KEY) || '[]') || []; } catch { return []; } };
   const saveFb = (list) => { try { localStorage.setItem(FB_KEY, JSON.stringify(list.slice(-2000))); } catch {} };
   function logFeedback(c, verdict) {
