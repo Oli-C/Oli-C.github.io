@@ -1,0 +1,33 @@
+/* The account line and forms (account.js): sign in, create an account,
+   forgotten password, change password, recovery code. Uses each page's
+   colour variables (--fg, --accent, --bg-2/3, --border-2, --lvl-1). */
+.acct-line { margin-top: 10px; font-size: 12px; color: var(--fg-muted); }
+.acct-line b { color: var(--fg); font-weight: 600; }
+.acct { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border-2); }
+.acct-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.acct-title { font-size: 13px; font-weight: 600; color: var(--fg); }
+.acct-x { font: inherit; font-size: 14px; color: var(--fg-muted); background: none; border: 0; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; }
+.acct-x:hover { color: var(--fg); background: var(--bg-2); }
+.acct-fields { display: grid; gap: 8px; margin: 8px 0 10px; max-width: 360px; }
+.acct-f { display: grid; gap: 4px; font-size: 12px; color: var(--fg-muted); }
+.acct-in {
+  width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; color: var(--fg); background: var(--bg-3);
+  border: 1px solid var(--border-2); border-radius: 10px; padding: 8px 12px; outline: none;
+}
+.acct-in:focus { border-color: var(--accent); }
+.acct-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 4px; }
+.acct-btn {
+  display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 13px; font-weight: 600; letter-spacing: 0.04em;
+  color: #101820; background: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 7px 14px; cursor: pointer;
+}
+.acct-btn.ghost { color: var(--fg); background: var(--bg-3); border-color: var(--border-2); font-weight: 500; }
+.acct-btn[disabled] { opacity: 0.6; cursor: progress; }
+.acct-note { display: block; margin-top: 6px; font-size: 12px; line-height: 1.45; color: var(--fg-muted); }
+.acct-err { margin: 0 0 8px; font-size: 13px; color: var(--lvl-1); }
+.acct-link { font: inherit; color: var(--accent-ink, var(--accent)); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.acct-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.acct-code {
+  margin: 8px 0; padding: 10px 14px; width: max-content; max-width: 100%; box-sizing: border-box;
+  font: 600 18px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.08em; color: var(--fg);
+  background: var(--bg-3); border: 1px dashed var(--accent); border-radius: 10px; user-select: all;
+}

@@ -14,6 +14,7 @@
 </script>
 <!-- The toolbar, shared by every surfing page. -->
 <link rel="stylesheet" href="toolbar.css">
+<link rel="stylesheet" href="account.css">
 <style>
   @font-face {
     font-family: 'Anek Kannada';
@@ -82,104 +83,127 @@
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   /* The toolbar is toolbar.css, shared with the cams page. */
   .page { padding-top: 0; }
-  .status { color: var(--fg-muted); font-size: 12px; margin: -4px 0 14px; }
+  .status { color: var(--fg-muted); font-size: 12px; line-height: 1.5; margin: 18px 0 0; max-width: 1100px; }
 
-  /* Day picker: part of the sticky bar, under the areas. */
-  .days { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-top: 8px; }
-  @media (min-width: 1100px) { .days { order: 9; flex: 1 0 100%; margin-top: 0; } }
-  .days::-webkit-scrollbar { display: none; }
-  .day {
-    flex: 1 0 auto; min-width: 64px;
-    display: flex; flex-direction: column; align-items: center; gap: 2px;
-    font: inherit; color: var(--fg-muted);
-    background: var(--bg-3); border: 1px solid var(--border-2); border-radius: var(--radius);
-    padding: 5.5px 8px 5.5px; cursor: pointer;
-    transition: border-color .2s var(--ease), background .2s var(--ease), color .2s var(--ease);
-  }
-  .day small { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
-  .day b { font-size: 14px; font-weight: 600; color: var(--fg); }
-  .day .score { margin-top: 3px; }
-  .day[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg-3)); color: var(--fg); }
-  /* Far-off or disputed days fade; --conf is set per element */
-  .day .score, .cell .score, .cell .bar { opacity: var(--conf, 1); }
-  .day .conf { font-size: 9px; color: var(--fg-muted); letter-spacing: 0.06em; text-transform: uppercase; margin-top: 2px; }
-  .confn { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pin); }
-  /* Score badge */
+  /* Score colours (same as the cams page): grey flat, red poor, amber fair,
+     green good, orange epic. --ink is the text that reads on each. */
   .lvl-0 { --pin: var(--lvl-0); --ink: #fff; }
   .lvl-1 { --pin: var(--lvl-1); --ink: #fff; }
   .lvl-2 { --pin: var(--lvl-2); --ink: #101820; }
   .lvl-3 { --pin: var(--lvl-3); --ink: #101820; }
   .lvl-4 { --pin: var(--lvl-4); --ink: #101820; }
   .lvl-x { --pin: var(--bg-2); --ink: var(--fg-muted); }
-  .score {
-    display: inline-flex; align-items: baseline; gap: 4px; color: var(--ink); background: var(--pin);
-    border-radius: 7px; padding: 2.5px 7px 2.5px; white-space: nowrap; line-height: 1;
-  }
-  .score b { font-size: 14px; font-weight: 700; }
-  .score small { font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
 
-  /* Areas and spot rows */
-  .area { margin-bottom: 24px; }
-  .area[hidden] { display: none; }
-  .area-head {
-    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
-    margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+  /* Best bets: the week's standouts in one line. */
+  .bets { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0 0 14px; font-size: 13px; color: var(--fg-muted); }
+  .bets .k { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+  .bet {
+    display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 13px; color: var(--fg); cursor: pointer;
+    background: var(--bg-3); border: 1px solid var(--border-2); border-radius: 999px; padding: 4px 10px 4px 4px;
   }
-  .area-head h2 { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
-  .area-head .sum { color: var(--fg-muted); font-size: 13px; text-align: right; }
-  .area-head .sum b { color: var(--fg); font-weight: 600; }
+  .bet:hover { border-color: var(--accent); }
+  .bet b { display: inline-grid; place-items: center; min-width: 30px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--pin); color: var(--ink); font-size: 12px; }
+  .bet small { color: var(--fg-muted); font-size: 12px; }
 
-  .spot {
-    display: grid;
-    grid-template-columns: minmax(140px, 220px) 1fr;
-    gap: 6px 14px;
-    align-items: center;
-    padding: 10px 12px;
-    background: var(--bg-3);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    margin-bottom: 8px;
+  /* Tools: Mine / All, edit, legend. */
+  .tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; }
+  .tools .seg { order: 0; }   /* toolbar.css moves the bar's .seg; not this one */
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-left: auto; font-size: 11px; color: var(--fg-muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .legend i { width: 10px; height: 10px; border-radius: 3px; background: var(--pin); }
+  .legend .unsure i { background: var(--lvl-3); filter: saturate(0.3); }
+  .btn {
+    font: inherit; font-size: 12px; color: var(--fg); cursor: pointer;
+    background: var(--bg-3); border: 1px solid var(--border-2); border-radius: 999px; padding: 4px 11px;
   }
-  .spot[hidden] { display: none; }
-  .spot-name { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
-  .spot-name a { color: inherit; text-decoration: none; }
-  .spot-name a:hover { color: var(--accent-ink); }
-  .spot-zone { color: var(--fg-muted); font-size: 12px; margin-top: 1px; }
-  .week {
-    display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
+  .btn:hover { border-color: var(--accent); }
+  .btn.on { background: var(--accent); border-color: var(--accent); color: #101820; font-weight: 600; }
+
+  /* A section: My spots, or an area. */
+  .sec { max-width: 1100px; margin: 0 0 22px; }
+  .sec[hidden] { display: none; }
+  .sec-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 6px; }
+  .sec-head h2 { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+  .sec-head .acct-host { flex-basis: 100%; }
+  .sec-head .acct-line { margin-top: 0; }
+
+  /* The heat-map: a row per spot, a tile per day. */
+  .grid { display: grid; grid-template-columns: minmax(88px, 190px) repeat(7, minmax(0, 1fr)); gap: 4px; align-items: stretch; }
+  .gh { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-muted); text-align: center; padding: 2px 0 3px; line-height: 1.15; }
+  .gh b { display: block; font-size: 12px; letter-spacing: 0; text-transform: none; color: var(--fg); font-weight: 600; }
+  .gh.today b { color: var(--accent-ink); }
+  .nm { display: flex; flex-direction: column; justify-content: center; min-width: 0; color: var(--fg); text-decoration: none; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.15; padding-right: 4px; }
+  .nm span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nm small { font-size: 11px; font-weight: 400; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nm:hover span { color: var(--accent-ink); }
+  .tile {
+    position: relative; display: grid; place-items: center; min-height: 46px; padding: 3px 0 9px;
+    font: inherit; color: var(--ink); background: var(--pin); border: 0; border-radius: 8px; cursor: pointer;
+    /* Less certain days (far off, models disagreeing) go greyer. */
+    filter: saturate(calc(0.3 + 0.7 * var(--conf, 1)));
+    transition: transform .15s var(--ease), box-shadow .15s var(--ease);
   }
-  .cell {
-    position: relative;
-    display: flex; flex-direction: column; align-items: center; gap: 3px;
-    font: inherit; color: var(--fg-muted);
-    background: transparent; border: 1px solid transparent; border-radius: 8px;
-    padding: 5.5px 2px 5.5px; cursor: pointer;
-    transition: border-color .2s var(--ease), background .2s var(--ease);
+  .tile b { font-size: 15px; font-weight: 700; line-height: 1; }
+  .tile em { display: none; font-style: normal; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px; opacity: .85; }
+  .tile:hover { transform: translateY(-1px); }
+  .tile[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--fg); }
+  /* When in the day: dawn, morning, afternoon, evening, as little bars. */
+  .parts { position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%); display: flex; gap: 2px; align-items: flex-end; height: 7px; }
+  .parts i { width: 4px; min-height: 1px; border-radius: 1px; background: var(--ink); opacity: .55; }
+  .tile.lvl-x .parts { display: none; }
+  @media (min-width: 900px) {
+    .tile { min-height: 54px; }
+    .tile b { font-size: 17px; }
+    .tile em { display: block; }
+    .grid { gap: 5px; }
   }
-  .cell small { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; }
-  .cell .bar { width: 60%; height: 5px; border-radius: 3px; background: var(--bg-2); overflow: hidden; }
-  .cell .bar i { display: block; height: 100%; background: var(--pin, var(--bg-2)); }
-  .cell:hover { border-color: var(--border-2); }
-  .cell[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
-  .detail {
-    grid-column: 1 / -1;
-    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px;
-    font-size: 13px; color: var(--fg-muted);
-    padding-top: 6px; border-top: 1px solid var(--border);
-  }
-  .detail b { color: var(--fg); font-weight: 600; }
-  .detail .win { display: inline-flex; align-items: center; gap: 6px; }
-  .bars { display: inline-flex; gap: 3px; align-items: flex-end; height: 18px; }
-  .bars i { display: block; width: 7px; min-height: 2px; border-radius: 2px; background: var(--pin, var(--bg-2)); }
+
+  /* The opened day: the essentials in a line of chips, coloured by how
+     they help (green), are so-so (amber) or hurt (red). */
+  .dt { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 0 10px; }
+  .dt .when { width: 100%; font-size: 12px; color: var(--fg-muted); }
+  .dt .when b { color: var(--fg); font-weight: 600; }
+  .chip2 { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--fg); background: var(--bg-3); border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; }
+  .chip2 small { color: var(--fg-muted); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+  .chip2::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--dot, var(--border-3)); flex: none; }
+  .chip2.good { --dot: var(--lvl-3); }
+  .chip2.ok { --dot: var(--lvl-2); }
+  .chip2.bad { --dot: #e0605a; }
+  .chip2.lvl-0, .chip2.lvl-1, .chip2.lvl-2, .chip2.lvl-3, .chip2.lvl-4 { --dot: var(--pin); }
+  .dt a { font-size: 13px; color: var(--accent-ink); text-decoration: none; margin-left: 4px; }
+  .dt a:hover { text-decoration: underline; }
+
+  /* Editing my spots */
+  .edit { max-width: 640px; }
+  .edit ol { list-style: none; display: grid; gap: 4px; margin: 0 0 14px; }
+  .edit li { display: flex; align-items: center; gap: 6px; background: var(--bg-3); border: 1px solid var(--border); border-radius: 10px; padding: 6px 6px 6px 12px; }
+  .edit li .n { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; }
+  .edit li .n small { display: block; font-size: 11px; font-weight: 400; color: var(--fg-muted); }
+  .ib { flex: none; width: 34px; height: 34px; display: inline-grid; place-items: center; font: inherit; font-size: 15px; color: var(--fg); background: var(--bg); border: 1px solid var(--border-2); border-radius: 8px; cursor: pointer; }
+  .ib:hover:not([disabled]) { border-color: var(--accent); color: var(--accent-ink); }
+  .ib[disabled] { opacity: .35; cursor: default; }
+  .edit h3 { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); margin: 10px 0 6px; }
+  .adds { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .add { font: inherit; font-size: 13px; color: var(--fg); background: transparent; border: 1px dashed var(--border-3); border-radius: 999px; padding: 4px 11px; cursor: pointer; }
+  .add:hover { border-style: solid; border-color: var(--accent); }
+  .hint { font-size: 13px; color: var(--fg-muted); background: var(--bg-3); border: 1px dashed var(--border-2); border-radius: 10px; padding: 10px 12px; margin: 0 0 14px; max-width: 1100px; }
+  .hint b { color: var(--fg); }
   .empty { display: none; text-align: center; color: var(--fg-muted); padding: 60px 16px; }
   .empty.show { display: block; }
 
-  @media (max-width: 760px) {
-    .spot { grid-template-columns: 1fr; }
-    .spot-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-    .cell { padding: 5px 0 4px; }
-    .cell .score { padding: 1.5px 5px 1.5px; } .cell .score b { font-size: 12px; } .cell .score small { display: none; }
-    .day { min-width: 56px; }
+  @media (max-width: 520px) {
+    .grid { grid-template-columns: minmax(78px, 30%) repeat(7, minmax(0, 1fr)); gap: 3px; }
+    .nm { font-size: 13px; }
+    .tile { min-height: 42px; border-radius: 7px; }
+    .tile b { font-size: 13px; }
+    .gh { font-size: 9px; }
+    .gh b { font-size: 11px; }
+    .legend { margin-left: 0; }
+    /* Best bets: one row to swipe rather than a stack. */
+    .bets { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-right: -16px; padding-right: 16px; }
+    .bets::-webkit-scrollbar { display: none; }
+    .bet { flex: none; }
+    .bets .k { flex: none; }
   }
 </style>
 </head>
@@ -228,43 +252,49 @@
         </div>
       </div>
     </div>
-    <div class="days" id="days" role="group" aria-label="Pick a day"></div>
     <div class="m-info" id="m-info"></div>
   </div>
-  <p class="status" id="status">Loading forecast…</p>
 
+  <div class="bets" id="bets"></div>
+  <div class="tools" id="tools"></div>
   <div id="list"></div>
   <p class="empty" id="empty">No spots match that filter.</p>
+  <p class="status" id="status">Loading forecast…</p>
 </main>
 
 <script src="spots.js"></script>
 <script src="geo.js"></script>
 <script src="score.js"></script>
 <script src="toolbar.js"></script>
+<script src="account.js"></script>
 <script>
-  /* Seven days for every spot. For each day we score every daylight hour
-     against the spot (same engine as the live page), then take the best
-     three-hour window as the day's headline and keep the four dawn→evening
-     blocks for the strip. Open-Meteo gives us 7 days of hourly marine and
-     wind in two calls. */
+  /* Seven days for every spot, as a heat-map: a row per spot, a tile per
+     day coloured by its score (the daylight average, same engine as the
+     live page), with four little bars for dawn / morning / afternoon /
+     evening so you can see when in the day it's on. Greyer tiles are less
+     certain. Tap a tile for that day in one line.
+
+     "My spots" (account.js: starred in a spot's viewer, ordered here; kept
+     on the account when signed in) come first; Mine / All picks whether
+     the rest of the coast shows too. The forecast is the worker's hourly
+     build, or the same blend done here if that's unavailable. */
   const DAYS = 7;
   const TTL = 60 * 60 * 1000;   // an hour; forecasts don't change faster than that
   const VER = 5;
 
   const $ = (id) => document.getElementById(id);
-  const list = $('list'), daysEl = $('days'), chips = $('chips'), empty = $('empty'), status = $('status');
+  const list = $('list'), chips = $('chips'), empty = $('empty'), status = $('status'), bets = $('bets'), tools = $('tools');
 
-  try { units = localStorage.getItem('surf-units') === 'ft' ? 'ft' : 'm'; } catch {}
+  const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+  units = store.get('surf-units') === 'ft' ? 'ft' : 'm';
   let area = 'All';
-  let dayIdx = 0;
-  let data = {};      // cam id -> { days: [{ date, hours:[k], tides:[], sun }], }
+  let scope = store.get('surf-week-scope') === 'all' ? 'all' : 'mine';
+  let sel = null;       // the opened tile: { id, i }
+  let editing = false;
+  let data = {};        // cam id -> { days: [{ date, hours:[k], tides:[], sun, conf }] }
 
   const byId = (id) => CAMS.find((x) => x.id === id);
   const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const dayLabel = (iso, i) => {
-    const d = new Date(iso + 'T12:00');
-    return { small: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : DOW[d.getDay()], big: `${d.getDate()}/${d.getMonth() + 1}` };
-  };
 
   /* ---------- Fetch ---------- */
   async function load() {
@@ -272,10 +302,10 @@
     const ids = CAMS.map((c) => c.id).join(), today = new Date().toDateString();
     const skillStamp = sharedSkill && sharedSkill.updated || '';
     try {
-      const c = JSON.parse(localStorage.getItem('surf-week') || 'null');
+      const c = JSON.parse(store.get('surf-week') || 'null');
       if (c && c.v === VER && c.ids === ids && c.day === today && c.skill === skillStamp && Date.now() - c.t < TTL) { data = c.data; return; }
     } catch {}
-    const keep = (d) => { data = d; try { localStorage.setItem('surf-week', JSON.stringify({ v: VER, ids, day: today, skill: skillStamp, t: Date.now(), data })); } catch {} };
+    const keep = (d) => { data = d; store.set('surf-week', JSON.stringify({ v: VER, ids, day: today, skill: skillStamp, t: Date.now(), data })); };
     // First choice: the worker's hourly build, already blended for every
     // spot and day; fall back to fetching and blending here.
     try {
@@ -294,9 +324,7 @@
     } catch (e) { console.info('surf: worker forecast unavailable, fetching directly —', e.message); }
     const pts = CAMS.map(offshore);
     const lat = pts.map((p) => p[0]).join(','), lng = pts.map((p) => p[1]).join(',');
-    // Same multi-model blend as the live page: every wind and wave model's
-    // hourly series, outliers set aside, weighted (wind weights include what
-    // the live page has learned from the stations on this device).
+    // Same multi-model blend as the live page and the worker.
     const [marine, wind] = await Promise.all([
       fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&hourly=${MARINE.join()}&models=${modelIds(MARINE_MODELS)}&forecast_days=${DAYS}&timezone=auto`).then((r) => r.json()),
       fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=${WIND.join()}&models=${modelIds(WIND_MODELS)}&daily=sunrise,sunset&forecast_days=${DAYS}&timezone=auto`).then((r) => r.json()),
@@ -321,128 +349,196 @@
       const days = Object.keys(byDate).sort().map((date, di) => {
         const hours = byDate[date];
         hours.forEach((k, j) => addTide(hours, k, j));   // tide relative to that day's range
-        const sun = sunOf(w, di);
-        return { date, hours, tides: tideEvents(hours), sun, conf: dayConfidence(hours, di) };
+        return { date, hours, tides: tideEvents(hours), sun: sunOf(w, di), conf: dayConfidence(hours, di) };
       });
       next[c.id] = { days };
     });
-    data = next;
-    try { localStorage.setItem('surf-week', JSON.stringify({ v: VER, ids, day: today, skill: skillStamp, t: Date.now(), data })); } catch {}
+    keep(next);
   }
 
   /* ---------- Per-day digest ---------- */
   const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
   const half = (x) => Math.round(x * 2) / 2;
+  const mode = (arr) => arr.slice().sort((a, b) => arr.filter((v) => v === a).length - arr.filter((v) => v === b).length).pop();
 
-  // Score every daylight hour; headline = best dawn→evening block.
+  // Score every daylight hour: the headline is the daylight average (one good
+  // hour doesn't make a good day); the blocks say when in the day.
+  const digests = new Map();
   function digest(c, day) {
     if (!day) return null;
     const daylight = day.hours.filter((k) => k.day !== 0 && hourOf(k.t) >= 6 && hourOf(k.t) < 20);
     const scored = daylight.map((k) => ({ k, r: score(c, k) })).filter((x) => x.r);
     if (!scored.length) return null;
     const blocks = BUCKETS.map((b) => {
-      const rows = scored.filter((x) => hourOf(x.k.t) >= b.from && hourOf(x.k.t) < b.to);
-      const s = avg(rows.map((x) => x.r.total));
+      const s = avg(scored.filter((x) => hourOf(x.k.t) >= b.from && hourOf(x.k.t) < b.to).map((x) => x.r.total));
       return { ...b, score: s == null ? null : half(s), level: s == null ? null : levelOf(half(s)) };
     });
     const best = blocks.filter((b) => b.score != null).sort((a, b) => b.score - a.score)[0];
     // Face height at the beach, not offshore swell, so it reads like the apps.
     const fr = scored.map((x) => faceRange(c, x.k));
-    const hs = [Math.min(...fr.map((f) => f[0])), Math.max(...fr.map((f) => f[1]))], ps = scored.map((x) => x.k.p), ws = scored.map((x) => x.k.ws);
-    // Dominant wind relation and swell direction across the day
-    const mode = (arr) => arr.slice().sort((a, b) => arr.filter((v) => v === a).length - arr.filter((v) => v === b).length).pop();
-    const rel = mode(scored.map((x) => x.r.wind));
-    const dir = mode(scored.map((x) => dirName(x.k.d)));
-    // How clean it'll mostly be over the daylight hours, and the cleanest it gets.
+    const ws = scored.map((x) => x.k.ws);
     const surfs = scored.filter((x) => x.r.surface).map((x) => x.r.surface.i);
-    const surf = surfs.length ? { most: mode(surfs), best: Math.min(...surfs) } : null;
-    // Headline = the daylight average, not the peak block; the best window
-    // is named in the detail. Averaging keeps a day with one good hour honest.
     const top = half(avg(scored.map((x) => x.r.total)));
     return {
       top, level: levelOf(top), label: LEVELS[levelOf(top)], best, blocks,
-      hMin: Math.min(...hs), hMax: Math.max(...hs), p: Math.round(avg(ps)), dir,
-      wsMin: kts(Math.min(...ws)), wsMax: kts(Math.max(...ws)), rel, surf,
+      hMin: Math.min(...fr.map((f) => f[0])), hMax: Math.max(...fr.map((f) => f[1])), p: Math.round(avg(scored.map((x) => x.k.p))),
+      dir: mode(scored.map((x) => dirName(x.k.d))), wsMin: kts(Math.min(...ws)), wsMax: kts(Math.max(...ws)), rel: mode(scored.map((x) => x.r.wind)),
+      surf: surfs.length ? { most: mode(surfs), best: Math.min(...surfs) } : null,
       tides: day.tides, sun: day.sun, conf: day.conf,
     };
   }
-  const digestOf = (c, i) => (data[c.id] && data[c.id].days[i] ? digest(c, data[c.id].days[i]) : null);
-
-  const badge = (d) => (d
-    ? `<span class="score lvl-${d.level}"><b>${fmt(d.top)}</b><small>${d.label}</small></span>`
-    : `<span class="score lvl-x"><b>–</b><small>n/a</small></span>`);
-  const bars = (d) => (d ? `<span class="bars" aria-hidden="true">${d.blocks.map((b) => `<i class="${b.level == null ? 'lvl-x' : 'lvl-' + b.level}" style="height:${b.score == null ? 2 : Math.max(2, b.score * 10)}%"></i>`).join('')}</span>` : '');
+  const digestOf = (c, i) => {
+    const key = `${c.id}|${i}|${units}`;
+    if (!digests.has(key)) digests.set(key, data[c.id] && data[c.id].days[i] ? digest(c, data[c.id].days[i]) : null);
+    return digests.get(key);
+  };
+  const dates = () => { const any = Object.values(data)[0]; return any ? any.days.map((d) => d.date) : []; };
+  const dayName = (iso, i, long) => (i === 0 ? 'Today' : i === 1 && long ? 'Tomorrow' : (long ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] : DOW)[new Date(iso + 'T12:00').getDay()]);
 
   /* ---------- Render ---------- */
-  const dates = () => { const any = Object.values(data)[0]; return any ? any.days.map((d) => d.date) : []; };
   const q = $('q');
   const matches = (c) => spotMatches(c, q.value, area);   // toolbar.js
 
-  function renderDays() {
+  // Best bets: the strongest windows of the week among the spots on show.
+  function renderBets(spots) {
+    const ds = dates(), cands = [];
+    for (const c of spots) ds.forEach((iso, i) => { const d = digestOf(c, i); if (d && d.best) cands.push({ c, i, iso, d, s: d.best.score }); });
+    cands.sort((a, b) => b.s - a.s || a.i - b.i);
+    const good = cands.filter((x) => x.s > 3.5).slice(0, 3);
+    if (!cands.length) { bets.innerHTML = ''; return; }
+    const pick = good.length ? good : cands.slice(0, 1);
+    bets.innerHTML = `<span class="k">${good.length ? 'Best bets' : 'Quiet week'}</span>` + pick.map((x) =>
+      `<button class="bet lvl-${levelOf(x.s)}" type="button" data-id="${esc(x.c.id)}" data-i="${x.i}"><b>${fmt(x.s)}</b>${esc(x.c.name)} <small>${dayName(x.iso, x.i, true)} ${x.d.best.label.toLowerCase()}</small></button>`).join('')
+      + (good.length ? '' : '<span>nothing better than this on show</span>');
+  }
+
+  function renderTools(hasFavs) {
+    tools.innerHTML = `
+      ${hasFavs ? `<div class="seg sm" role="group" aria-label="Spots to show">
+        <button type="button" data-scope="mine" aria-pressed="${scope === 'mine'}">My spots</button>
+        <button type="button" data-scope="all" aria-pressed="${scope === 'all'}">All</button>
+      </div>` : ''}
+      <button class="btn${editing ? ' on' : ''}" type="button" data-edit>${editing ? 'Done' : hasFavs ? 'Edit my spots' : '★ Pick my spots'}</button>
+      <div class="legend" aria-hidden="true">
+        ${LEVELS.map((l, i) => `<span class="lvl-${i}"><i></i>${l}</span>`).join('')}
+        <span class="unsure"><i></i>greyer = less sure</span>
+      </div>`;
+  }
+
+  const ARROW = (d) => `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+  function editHtml(favs) {
+    const others = CAMS.filter((c) => !favs.includes(c.id) && matches(c));
+    return `<section class="sec edit">
+      <div class="sec-head"><h2>My spots</h2><div class="acct-host"></div></div>
+      ${favs.length ? `<ol>${favs.map((id, n) => { const c = byId(id); return `<li>
+        <span class="n">${esc(c.name)}<small>${esc(c.zone || c.town)} · ${esc(c.area)}</small></span>
+        <button class="ib" type="button" data-up="${esc(id)}" aria-label="Move ${esc(c.name)} up"${n === 0 ? ' disabled' : ''}>${ARROW('M12 19V5M5 12l7-7 7 7')}</button>
+        <button class="ib" type="button" data-down="${esc(id)}" aria-label="Move ${esc(c.name)} down"${n === favs.length - 1 ? ' disabled' : ''}>${ARROW('M12 5v14M5 12l7 7 7-7')}</button>
+        <button class="ib" type="button" data-rm="${esc(id)}" aria-label="Remove ${esc(c.name)}">✕</button>
+      </li>`; }).join('')}</ol>` : '<p class="hint">No spots yet. Add some below: they’ll lead this page, in your order.</p>'}
+      <h3>Add spots</h3>
+      ${AREAS.map((a) => { const l = others.filter((c) => c.area === a); return l.length ? `<div class="adds">${l.map((c) => `<button class="add" type="button" data-add="${esc(c.id)}">+ ${esc(c.name)}</button>`).join('')}</div>` : ''; }).join('')}
+    </section>`;
+  }
+
+  function gridHtml(spots) {
     const ds = dates();
-    // Coast-wide headline per day: the best spot's score
-    daysEl.innerHTML = ds.map((iso, i) => {
-      const l = dayLabel(iso, i);
-      const ds = CAMS.map((c) => digestOf(c, i)).filter(Boolean);
-      const best = ds.slice().sort((a, b) => b.top - a.top)[0];
-      const conf = ds.length ? ds.reduce((a, d) => a + (d.conf == null ? 0.5 : d.conf), 0) / ds.length : null;
-      return `<button class="day" type="button" data-i="${i}" aria-pressed="${i === dayIdx}" style="--conf:${conf == null ? 1 : 0.55 + 0.45 * conf}"><small>${l.small}</small><b>${l.big}</b>${badge(best)}<small class="conf">${conf == null ? '' : confWord(conf)}</small></button>`;
-    }).join('');
+    const head = `<div></div>` + ds.map((iso, i) => `<div class="gh${i === 0 ? ' today' : ''}">${dayName(iso, i)}<b>${new Date(iso + 'T12:00').getDate()}</b></div>`).join('');
+    return `<div class="grid">${head}${spots.map((c) => {
+      const tiles = ds.map((iso, i) => {
+        const d = digestOf(c, i), on = sel && sel.id === c.id && sel.i === i;
+        const parts = d ? `<span class="parts" aria-hidden="true">${d.blocks.map((b) => `<i style="height:${b.score == null ? 1 : Math.max(1, b.score * 10)}%"></i>`).join('')}</span>` : '';
+        return `<button class="tile lvl-${d ? d.level : 'x'}" type="button" data-id="${esc(c.id)}" data-i="${i}" aria-pressed="${on}"
+          aria-label="${esc(c.name)}, ${dayName(iso, i, true)}: ${d ? `${fmt(d.top)} ${d.label}` : 'no forecast'}" style="--conf:${d && d.conf != null ? d.conf : 1}">
+          <span><b>${d ? fmt(d.top) : '–'}</b><em>${d ? d.label : ''}</em></span>${parts}</button>`;
+      }).join('');
+      return `<a class="nm" href="./#${esc(c.id)}" title="Open ${esc(c.name)}"><span>${esc(c.name)}</span><small>${esc(c.zone && c.zone !== c.name ? c.zone : c.town)}</small></a>${tiles}${sel && sel.id === c.id ? detailHtml(c, sel.i) : ''}`;
+    }).join('')}</div>`;
+  }
+
+  // One day at one spot, in a line: when it's best, size, wind, surface,
+  // tide, light and how sure we are, each marked good / so-so / bad.
+  function detailHtml(c, i) {
+    const d = digestOf(c, i), iso = dates()[i];
+    if (!d) return `<div class="dt"><span class="when">${dayName(iso, i, true)}: no forecast.</span></div>`;
+    const size = Math.abs(d.hMax - d.hMin) < 0.25 ? hgt((d.hMin + d.hMax) / 2) : rng(d.hMin.toFixed(1), d.hMax.toFixed(1));
+    const [lo, hi] = c.best.size;
+    const sizeCls = d.hMax < lo * 0.6 || d.hMin > hi * 1.6 ? 'bad' : d.hMax < lo || d.hMin > hi ? 'ok' : 'good';
+    const wind = d.wsMin === d.wsMax ? `${d.wsMin} kts` : `${d.wsMin}–${d.wsMax} kts`;
+    const windCls = d.wsMax <= 6 || d.rel === 'offshore' ? 'good' : d.rel === 'cross-shore' && d.wsMax <= 14 ? 'ok' : d.wsMax <= 8 ? 'ok' : 'bad';
+    const surfCls = !d.surf ? '' : d.surf.most <= 1 ? 'good' : d.surf.most === 2 ? 'ok' : 'bad';
+    const confCls = d.conf == null ? '' : d.conf >= 0.75 ? 'good' : d.conf >= 0.45 ? 'ok' : 'bad';
+    const tide = d.tides && d.tides.length ? d.tides.map((e) => `${e.kind === 'High' ? 'High' : 'Low'} ${fmtMins(e.mins)}`).join(' · ') : '';
+    const best = d.best;
+    return `<div class="dt">
+      <span class="when"><b>${esc(c.name)}, ${dayName(iso, i, true)}</b> · ${fmt(d.top)} ${d.label} over the day${best ? `, best ${best.label.toLowerCase()} ${String(best.from).padStart(2, '0')}–${String(best.to).padStart(2, '0')} (${fmt(best.score)})` : ''}</span>
+      <span class="chip2 ${sizeCls}"><small>Waves</small>${size} · ${d.p} s ${esc(d.dir)}</span>
+      <span class="chip2 ${windCls}"><small>Wind</small>${wind} ${esc(d.rel.replace('-shore', ''))}</span>
+      ${d.surf ? `<span class="chip2 ${surfCls}"><small>Surface</small>${SURFACES[d.surf.most]}${d.surf.best < d.surf.most ? `, ${SURFACES[d.surf.best].toLowerCase()} at best` : ''}</span>` : ''}
+      ${tide ? `<span class="chip2"><small>Tide</small>${tide}</span>` : ''}
+      ${d.sun ? `<span class="chip2"><small>Light</small>${d.sun.rise}–${d.sun.set}</span>` : ''}
+      ${d.conf != null ? `<span class="chip2 ${confCls}"><small>Forecast</small>${confWord(d.conf)} confidence</span>` : ''}
+      <a href="./#${esc(c.id)}">Open spot →</a>
+    </div>`;
+  }
+
+  function renderList() {
+    const favs = Account.favs.list(), shownFavs = favs.map(byId).filter((c) => c && matches(c));
+    const rest = CAMS.filter((c) => !favs.includes(c.id) && matches(c));
+    const showRest = !favs.length || scope === 'all';
+    renderTools(favs.length > 0);
+    if (editing) {
+      list.innerHTML = editHtml(favs);
+      bets.innerHTML = '';
+      empty.classList.remove('show');
+    } else {
+      let html = '';
+      if (shownFavs.length) html += `<section class="sec"><div class="sec-head"><h2>My spots</h2><div class="acct-host"></div></div>${gridHtml(shownFavs)}</section>`;
+      else if (!favs.length) html += `<p class="hint"><b>Make this your list:</b> star the spots you surf (★ in a spot’s viewer, or “Pick my spots” here). They’ll lead this page in your order, and follow your account onto every device.</p>`;
+      if (showRest) html += AREAS.map((a) => { const l = rest.filter((c) => c.area === a); return l.length ? `<section class="sec"><div class="sec-head"><h2>${esc(a)}</h2></div>${gridHtml(l)}</section>` : ''; }).join('');
+      list.innerHTML = html;
+      renderBets(showRest ? [...shownFavs, ...rest] : shownFavs);
+      empty.classList.toggle('show', !shownFavs.length && !(showRest && rest.length) && !!(q.value.trim() || area !== 'All'));
+    }
+    const host = list.querySelector('.acct-host');
+    if (host) Account.mount(host, { reason: 'to keep your spots on every device.', onChange: () => renderList() });
   }
 
   function renderChips() {
     chips.innerHTML = ['All', ...AREAS].map((a) => `<button class="chip" type="button" data-area="${esc(a)}" aria-pressed="${a === area}">${esc(a)}</button>`).join('');
   }
 
-  function detailHtml(c, d) {
-    if (!d) return `<div class="detail">No forecast for this day.</div>`;
-    const tide = d.tides && d.tides.length ? d.tides.map((e) => `${e.kind} ${fmtMins(e.mins)}`).join(' · ') : '';
-    const size = Math.abs(d.hMax - d.hMin) < 0.25 ? hgt((d.hMin + d.hMax) / 2) : `${hgt(d.hMin)}–${hgt(d.hMax)}`;
-    const wind = d.wsMin === d.wsMax ? `${d.wsMin} kts` : `${d.wsMin}–${d.wsMax} kts`;
-    return `<div class="detail">
-      <span class="win">${bars(d)}${d.best ? `Best <b>${d.best.label.toLowerCase()}</b> (${fmt(d.best.score)})` : ''}</span>
-      <span>Swell <b>${size}</b> at <b>${d.p} s</b> from <b>${d.dir}</b></span>
-      <span>Wind <b>${wind}</b> ${d.rel}</span>
-      ${d.surf ? `<span>Surface <b>mostly ${SURFACES[d.surf.most].toLowerCase()}</b>${d.surf.best < d.surf.most ? `, ${SURFACES[d.surf.best].toLowerCase()} at best` : ''}</span>` : ''}
-      ${tide ? `<span>Tide <b>${tide}</b></span>` : ''}
-      ${d.sun ? `<span>Light <b>${d.sun.rise}–${d.sun.set}</b></span>` : ''}
-      ${d.conf != null ? `<span class="confn lvl-${d.conf >= 0.75 ? 3 : d.conf >= 0.45 ? 2 : 1}">${confWord(d.conf)} confidence</span>` : ''}
-    </div>`;
-  }
-
-  function renderList() {
-    const ds = dates();
-    let shown = 0;
-    list.innerHTML = AREAS.map((a) => {
-      const cams = CAMS.filter((c) => c.area === a && matches(c));
-      if (!cams.length) return '';
-      shown += cams.length;
-      const bestToday = cams.map((c) => ({ c, d: digestOf(c, dayIdx) })).filter((x) => x.d).sort((x, y) => y.d.top - x.d.top)[0];
-      return `<section class="area">
-        <div class="area-head"><h2>${esc(a)}</h2><div class="sum">${bestToday ? `Best: <b>${esc(bestToday.c.name)}</b> · ${fmt(bestToday.d.top)}/10` : ''}</div></div>
-        ${cams.map((c) => {
-          const cells = ds.map((iso, i) => {
-            const d = digestOf(c, i), l = dayLabel(iso, i);
-            return `<button class="cell ${d ? 'lvl-' + d.level : 'lvl-x'}" type="button" data-i="${i}" aria-pressed="${i === dayIdx}" title="${l.small} ${l.big}${d && d.conf != null ? ` · ${confWord(d.conf)} confidence` : ''}" style="--conf:${d && d.conf != null ? 0.55 + 0.45 * d.conf : 1}">
-              <small>${i === 0 ? 'Today' : DOW[new Date(iso + 'T12:00').getDay()]}</small>${badge(d)}<span class="bar"><i style="width:${d ? d.top * 10 : 0}%"></i></span>
-            </button>`;
-          }).join('');
-          return `<article class="spot" data-id="${esc(c.id)}">
-            <div class="spot-head"><div><div class="spot-name"><a href="./#${esc(c.id)}">${esc(c.name)}</a></div><div class="spot-zone">${esc(c.zone || c.town)}</div></div></div>
-            <div class="week">${cells}</div>
-            ${detailHtml(c, digestOf(c, dayIdx))}
-          </article>`;
-        }).join('')}
-      </section>`;
-    }).join('');
-    empty.classList.toggle('show', shown === 0);
-  }
-
-  function render() { renderDays(); renderChips(); renderList(); }
+  function render() { renderChips(); renderList(); }
 
   /* ---------- Wiring ---------- */
-  daysEl.addEventListener('click', (e) => { const b = e.target.closest('.day'); if (b) { dayIdx = +b.dataset.i; render(); } });
-  list.addEventListener('click', (e) => { const b = e.target.closest('.cell'); if (b) { dayIdx = +b.dataset.i; render(); } });
+  function openTile(id, i) {
+    sel = sel && sel.id === id && sel.i === i ? null : { id, i };
+    renderList();
+    const t = list.querySelector(`.tile[data-id="${CSS.escape(id)}"][data-i="${i}"]`);
+    if (t && sel) t.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  list.addEventListener('click', (e) => {
+    const t = e.target.closest('.tile');
+    if (t) return openTile(t.dataset.id, +t.dataset.i);
+    const b = e.target.closest('[data-up], [data-down], [data-rm], [data-add]');
+    if (!b) return;
+    const l = Account.favs.list();
+    if (b.dataset.add) l.push(b.dataset.add);
+    else if (b.dataset.rm) l.splice(l.indexOf(b.dataset.rm), 1);
+    else {
+      const id = b.dataset.up || b.dataset.down, n = l.indexOf(id), m = n + (b.dataset.up ? -1 : 1);
+      if (m < 0 || m >= l.length) return;
+      [l[n], l[m]] = [l[m], l[n]];
+    }
+    Account.favs.save(l);
+  });
+  bets.addEventListener('click', (e) => { const b = e.target.closest('.bet'); if (b) openTile(b.dataset.id, +b.dataset.i); });
+  tools.addEventListener('click', (e) => {
+    const s = e.target.closest('[data-scope]');
+    if (s) { scope = s.dataset.scope; store.set('surf-week-scope', scope); return renderList(); }
+    if (e.target.closest('[data-edit]')) { editing = !editing; sel = null; renderList(); }
+  });
+  Account.favs.onChange(() => renderList());
   q.addEventListener('input', renderList);
   chips.addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (b) { area = b.dataset.area; render(); } });
   $('units').addEventListener('click', (e) => {
@@ -450,15 +546,16 @@
     if (!b) return;
     units = b.dataset.units === 'ft' ? 'ft' : 'm';
     for (const x of $('units').querySelectorAll('button')) x.setAttribute('aria-pressed', x.dataset.units === units);
-    try { localStorage.setItem('surf-units', units); } catch {}
+    store.set('surf-units', units);
     render();
   });
   for (const x of $('units').querySelectorAll('button')) x.setAttribute('aria-pressed', x.dataset.units === units);
 
   renderChips();
+  Account.favs.sync();
   load().then(() => {
     const ds = dates();
-    status.textContent = ds.length ? `${ds.length} days from ${dayLabel(ds[0], 0).big}, blended from ${WIND_MODELS.length} wind and ${MARINE_MODELS.length} wave models. Scores are each day's daylight average; faded days are less certain.` : 'Forecast unavailable right now.';
+    status.textContent = ds.length ? `Each tile is that day’s daylight average; the bars under the score are dawn, morning, afternoon and evening. Blended from ${WIND_MODELS.length} wind and ${MARINE_MODELS.length} wave models, each weighted by how accurate it’s been that many days ahead.` : 'Forecast unavailable right now.';
     render();
   }).catch(() => { status.textContent = 'Forecast unavailable right now.'; });
 </script>

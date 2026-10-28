@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build f6467364ff. */
-const WORKER_BUILD = 'f6467364ff';
+   Build 08bc9d606e. */
+const WORKER_BUILD = '08bc9d606e';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (7-day outlook).
@@ -1157,13 +1157,18 @@ const seaward = (c, km) => {
 
    Stored in KV (FEEDBACK), all private:
      un:<name, folded>  → the account id (names are unique, any case)
-     u:<id>             → { id, name, pw, rc, created, tv, banned, sessions, devices }
+     u:<id>             → { id, name, pw, rc, created, tv, banned, sessions, devices, favs }
      tk:<sha-256 of token> → { uid, tv, dev, t }   lives 400 days
      lf:<id>            → failed sign-ins this hour
    Passwords are PBKDF2-SHA-256 (100,000 rounds, the most Workers allow)
    with a per-account salt; the recovery code and the tokens are stored
    only as SHA-256 hashes. Changing or resetting the password bumps `tv`,
-   which signs the account out everywhere. */
+   which signs the account out everywhere.
+
+   Favourite spots (GET / POST /a/favs): the person's own list of spot ids,
+   in their order, which leads the 7-day page on every device they sign
+   in on. Up to 40, known spots only. */
+const FAVS_MAX = 40;
 
 const enc = new TextEncoder();
 const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -1264,6 +1269,10 @@ async function handleAccounts(req, env, url, json, ipTag) {
     return json({ error: 'admin/reset or admin/ban' }, 404);
   }
 
+  if (req.method === 'GET' && path === 'favs') {
+    const u = await account(env, req);
+    return u ? json({ favs: u.favs || [] }) : json({ error: 'signed out' }, 401);
+  }
   if (req.method === 'GET' && path === 'me') {
     const u = await account(env, req);
     return u ? json({ name: u.name, created: u.created, sessions: u.sessions || 0 }) : json({ error: 'signed out' }, 401);
@@ -1314,6 +1323,13 @@ async function handleAccounts(req, env, url, json, ipTag) {
 
   const u = await account(env, req);
   if (!u) return json({ error: 'signed out' }, 401);
+  if (path === 'favs') {
+    if (!Array.isArray(b.favs) || b.favs.length > FAVS_MAX) return json({ error: `a list of up to ${FAVS_MAX} spots` }, 400);
+    const known = new Set(CAMS.map((c) => c.id));
+    u.favs = [...new Set(b.favs.filter((id) => typeof id === 'string' && known.has(id)))];
+    await saveUser(env, u);
+    return json({ ok: true, favs: u.favs });
+  }
   if (path === 'logout') {
     await env.FEEDBACK.delete(`tk:${await sha256((req.headers.get('Authorization') || '').slice(7))}`);
     return json({ ok: true });
