@@ -90,15 +90,16 @@ function findCard(id) {
 
 function initMap() {
   map = L.map('map', { zoomControl: true, scrollWheelZoom: true, tapTolerance: 20 });
+  map.attributionControl.setPrefix(false);   // the tile credits stay (their terms); Leaflet's link needn't
   // Esri satellite by default — the imagery reads the beaches best — with
   // plain OpenStreetMap streets as the alternative. Both keyless.
   const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 19,
     className: 'osm-tiles',
   });
   const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    attribution: 'Imagery &copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics, GIS User Community',
+    attribution: '&copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics',
     maxZoom: 19,
   });
   let base = 'sat';

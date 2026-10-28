@@ -672,12 +672,16 @@ header { display: none; }
 .leaflet-control-layers-expanded { padding: 5px 10px 5px; font-size: 12px; letter-spacing: 0.03em; }
 .leaflet-control-layers label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .leaflet-control-layers input { accent-color: var(--accent); }
-.leaflet-control-attribution {
-  background: color-mix(in srgb, var(--bg) 80%, transparent);
-  color: var(--fg-muted);
-  font-size: 10px;
+.leaflet-control-attribution.leaflet-control {
+  background: none;
+  color: #fff;
+  font-size: 9px;
+  opacity: .45;
+  text-shadow: 0 0 2px #000;
+  transition: opacity .15s;
 }
-.leaflet-control-attribution a { color: var(--fg); }
+.leaflet-control-attribution:hover { opacity: 1; }
+.leaflet-control-attribution a { color: inherit; }
 .leaflet-tooltip {
   background: var(--bg-3);
   color: var(--fg);
