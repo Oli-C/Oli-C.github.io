@@ -1050,6 +1050,16 @@
   .sess-open .fb-btn { display: inline-flex; align-items: center; gap: 7px; }
   .sess-open .fb-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent-ink); }
 
+  /* Surface: clean is good (green), bumpy so-so (amber), choppy or blown
+     out bad (red). A dot carries the colour so it reads on any ground. */
+  .surf-0, .surf-1 { --surf: var(--lvl-3); }
+  .surf-2 { --surf: var(--lvl-2); }
+  .surf-3, .surf-4 { --surf: #e0605a; }
+  .chip-now[class*="surf-"] b::before, .surf-word::before {
+    content: ""; display: inline-block; width: 7px; height: 7px; margin: 0 4px 1px 0; border-radius: 50%; background: var(--surf); vertical-align: middle;
+  }
+  .sess-opts .fb-btn[class*="surf-"].sel { background: var(--surf); border-color: var(--surf); color: #101820; }
+
   /* "Log a session" form */
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .sess-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -1693,7 +1703,9 @@
   const condText = (c) => {
     const k = conditions[c.id] && conditions[c.id].now, r = scoreOf(c);
     if (!r) return '';
-    return `<b>${hgt(k.h)}</b> · <b>${Math.round(k.p)} s</b> · <b>${kts(k.ws)} kts</b> ${r.wind}`;
+    // Wind and how clean it leaves the surface, e.g. "9 kts cross, bumpy".
+    const rel = r.wind === 'cross-shore' ? 'cross' : r.wind;
+    return `<b>${hgt(k.h)}</b> · <b>${Math.round(k.p)} s</b> · <b>${kts(k.ws)} kts</b> ${rel}${r.surface && k.day !== 0 ? `, <span class="surf-word surf-${r.surface.i}">${esc(r.surface.label.toLowerCase())}</span>` : ''}`;
   };
 
   /* ---------- Today: four bars + a summary ---------- */
@@ -2742,6 +2754,8 @@
       : 'Everything’s lining up';
     const chip = (label, v, s) => `<span class="chip-now"><span class="k">${label}</span><b>${v}</b>${s ? `<small>${s}</small>` : ''}</span>`;
     const chips = [];
+    // How clean it should be, first: what most people want to know.
+    if (r.surface && k && k.day !== 0) chips.push(`<span class="chip-now surf-${r.surface.i}" title="${esc(r.surface.learned || 'From the wind, gusts, chop and any cross swell')}"><span class="k">Surface</span><b>${esc(r.surface.label)}</b>${r.surface.learned ? '<small>from sessions</small>' : ''}</span>`);
     if (k && k.sst != null) chips.push(chip('Water', `${Math.round(k.sst)}°C`, esc(suit(k.sst))));
     if (k && k.air != null) chips.push(chip('Air', `${Math.round(k.air)}°C`));
     if (cnd && cnd.sun && cnd.sun.rise) chips.push(chip('Light', `${cnd.sun.rise}–${cnd.sun.set}`));
@@ -3147,7 +3161,7 @@
   const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   async function openSess(c) {
-    sess = { id: c.id, day: null, slot: null, mins: 90, rating: null, size: null, why: new Set(), opened: Date.now(), data: null, msg: '', warn: '', busy: true, done: false };
+    sess = { id: c.id, day: null, slot: null, mins: 90, rating: null, size: null, surface: null, shape: null, why: new Set(), opened: Date.now(), data: null, msg: '', warn: '', busy: true, done: false };
     renderSess(c); renderFb(c);
     try {
       sess.data = await pastConditions(c);
@@ -3193,7 +3207,7 @@
       const model = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 2) / 2 : null;
       // Same size bands as the buttons below, so the words match.
       const fr = faceRange(c, k);
-      then = `<div class="sess-then"><span class="k">Forecast then</span> ${esc(SIZE_BANDS[sizeBand((fr[0] + fr[1]) / 2)])} (${rng(fr[0], fr[1])}) · ${Math.round(k.p)} s ${k.d != null ? dirName(k.d) : ''} · ${kts(k.ws)} kts ${esc(windRel(c, k))}${k.tn != null ? ` · ${tideWord(k.tn)} tide${k.tdir ? ' ' + k.tdir : ''}` : ''}${model != null && r ? ` · we scored it <b>${fmt(model)}</b>` : ''}</div>`;
+      then = `<div class="sess-then"><span class="k">Forecast then</span> ${esc(SIZE_BANDS[sizeBand((fr[0] + fr[1]) / 2)])} (${rng(fr[0], fr[1])}) · ${Math.round(k.p)} s ${k.d != null ? dirName(k.d) : ''} · ${kts(k.ws)} kts ${esc(windRel(c, k))}${r && r.surface ? `, <b>${esc(r.surface.label.toLowerCase())}</b>` : ''}${k.tn != null ? ` · ${tideWord(k.tn)} tide${k.tdir ? ' ' + k.tdir : ''}` : ''}${model != null && r ? ` · we scored it <b>${fmt(model)}</b>` : ''}</div>`;
     }
     const end = sess.slot ? addMins(sess.slot, sess.mins) : '';
     el.innerHTML = head + `
@@ -3209,6 +3223,10 @@
       <div class="sess-opts">${SESSION_RATINGS.map((l, i) => opt('data-srate', i, l, sess.rating === i, `lvl-${i}`)).join('')}</div>
       <div class="sess-q">Wave size <small>faces, on the sets</small></div>
       <div class="sess-opts">${SIZE_BANDS.map((l, i) => opt('data-ssize', i, l, sess.size === i)).join('')}</div>
+      <div class="sess-q">Surface <small>how clean was the water?</small></div>
+      <div class="sess-opts">${SURFACES.map((l, i) => opt('data-ssurf', i, l, sess.surface === i, `surf-${i}`)).join('')}</div>
+      <div class="sess-q">Wave shape <small>optional</small></div>
+      <div class="sess-opts">${SESSION_SHAPE.map((l, i) => opt('data-sshape', i, l, sess.shape === i)).join('')}</div>
       <div class="sess-q">What held it back? <small>optional</small></div>
       <div class="sess-opts">${Object.entries(SESSION_WHY).map(([k, l]) => opt('data-swhy', k, l, sess.why.has(k))).join('')}</div>
       <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
@@ -3224,13 +3242,14 @@
   // a second tap when the answers sit far from the forecast.
   function checkSess(c) {
     if (!sess.slot) return 'Pick when you surfed.';
+    if (loadSess().some((e) => e.id === c.id && e.local.slice(0, 13) === sess.slot.slice(0, 13))) return 'You’ve already logged a session starting then.';
     if (sess.rating == null) return 'Say how it was.';
     if (sess.size == null) return 'Pick the wave size you saw.';
+    if (sess.surface == null) return 'Say how clean the surface was.';
     const d = sess.data, now = spotNow(d.offset);
     if (sess.slot > now) return 'That time hasn’t happened yet.';
     const s = d.sun[sess.slot.slice(0, 10)];
     if (s && addMins(sess.slot, sess.mins) > addMins(`${sess.slot.slice(0, 10)}T${s.set}`, 45)) return 'That runs on past dark; shorten it or start earlier.';
-    if (loadSess().some((e) => e.id === c.id && e.local.slice(0, 13) === sess.slot.slice(0, 13))) return 'You’ve already logged a session starting then.';
     if (!sessHours(d, sess.slot, sess.mins).length) return 'No forecast for that time.';
     return '';
   }
@@ -3242,6 +3261,8 @@
     const bits = [];
     if (Math.abs(sizeBand(mid) - sess.size) >= 2) bits.push(`the forecast had about <b>${esc(SIZE_BANDS[sizeBand(mid)].toLowerCase())}</b> then, and you saw <b>${esc(SIZE_BANDS[sess.size].toLowerCase())}</b>`);
     if (model != null && Math.abs(SESSION_TARGET[sess.rating] - model) >= 6) bits.push(`we scored it <b>${fmt(Math.round(model * 2) / 2)}</b> and you say <b>${SESSION_RATINGS[sess.rating]}</b>`);
+    const midK = hrs[Math.floor((hrs.length - 1) / 2)], ms = midK && score(c, midK);
+    if (ms && ms.surface && Math.abs(ms.surface.i - sess.surface) >= 3) bits.push(`the wind then should have made it <b>${esc(ms.surface.label.toLowerCase())}</b>, and you found it <b>${esc(SURFACES[sess.surface].toLowerCase())}</b>`);
     return { warn: bits.length ? `Just checking: ${bits.join('; ')}. That happens (banks, a sheltered corner, a bad forecast), and it’s exactly what helps, but please make sure the spot and time are right.` : '', model, hrs };
   }
 
@@ -3253,7 +3274,7 @@
     const hp = $('v-sess').querySelector('.hp');
     const payload = {
       id: c.id, local: sess.slot, start: new Date(Date.parse(sess.slot + ':00Z') - sess.data.offset * 1000).toISOString(),
-      mins: sess.mins, rating: sess.rating, size: sess.size, why: [...sess.why],
+      mins: sess.mins, rating: sess.rating, size: sess.size, surface: sess.surface, shape: sess.shape, why: [...sess.why],
       hours: p.hrs.slice(0, 4).map((k) => ({ t: k.t, k: snapK(k) })),
       model: p.model == null ? null : +p.model.toFixed(2), ver: SESS_VER,
       hp: hp ? hp.value : '', dt: Date.now() - sess.opened,
@@ -3312,6 +3333,8 @@
     else if (ds.smins) sess.mins = +ds.smins;
     else if (ds.srate) sess.rating = +ds.srate;
     else if (ds.ssize) sess.size = +ds.ssize;
+    else if (ds.ssurf) sess.surface = +ds.ssurf;
+    else if (ds.sshape) sess.shape = sess.shape === +ds.sshape ? null : +ds.sshape;   // tap again to clear
     else if (ds.swhy) { if (sess.why.has(ds.swhy)) sess.why.delete(ds.swhy); else sess.why.add(ds.swhy); }
     else return;
     sess.warn = ''; sess.msg = '';

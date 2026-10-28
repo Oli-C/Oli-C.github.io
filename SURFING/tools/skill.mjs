@@ -239,12 +239,18 @@ const dot = (w, x) => Object.keys(x).reduce((s, f) => s + ((w && w[f]) || 0) * x
 const rmse = (a) => (a.length ? +Math.sqrt(a.reduce((s, e) => s + e * e, 0) / a.length).toFixed(2) : null);
 
 function trainSessions(sessions) {
-  const now = Date.now(), rows = [];
+  const now = Date.now(), rows = [], srows = [];
   let setAside = 0, unusable = 0;
   for (const s of sessions) {
     const c = CAMS.find((x) => x.id === s.id);
     const hrs = (s.hours || []).filter((h) => h && h.k && h.k.h != null && h.k.ws != null);
     if (!c || !hrs.length || SC.SESSION_TARGET[s.rating] == null) { unusable++; continue; }
+    // Surface: how much cleaner (−) or messier (+) than the wind-based word.
+    const midK = hrs[Math.floor((hrs.length - 1) / 2)].k, midR = SC.score(c, midK);
+    if (s.surface != null && midR && midR.surface && midK.day !== 0) {
+      const age = (now - Date.parse(s.start || s.t)) / 864e5;
+      srows.push({ id: c.id, who: s.who || '?', x: SC.features(c, midK), r: Math.max(-3, Math.min(3, s.surface - midR.surface.base)), ageW: Math.pow(0.5, Math.max(0, age) / 365) });
+    }
     const rs = hrs.map((h) => SC.score(c, h.k)).filter(Boolean);
     // Dark or flat hours are never adjusted live, so they can't teach the adjustment.
     if (!rs.length || rs.every((r) => r.total === 0 && r.cap)) { unusable++; continue; }
@@ -300,13 +306,24 @@ function trainSessions(sessions) {
       size: { n: ms.length, gain: gain(coastLr + spotLr) },
     };
   }
+  // Surface: the same two-level fit, on steps cleaner or messier.
+  const perS = {};
+  for (const x of srows) perS[`${x.who}|${x.id}`] = (perS[`${x.who}|${x.id}`] || 0) + 1;
+  for (const x of srows) x.w = x.ageW / Math.sqrt(perS[`${x.who}|${x.id}`]);
+  const surfCoast = ridge(srows, LAMBDA_COAST), surfSpots = {};
+  for (const id of new Set(srows.map((x) => x.id))) {
+    const mine = srows.filter((x) => x.id === id);
+    surfSpots[id] = { n: mine.length, w: ridge(mine.map((x) => ({ ...x, r: x.r - dot(surfCoast, x.x) })), LAMBDA_SPOT), bias: +(mine.reduce((a, x) => a + x.r, 0) / mine.length).toFixed(2) };
+  }
+
   const learned = {
     updated: new Date().toISOString(), sessions: sessions.length, used: rows.length, setAside, unusable,
+    surface: { coast: { n: srows.length, w: surfCoast }, spots: surfSpots },
     coast: { n: rows.length, w: coastW, size: { n: sz.length, gain: gain(coastLr) },
       rmse: { before: rmse(rows.map((x) => x.r)), after: rmse(rows.map((x) => x.r - predict(x))), loo } },
     spots,
   };
-  console.log(`sessions: ${sessions.length} logged, ${rows.length} used, ${setAside} set aside, ${unusable} unusable; error ${learned.coast.rmse.before} → ${learned.coast.rmse.after} pts (leave-one-out ${loo ?? '-'})`);
+  console.log(`sessions: ${sessions.length} logged, ${rows.length} used, ${setAside} set aside, ${unusable} unusable; error ${learned.coast.rmse.before} → ${learned.coast.rmse.after} pts (leave-one-out ${loo ?? '-'}); ${srows.length} surface reports`);
   return learned;
 }
 

@@ -334,13 +334,16 @@
     const mode = (arr) => arr.slice().sort((a, b) => arr.filter((v) => v === a).length - arr.filter((v) => v === b).length).pop();
     const rel = mode(scored.map((x) => x.r.wind));
     const dir = mode(scored.map((x) => dirName(x.k.d)));
+    // How clean it'll mostly be over the daylight hours, and the cleanest it gets.
+    const surfs = scored.filter((x) => x.r.surface).map((x) => x.r.surface.i);
+    const surf = surfs.length ? { most: mode(surfs), best: Math.min(...surfs) } : null;
     // Headline = the daylight average, not the peak block; the best window
     // is named in the detail. Averaging keeps a day with one good hour honest.
     const top = half(avg(scored.map((x) => x.r.total)));
     return {
       top, level: levelOf(top), label: LEVELS[levelOf(top)], best, blocks,
       hMin: Math.min(...hs), hMax: Math.max(...hs), p: Math.round(avg(ps)), dir,
-      wsMin: kts(Math.min(...ws)), wsMax: kts(Math.max(...ws)), rel,
+      wsMin: kts(Math.min(...ws)), wsMax: kts(Math.max(...ws)), rel, surf,
       tides: day.tides, sun: day.sun, conf: day.conf,
     };
   }
@@ -381,6 +384,7 @@
       <span class="win">${bars(d)}${d.best ? `Best <b>${d.best.label.toLowerCase()}</b> (${fmt(d.best.score)})` : ''}</span>
       <span>Swell <b>${size}</b> at <b>${d.p} s</b> from <b>${d.dir}</b></span>
       <span>Wind <b>${wind}</b> ${d.rel}</span>
+      ${d.surf ? `<span>Surface <b>mostly ${SURFACES[d.surf.most].toLowerCase()}</b>${d.surf.best < d.surf.most ? `, ${SURFACES[d.surf.best].toLowerCase()} at best` : ''}</span>` : ''}
       ${tide ? `<span>Tide <b>${tide}</b></span>` : ''}
       ${d.sun ? `<span>Light <b>${d.sun.rise}–${d.sun.set}</b></span>` : ''}
       ${d.conf != null ? `<span class="confn lvl-${d.conf >= 0.75 ? 3 : d.conf >= 0.45 ? 2 : 1}">${confWord(d.conf)} confidence</span>` : ''}

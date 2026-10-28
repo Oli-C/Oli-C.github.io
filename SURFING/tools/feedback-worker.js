@@ -4,8 +4,10 @@
      verdict   "was the score right?" while watching a cam (too high / about
                right / too low), with the conditions at that moment
      session   "I surfed here": when, for how long, how it was (Flat … Epic),
-               the wave size seen and what held it back, with the forecast
-               for those hours. These train the scores (tools/skill.mjs).
+               the wave size seen, how clean the surface was (Glassy …
+               Blown out), the wave shape (Peeling / Mixed / Closing out)
+               and what held it back, with the forecast for those hours.
+               These train the scores (tools/skill.mjs).
 
    Set-up (once, ~5 minutes):
      1. Cloudflare dashboard → Workers & Pages → Create → Worker, paste this file.
@@ -91,6 +93,8 @@ function cleanSession(s, now) {
   if (!MINS.includes(s.mins)) return 'bad length';
   if (!int(s.rating, 0, 4)) return 'bad rating';
   if (!int(s.size, 0, 5)) return 'bad size';
+  if (s.surface != null && !int(s.surface, 0, 4)) return 'bad surface';   // Glassy … Blown out
+  if (s.shape != null && !int(s.shape, 0, 2)) return 'bad shape';         // Peeling, Mixed, Closing out
   const why = Array.isArray(s.why) ? [...new Set(s.why.filter((w) => WHY.includes(w)))] : [];
   if (Array.isArray(s.why) && s.why.length > WHY.length) return 'bad reasons';
   if (!Array.isArray(s.hours) || s.hours.length < 1 || s.hours.length > 4) return 'bad conditions';
@@ -107,7 +111,7 @@ function cleanSession(s, now) {
   if (s.model != null && !num(s.model, 0, 10)) return 'bad model score';
   return {
     id: s.id, start: new Date(start).toISOString(), local: s.local, mins: s.mins,
-    rating: s.rating, size: s.size, why, hours,
+    rating: s.rating, size: s.size, surface: s.surface == null ? null : s.surface, shape: s.shape == null ? null : s.shape, why, hours,
     model: s.model == null ? null : s.model, ver: int(s.ver, 0, 1000) ? s.ver : 0,
   };
 }

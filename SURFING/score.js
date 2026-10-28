@@ -233,6 +233,26 @@ function score(c, k) {
     f.push({ label: 'Sea state', mult: sea, now: bits.length ? `${bits.join(' + ')} on ${hgt(h)} swell` : 'clean', likes: 'one clean groundswell' });
   }
 
+  // How clean the surface should be, in surfers' words: the wind against
+  // the beach (light anything is glassy; offshore grooms; cross and onshore
+  // texture it, then chop it up), roughed up further by gusts and by chop
+  // or a cross swell. Logged sessions correct it (see surfaceLearned).
+  // In knots: under 4 glassy; offshore clean until it's strong (19+, spray
+  // and hard paddling); cross clean under 8, bumpy to 16, choppy to 22;
+  // onshore bumpy under 6, choppy to 13, then blown out. Only strong gusts
+  // (19 kts+, half as much again as the wind) rough it up a step.
+  let surf;
+  if (ws < 7) surf = 0;
+  else if (rel === 'offshore') surf = ws < 35 ? 1 : 2;
+  else if (rel === 'cross-shore') surf = ws < 15 ? 1 : ws < 30 ? 2 : ws < 40 ? 3 : 4;
+  else surf = ws < 12 ? 2 : ws < 25 ? 3 : 4;
+  if (rel !== 'offshore' && k.wg != null && k.wg >= 35 && k.wg > ws * 1.5) surf = Math.min(4, surf + 1);
+  // A cross swell or leftover chop makes it lumpy, not choppy: bumpy at worst.
+  if (sea <= 0.7) surf = Math.max(surf, 2);
+  else if (sea <= 0.85 && surf === 0) surf = 1;
+  const surfLearn = surfaceLearned(c, k, surf);
+  const surface = { i: surfLearn ? surfLearn.i : surf, label: SURFACES[surfLearn ? surfLearn.i : surf], base: surf, learned: surfLearn ? surfLearn.text : '' };
+
   let tide = 1;
   if (k.tn != null && b.tide && b.tide.range) {
     const [tlo, thi] = b.tide.range;
@@ -281,7 +301,23 @@ function score(c, k) {
     const dOff = angleDiff(k.obs.wd, m.wd), sOff = Math.abs(k.obs.ws - m.ws);
     if (dOff >= 60 || sOff >= 18) notes.push(`${k.obs.station} measured ${kts(k.obs.ws)} kts ${dirName(k.obs.wd)} at ${k.obs.t}; models said ${kts(m.ws)} kts ${dirName(m.wd)}${k.obsW ? ' — the reading is weighted in' : ''}`);
   }
-  return { total, level, label: dark ? 'Dark' : LEVELS[level], wind: rel, factors: f, cap, notes };
+  return { total, level, label: dark ? 'Dark' : LEVELS[level], wind: rel, factors: f, cap, notes, surface };
+}
+
+// Surface words, cleanest first. Index is what sessions report and train.
+const SURFACES = ['Glassy', 'Clean', 'Bumpy', 'Choppy', 'Blown out'];
+// The learned correction to the surface: coast-wide and per spot, the same
+// ridge fit as the scores but on how much cleaner or messier surfers found
+// it than we said. Only moves the word when it shifts by half a step.
+function surfaceLearned(c, k, base) {
+  const L = typeof sharedSkill !== 'undefined' && sharedSkill && sharedSkill.learned;
+  if (!L || !L.surface) return null;
+  const x = features(c, k), S = L.surface.spots && L.surface.spots[c.id];
+  const g = L.surface.coast && L.surface.coast.n >= 15 ? dotW(L.surface.coast.w, x) : 0;
+  const s = S && S.n >= 3 ? dotW(S.w, x) : 0;
+  const i = Math.max(0, Math.min(4, Math.round(base + Math.max(-2, Math.min(2, g + s)))));
+  if (i === base) return null;
+  return { i, text: `${i < base ? 'cleaner' : 'messier'} than the wind suggests, from logged sessions` };
 }
 
 /* ---------- Learning from logged sessions ----------
@@ -307,7 +343,9 @@ const SIZE_BANDS = ['Flat', 'Knee–thigh', 'Waist–chest', 'Shoulder–head', 
 const SIZE_FACE = [0.15, 0.55, 1.05, 1.6, 2.3, 3.2];
 const SIZE_EDGES = [0.3, 0.8, 1.3, 1.9, 2.7];
 const sizeBand = (face) => { let i = 0; while (i < SIZE_EDGES.length && face >= SIZE_EDGES[i]) i++; return i; };
-const SESSION_WHY = { wind: 'Wind', small: 'Too small', big: 'Too big', tide: 'Wrong tide', closeouts: 'Closing out', inconsistent: 'Inconsistent', crowd: 'Crowded' };
+const SESSION_WHY = { wind: 'Wind', small: 'Too small', big: 'Too big', tide: 'Wrong tide', inconsistent: 'Inconsistent', crowd: 'Crowded' };
+// Wave shape: whether the waves were rideable, the other half of "clean".
+const SESSION_SHAPE = ['Peeling', 'Mixed', 'Closing out'];
 
 // The kinds of conditions an adjustment can attach to. One-hot buckets
 // plus an intercept; the same function scores live hours and training rows,
