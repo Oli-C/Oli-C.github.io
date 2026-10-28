@@ -706,16 +706,23 @@ function debias(r, f) {
 // verifies best. Its swell is taken as its total scaled by the swell share
 // the other models see; where swell dominates, its direction and peak
 // period stand in for the swell's. So the best model still votes on size.
+// Likewise a model that splits the swell out but gives only the whole sea's
+// peak period (Copernicus IBI): where its own swell dominates, that peak is
+// the swell's, so its period votes too rather than just its mean.
 function splitSwell(rows) {
   const shares = rows.filter((r) => r.swell_wave_height > 0.05 && r.wave_height > 0.05).map((r) => Math.min(1, r.swell_wave_height / r.wave_height));
   if (!shares.length) return;
   const share = median(shares);
   for (const r of rows) {
-    if (r.swell_wave_height != null || !(r.wave_height > 0.05)) continue;
-    r.swell_wave_height = +(r.wave_height * share).toFixed(2);
-    if (share >= 0.6) {
-      if (r.swell_wave_direction == null) r.swell_wave_direction = r.wave_direction;
-      if (r.swell_wave_peak_period == null) r.swell_wave_peak_period = r.wave_peak_period;
+    if (!(r.wave_height > 0.05)) continue;
+    if (r.swell_wave_height == null) {
+      r.swell_wave_height = +(r.wave_height * share).toFixed(2);
+      if (share >= 0.6) {
+        if (r.swell_wave_direction == null) r.swell_wave_direction = r.wave_direction;
+        if (r.swell_wave_peak_period == null) r.swell_wave_peak_period = r.wave_peak_period;
+      }
+    } else if (r.swell_wave_peak_period == null && r.wave_peak_period != null && r.swell_wave_height / r.wave_height >= 0.8) {
+      r.swell_wave_peak_period = r.wave_peak_period;
     }
   }
 }
