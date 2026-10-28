@@ -136,6 +136,8 @@ html, body {
 /* Past a week: a trend, not a forecast. */
 .dcard.far { border-style: dashed; }
 .dcard.far .top small { font-size: 8px; margin-left: 4px; opacity: .8; }
+.dcard .top .day { white-space: nowrap; }
+.dcard.far .top b + small { display: none; }   /* room for "trend"; the colour says the level */
 .dcard.far .body { opacity: .85; }
 /* The day and its score on the score's colour; greyer when less certain. */
 .dcard .top {
