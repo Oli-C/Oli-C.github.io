@@ -32,7 +32,7 @@ const OUT = new URL('../data/skill.json', import.meta.url);
 const read = (u) => fs.readFileSync(new URL(u, import.meta.url), 'utf8');
 const { CAMS } = new Function(read('../spots.js') + '; return { CAMS };')();
 const { WIND_MODELS, MARINE_MODELS, angleDiff } = new Function(read('../score.js') + '; return { WIND_MODELS, MARINE_MODELS, angleDiff };')();
-const WORKER = process.env.FEEDBACK_URL || 'https://surf-feedback.odj-clarke.workers.dev';
+const WORKER = (process.env.FEEDBACK_URL || 'https://surf-feedback.odj-clarke.workers.dev').replace(//+$/, '');
 
 const VERSION = 2;
 const prev = (() => { try { const p = JSON.parse(fs.readFileSync(OUT, 'utf8')); return p; } catch { return null; } })();
