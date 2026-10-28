@@ -1,6 +1,6 @@
 {
  "v": 2,
- "updated": "2026-10-28T17:36:06.927Z",
+ "updated": "2026-10-28T19:57:02.868Z",
  "wind": {
   "icon_seamless": {
    "lead": [
@@ -623,7 +623,7 @@
    "n": 6704
   }
  },
- "lastWindObs": "2026-10-28T16:00",
+ "lastWindObs": "2026-10-28T19:00",
  "lastBuoyWind": {
   "nazare": "2026-10-28T12:00:00Z",
   "silleiro": "2026-10-28T12:00:00Z",
@@ -637,7 +637,7 @@
   "silleiro": "2026-10-28T12:00:00Z",
   "cadiz": "2026-10-28T12:00:00Z"
  },
- "runs": 12,
+ "runs": 13,
  "stations": [
   "Alcobaça",
   "Cabo Carvoeiro",
@@ -699,32 +699,80 @@
   }
  ],
  "learned": {
-  "updated": "2026-10-28T17:36:40.945Z",
-  "sessions": 0,
-  "used": 0,
+  "updated": "2026-10-28T19:57:29.102Z",
+  "sessions": 1,
+  "used": 1,
   "setAside": 0,
   "unusable": 0,
   "surface": {
    "coast": {
-    "n": 0,
-    "w": {}
+    "n": 1,
+    "w": {
+     "bias": 0.071,
+     "tide:low": 0.071,
+     "wind:light": 0.071,
+     "size:in": 0.071,
+     "period:long": 0.071,
+     "dir:in": 0.071
+    }
    },
-   "spots": {}
+   "spots": {
+    "caparica-praia-nova": {
+     "n": 1,
+     "w": {
+      "bias": 0.052,
+      "tide:low": 0.052,
+      "wind:light": 0.052,
+      "size:in": 0.052,
+      "period:long": 0.052,
+      "dir:in": 0.052
+     },
+     "bias": 1
+    }
+   }
   },
   "coast": {
-   "n": 0,
-   "w": {},
+   "n": 1,
+   "w": {
+    "bias": -0.25,
+    "tide:low": -0.25,
+    "wind:light": -0.25,
+    "size:in": -0.25,
+    "period:long": -0.25,
+    "dir:in": -0.25
+   },
    "size": {
-    "n": 0,
-    "gain": 1
+    "n": 1,
+    "gain": 1.033
    },
    "rmse": {
-    "before": null,
-    "after": null,
+    "before": 3.5,
+    "after": 3.5,
     "loo": null
    }
   },
-  "spots": {}
+  "spots": {
+   "caparica-praia-nova": {
+    "n": 1,
+    "w": {
+     "bias": -0.182,
+     "tide:low": -0.182,
+     "wind:light": -0.182,
+     "size:in": -0.182,
+     "period:long": -0.182,
+     "dir:in": -0.182
+    },
+    "bias": -3.5,
+    "rmse": {
+     "before": 3.5,
+     "after": 3.5
+    },
+    "size": {
+     "n": 1,
+     "gain": 1.089
+    }
+   }
+  }
  },
  "calibration": {}
 }
