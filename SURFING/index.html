@@ -1559,15 +1559,71 @@
     .area-head h2 { font-size: 17px; white-space: nowrap; }
     .area-head h2 small { font-size: 12px; }
     .area-sum { font-size: 12px; }
-    /* Map view fills the screen under the toolbar. */
-    .page:has(.layout[data-view="map"]) { padding-bottom: 0; }
+    /* Map view: the map is the whole screen and the page can't scroll.
+       The toolbar floats over it as a frosted bar, the area chips as
+       frosted pills beneath; the tide/best line steps aside. */
+    html:has(.layout[data-view="map"]),
+    html:has(.layout[data-view="map"]) body { overflow: hidden; overscroll-behavior: none; }
+    .layout[data-view="map"] .map-pane {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+    }
+    .layout[data-view="map"] .map-pane > div { height: 100%; }
     .layout[data-view="map"] #map {
-      height: calc(100vh - var(--controls-h) - 12px - env(safe-area-inset-bottom));
-      height: calc(100dvh - var(--controls-h) - 12px - env(safe-area-inset-bottom));
-      min-height: 320px;
-      border-radius: 12px;
+      height: 100vh;
+      height: 100dvh;
+      min-height: 0;
+      border: 0;
+      border-radius: 0;
     }
     .layout[data-view="map"] .map-hint { display: none; }
+    .page:has(.layout[data-view="map"]) .controls {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      margin: 0;
+      padding: max(10px, env(safe-area-inset-top)) 10px 0;
+      background: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      border: 0;
+      pointer-events: none;
+    }
+    .page:has(.layout[data-view="map"]) .controls > * { pointer-events: auto; }
+    .page:has(.layout[data-view="map"]) .r1 {
+      padding: 5px 5px 5px 12px;
+      background: color-mix(in srgb, var(--bg) 80%, transparent);
+      backdrop-filter: blur(14px) saturate(1.4);
+      -webkit-backdrop-filter: blur(14px) saturate(1.4);
+      border: 1px solid var(--border-2);
+      border-radius: 15px;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
+    }
+    .page:has(.layout[data-view="map"]) .r2 { margin-top: 6px; pointer-events: none; }
+    .page:has(.layout[data-view="map"]) .chips { padding: 0 2px 8px; margin: 0 -2px -8px; pointer-events: none; }
+    .page:has(.layout[data-view="map"]) .chip {
+      pointer-events: auto;
+      color: var(--fg);
+      background: color-mix(in srgb, var(--bg) 80%, transparent);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.22);
+    }
+    .page:has(.layout[data-view="map"]) .chip[aria-pressed="true"] {
+      color: #101820;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .page:has(.layout[data-view="map"]) .more { pointer-events: auto; }
+    .page:has(.layout[data-view="map"]) .controls.more-open .more { top: calc(max(10px, env(safe-area-inset-top)) + 52px); right: 10px; }
+    .page:has(.layout[data-view="map"]) .m-info { display: none; }
+    /* Leaflet's corners clear the floating bar and the home indicator. */
+    .layout[data-view="map"] .leaflet-top { top: calc(var(--controls-h) - 4px); }
+    .layout[data-view="map"] .leaflet-bottom { bottom: env(safe-area-inset-bottom); }
+    .layout[data-view="map"] .legend { bottom: calc(10px + env(safe-area-inset-bottom)); }
+    .layout[data-view="map"] .map-card { bottom: calc(10px + env(safe-area-inset-bottom)); left: 10px; right: 10px; }
     /* Pinch to zoom; the layers switch folds to a button. */
     .leaflet-control-zoom { display: none; }
     .leaflet-control-layers-toggle { width: 38px; height: 38px; }
@@ -2480,7 +2536,7 @@
     mapCard.hidden = false;
     $('map-wrap').classList.add('has-card');
     // Keep the pin clear of the card.
-    requestAnimationFrame(() => map.panInside([c.lat, c.lng], { paddingTopLeft: [40, 60], paddingBottomRight: [40, mapCard.offsetHeight + 40] }));
+    requestAnimationFrame(() => map.panInside([c.lat, c.lng], { paddingTopLeft: [40, mapTop() + 40], paddingBottomRight: [40, mapCard.offsetHeight + 40] }));
   }
   function hideMapCard() {
     if (!cardId) return;
@@ -2496,6 +2552,9 @@
   });
 
 
+  // How much of the map's top edge the floating phone toolbar covers.
+  const mapTop = () => (phone.matches && layout.dataset.view === 'map' ? $('controls').offsetHeight : 0);
+
   // Show only the markers that pass the current filter; optionally refit.
   function syncMarkers(fit) {
     const shown = [], home = [];
@@ -2510,8 +2569,7 @@
     if (fit && shown.length) {
       const unfiltered = area === 'All' && !q.value.trim();
       const target = unfiltered && home.length ? home : shown;
-      if (target.length === 1) map.setView(target[0], 14);
-      else map.fitBounds(target, { padding: [40, 40], maxZoom: 14 });
+      map.fitBounds(target, { paddingTopLeft: [40, mapTop() + 30], paddingBottomRight: [40, 40], maxZoom: 14 });
     }
   }
 
