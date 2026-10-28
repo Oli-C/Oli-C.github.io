@@ -531,18 +531,31 @@ function updateFields() {
   syncTimeControl();
 }
 
-// The time slider: now, then every 3 hours to 48 ahead (as far as the grids go).
-let timeCtl = null;
+// The time slider: now, then each daylight hour as far as the grids go
+// (48 h); the dark hours are skipped. Its value is an index into timeStops.
+let timeCtl = null, timeStops = [0];
+const lisbonClock = typeof Intl !== 'undefined'
+  ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Lisbon', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+  : null;
+function daylightStops(last) {
+  const c = CAMS[0], stops = [0];
+  for (let h = 1; h <= last; h++) {
+    const t = lisbonClock && lisbonClock.format(new Date(Date.now() + h * 3.6e6)).replace(' ', 'T');
+    if (!t || !isDark(c, { t })) stops.push(h);
+  }
+  return stops;
+}
 function syncTimeControl() {
   if (!timeCtl) return;
   const g = grids && (grids.swell || grids.wind), el = timeCtl.getContainer();
   el.hidden = !g;
   if (!g) return;
-  const last = Math.floor((Date.parse(g.times[g.times.length - 1] + ':00Z') - Date.now()) / 3.6e6 / 3) * 3;
+  timeStops = daylightStops(Math.floor((Date.parse(g.times[g.times.length - 1] + ':00Z') - Date.now()) / 3.6e6));
+  if (!timeStops.includes(fieldHour)) fieldHour = timeStops.reduce((a, h) => (Math.abs(h - fieldHour) < Math.abs(a - fieldHour) ? h : a), 0);
   const input = el.querySelector('input');
-  input.max = Math.max(0, last);
-  input.value = fieldHour;
-  const t = new Date(Date.now() + fieldHour * 3.6e6);
+  input.max = timeStops.length - 1;
+  input.value = timeStops.indexOf(fieldHour);
+  const t = new Date(Date.now() + fieldHour * 3.6e6 + 1.8e6);
   el.querySelector('output').textContent = fieldHour === 0 ? 'Now' : `${DAY_NAMES[t.getDay()]} ${String(t.getHours()).padStart(2, '0')}:00 · +${fieldHour} h`;
 }
 function makeTimeControl() {
@@ -551,10 +564,10 @@ function makeTimeControl() {
     options: { position: phone.matches ? 'topleft' : 'bottomright' },
     onAdd() {
       const el = L.DomUtil.create('div', 'time-ctl');
-      el.innerHTML = '<label><span class="k">Forecast</span><output>Now</output></label><input type="range" min="0" max="48" step="3" value="0" aria-label="Hours ahead for the scores, wind and swell">';
+      el.innerHTML = '<label><span class="k">Time</span><output>Now</output></label><input type="range" min="0" max="0" step="1" value="0" aria-label="Time for the scores, wind and swell (daylight hours)">';
       L.DomEvent.disableClickPropagation(el);
       L.DomEvent.disableScrollPropagation(el);
-      el.querySelector('input').addEventListener('input', (e) => { fieldHour = +e.target.value; updateFields(); slidePins(); });
+      el.querySelector('input').addEventListener('input', (e) => { fieldHour = timeStops[+e.target.value] || 0; updateFields(); slidePins(); });
       return el;
     },
   });
