@@ -3,8 +3,8 @@
    Bindings: KV namespace FEEDBACK; EXPORT_KEY (secret or Secrets Store);
    optional rate limiters RL_READ, RL_WRITE, RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build 1c6df724e0. */
-const WORKER_BUILD = '1c6df724e0';
+   Build 1741cbdcab. */
+const WORKER_BUILD = '1741cbdcab';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (7-day outlook).
@@ -46,10 +46,10 @@ const WORKER_BUILD = '1c6df724e0';
                        shown 16:9
              'page'  — a full web page in a frame (no player-only embed
                        available), shown tall
-             'none'  — no camera (yet): the spot still gets its score, a map
-                       pin, the 7-day outlook and session logging; its card
-                       shows the forecast and the viewer points to the
-                       nearest cams. Leave out embed, link and source.
+             'none'  — no camera (yet): left out of the Cams grid, but on
+                       the map, in Best right now and the 7-day outlook, with
+                       its score and session logging; its viewer points to
+                       the nearest cams. Leave out embed, link and source.
      embed   the .m3u8 URL for 'hls', otherwise the URL loaded in the iframe
      poster  optional still shown before an 'hls' stream starts
      fallback optional page URL framed instead if an 'hls' stream won't play

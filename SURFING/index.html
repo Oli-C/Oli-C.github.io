@@ -430,13 +430,11 @@
   .cam.blocked .t-blk { display: inline; }
   .cam.offline img { filter: grayscale(1) brightness(.4); }
   .cam.offline video, .cam.offline .live { display: none; }
-  /* No camera: a dim swell line instead of a picture; conditions as usual. */
-  .cam.nocam { background: linear-gradient(160deg, var(--bg-3), var(--bg-2)); }
-  .nocam-art { position: absolute; left: 12%; right: 12%; top: 26%; height: 22%; width: 76%; color: var(--accent); opacity: .35; }
+  /* No camera: the viewer shows a dim swell line and the nearest cams. */
   .icon-btn[hidden] { display: none; }
   .frame.nocam { display: grid; place-items: center; background: linear-gradient(160deg, var(--bg-3), var(--bg-2)); }
   .frame.nocam .frame-msg { position: relative; inset: auto; background: none; color: var(--fg); }
-  .frame.nocam .frame-msg .nocam-art { position: static; display: block; width: 160px; height: 40px; margin: 0 auto 10px; }
+  .nocam-art { display: block; width: 160px; height: 40px; margin: 0 auto 10px; color: var(--accent); opacity: .35; }
   .frame.nocam .frame-msg > div { display: grid; justify-items: center; gap: 8px; }
   .frame.nocam .frame-msg span { font-size: 12px; color: var(--fg-muted); }
   .frame.nocam .near { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
@@ -2035,12 +2033,14 @@
   }
 
   // The tile is the preview; name, place and conditions overlay the bottom.
+  // Spots without a camera (type 'none') stay out of the grid; they're on
+  // the map, in Best right now and on the 7-day page.
   const noCam = (c) => c.type === 'none';
   const cardHtml = (c) => `
-    <button class="cam${noCam(c) ? ' nocam' : ''}" type="button" data-id="${esc(c.id)}" aria-label="${noCam(c) ? 'Forecast for' : 'Watch'} ${esc(c.name)}, ${esc(c.town)}">
+    <button class="cam" type="button" data-id="${esc(c.id)}" aria-label="Watch ${esc(c.name)}, ${esc(c.town)}">
       ${c.thumb ? `<img src="${esc(thumbUrl(c.thumb))}" alt="" loading="lazy" decoding="async" onload="this.classList.add('ready')" onerror="this.remove()">` : ''}
       ${c.type === 'hls' ? `<video muted playsinline preload="none"${c.poster ? ` poster="${esc(c.poster)}"` : ''} aria-hidden="true"></video>` : ''}
-      ${noCam(c) ? `<span class="live">No cam · forecast</span>${NOCAM_ART}` : '<span class="live"><i></i>Live</span>'}
+      <span class="live"><i></i>Live</span>
       <span class="off" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M15 15v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h2m4 0h4a1 1 0 0 1 1 1v3l5-3v9"/></svg><span class="t-off">Camera offline</span><span class="t-blk">Plays on ${esc(sourceName(c))} only</span></span>
       <span class="score-slot">${badge(c)}</span>
       <div class="overlay">
@@ -2052,22 +2052,15 @@
       </div>
     </button>`;
 
-  // "3 cams", or "4 spots · 3 cams" when some have no camera.
-  const areaCount = (list) => {
-    const n = list.filter((c) => !noCam(c)).length, cams = `${n} cam${n === 1 ? '' : 's'}`;
-    return n === list.length ? cams : `${list.length} spots · ${cams}`;
-  };
-  // A forecast-only card's backdrop: a quiet swell line where the stream would be.
-  const NOCAM_ART = '<svg class="nocam-art" viewBox="0 0 120 40" preserveAspectRatio="none" aria-hidden="true"><path d="M0 26c10 0 10-10 20-10s10 10 20 10 10-10 20-10 10 10 20 10 10-10 20-10 10 10 20 10" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
-
   // Built once; conditions are patched in later so the tiles keep streaming.
   function renderGrid() {
     grid.innerHTML = AREAS.map((a) => {
-      const list = CAMS.filter((c) => c.area === a);
+      const list = CAMS.filter((c) => c.area === a && !noCam(c));
+      if (!list.length) return '';
       return `
       <section class="area" data-area="${esc(a)}">
         <div class="area-head">
-          <h2>${esc(a)}<small>${areaCount(list)}</small></h2>
+          <h2>${esc(a)}<small>${list.length} cam${list.length === 1 ? '' : 's'}</small></h2>
           <div class="area-sum"></div>
         </div>
         <div class="cards">${list.map(cardHtml).join('')}</div>
@@ -2084,7 +2077,7 @@
     }
     const coast = coastTides();
     for (const sec of grid.querySelectorAll('.area')) {
-      const best = CAMS.filter((c) => c.area === sec.dataset.area)
+      const best = CAMS.filter((c) => c.area === sec.dataset.area && !noCam(c))
         .map((c) => ({ c, r: scoreOf(c) })).filter((x) => x.r)
         .sort((x, y) => y.r.total - x.r.total)[0];
       // Only areas whose tide strays from the coast-wide line get their own.
@@ -2226,12 +2219,12 @@
   const offline = new Map();   // id -> 'probe' | 'play' | 'blocked'
 
   function reorder() {
-    const rank = (c) => CAMS.indexOf(c) + (offline.has(c.id) ? 1000 : noCam(c) ? 500 : 0);
+    const rank = (c) => CAMS.indexOf(c) + (offline.has(c.id) ? 1000 : 0);
     for (const sec of grid.querySelectorAll('.area')) {
       const box = sec.querySelector('.cards');
       [...box.children].sort((a, b) => rank(byId(a.dataset.id)) - rank(byId(b.dataset.id))).forEach((el) => box.appendChild(el));
     }
-    const dead = (sec) => [...sec.querySelectorAll('.cam')].every((el) => offline.has(el.dataset.id) || noCam(byId(el.dataset.id)));
+    const dead = (sec) => [...sec.querySelectorAll('.cam')].every((el) => offline.has(el.dataset.id));
     [...grid.querySelectorAll('.area')]
       .sort((a, b) => (dead(a) - dead(b)) || (AREAS.indexOf(a.dataset.area) - AREAS.indexOf(b.dataset.area)))
       .forEach((sec) => grid.appendChild(sec));
@@ -3709,7 +3702,9 @@
     if (push) history.pushState(null, '', '#' + c.id);
   }
 
-  // Where a spot has no camera, the frame offers the nearest ones.
+  // Where a spot has no camera, the frame shows a quiet swell line and
+  // offers the nearest cams.
+  const NOCAM_ART = '<svg class="nocam-art" viewBox="0 0 120 40" preserveAspectRatio="none" aria-hidden="true"><path d="M0 26c10 0 10-10 20-10s10 10 20 10 10-10 20-10 10 10 20 10 10-10 20-10 10 10 20 10" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
   const kmBetween = (a, b) => {
     const r = Math.PI / 180, x = (b.lng - a.lng) * r * Math.cos((a.lat + b.lat) / 2 * r), y = (b.lat - a.lat) * r;
     return Math.hypot(x, y) * 6371;

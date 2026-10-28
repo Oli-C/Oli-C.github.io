@@ -37,10 +37,10 @@
                        shown 16:9
              'page'  — a full web page in a frame (no player-only embed
                        available), shown tall
-             'none'  — no camera (yet): the spot still gets its score, a map
-                       pin, the 7-day outlook and session logging; its card
-                       shows the forecast and the viewer points to the
-                       nearest cams. Leave out embed, link and source.
+             'none'  — no camera (yet): left out of the Cams grid, but on
+                       the map, in Best right now and the 7-day outlook, with
+                       its score and session logging; its viewer points to
+                       the nearest cams. Leave out embed, link and source.
      embed   the .m3u8 URL for 'hls', otherwise the URL loaded in the iframe
      poster  optional still shown before an 'hls' stream starts
      fallback optional page URL framed instead if an 'hls' stream won't play
