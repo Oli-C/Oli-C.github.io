@@ -1,72 +1,72 @@
 {
- "updated": "2026-10-27T22:11:01.328Z",
+ "updated": "2026-10-28T05:37:52.703Z",
  "wind": {
   "best_match": {
-   "n": 681,
-   "dir": 21.023,
-   "spd": 3.561
+   "n": 892,
+   "dir": 19.409,
+   "spd": 2.567
   },
   "ecmwf_ifs025": {
-   "n": 681,
-   "dir": 27.929,
-   "spd": 5.996
+   "n": 892,
+   "dir": 21.52,
+   "spd": 6.528
   },
   "gfs_seamless": {
-   "n": 681,
-   "dir": 23.931,
-   "spd": 5.685
+   "n": 892,
+   "dir": 18.851,
+   "spd": 5.776
   },
   "icon_seamless": {
-   "n": 681,
-   "dir": 22.088,
-   "spd": 3.516
+   "n": 892,
+   "dir": 16.828,
+   "spd": 2.9
   },
   "meteofrance_seamless": {
-   "n": 681,
-   "dir": 19.405,
-   "spd": 5.247
+   "n": 892,
+   "dir": 21.052,
+   "spd": 4.508
   },
   "ukmo_seamless": {
-   "n": 681,
-   "dir": 37.173,
-   "spd": 4.3
+   "n": 892,
+   "dir": 38.825,
+   "spd": 4.945
   }
  },
  "wave": {
   "best_match": {
-   "n": 147,
-   "hRel": 0.086,
-   "p": 1.143,
-   "dir": null
+   "n": 171,
+   "hRel": 0.081,
+   "p": 1.138,
+   "dir": 4.791
   },
   "meteofrance_wave": {
-   "n": 147,
-   "hRel": 0.086,
+   "n": 171,
+   "hRel": 0.081,
    "p": null,
-   "dir": null
+   "dir": 4.791
   },
   "ncep_gfswave025": {
-   "n": 147,
-   "hRel": 0.244,
+   "n": 171,
+   "hRel": 0.177,
    "p": null,
-   "dir": null
+   "dir": 7.246
   },
   "ewam": {
-   "n": 147,
-   "hRel": 0.136,
-   "p": 1.143,
-   "dir": null
+   "n": 171,
+   "hRel": 0.109,
+   "p": 1.138,
+   "dir": 4.199
   },
   "gwam": {
-   "n": 147,
-   "hRel": 0.113,
-   "p": 1.249,
-   "dir": null
+   "n": 171,
+   "hRel": 0.106,
+   "p": 1.284,
+   "dir": 4.112
   }
  },
- "lastWindObs": "2026-10-27T21:00",
- "lastWaveObs": "2026-10-23T14:00:00Z",
- "runs": 6,
+ "lastWindObs": "2026-10-28T05:00",
+ "lastWaveObs": "2026-10-26T23:00:00Z",
+ "runs": 7,
  "stations": [
   "Setúbal, Areias",
   "Alcochete / Campo Tiro",
@@ -75,8 +75,10 @@
   "Sintra/Tapada do Mouco",
   "Lisboa, Relógio",
   "Lisboa, Amoreiras",
+  "Santa Cruz",
+  "Sintra, Colares",
+  "Cabo da Roca",
   "Lisboa, Carnide",
-  "Lisboa, Tapada da Ajuda",
   "Almada, P.Rainha",
   "Leiria",
   "Leiria",
@@ -86,9 +88,6 @@
   "Amadora",
   "Rio Maior",
   "Torres Vedras, Dois Portos",
-  "Santa Cruz",
-  "Sintra, Colares",
-  "Cabo da Roca",
   "Cabo Raso",
   "Barreiro, Lavradio",
   "Pegões",
@@ -104,7 +103,8 @@
   "Silves - São Marcos da Serra",
   "Zambujeira",
   "Aljezur - Rogil",
-  "Portimão"
+  "Portimão",
+  "Lisboa, Tapada da Ajuda"
  ],
  "buoys": [
   {
@@ -112,8 +112,8 @@
    "name": "Nazaré / Pedrógão coastal buoy (IH)",
    "lat": 39.56,
    "lng": -9.21,
-   "hours": 0,
-   "latest": "2026-10-23T14:00:00Z"
+   "hours": 24,
+   "latest": "2026-10-26T23:00:00Z"
   },
   {
    "id": "sines",
@@ -125,7 +125,7 @@
   }
  ],
  "lastWave": {
-  "nazare": "2026-10-23T14:00:00Z"
+  "nazare": "2026-10-26T23:00:00Z"
  },
  "calibration": {}
 }
