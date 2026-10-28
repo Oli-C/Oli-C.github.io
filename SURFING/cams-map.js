@@ -186,7 +186,19 @@ function initMap() {
     const b = e.target.closest('[data-open]');
     if (b) { map.closePopup(); open(b.dataset.open); }
   });
+  // Back where the map was left on this device (unless a filter's on),
+  // else fitted to the spots; kept as it moves.
+  let pos = null;
+  try { pos = JSON.parse(localStorage.getItem('surf-map-pos') || 'null'); } catch {}
+  if (pos && Number.isFinite(pos.lat) && Number.isFinite(pos.lng) && Number.isFinite(pos.z) && area === 'All' && !q.value.trim()) {
+    map.setView([pos.lat, pos.lng], pos.z, { animate: false });
+    fitKey = filterKey();
+  }
   syncMarkers(true);
+  map.on('moveend', () => {
+    const c = map.getCenter();
+    try { localStorage.setItem('surf-map-pos', JSON.stringify({ lat: +c.lat.toFixed(4), lng: +c.lng.toFixed(4), z: map.getZoom() })); } catch {}
+  });
 }
 
 const mapCard = $('map-card');
@@ -221,6 +233,10 @@ mapCard.addEventListener('click', (e) => {
 const mapTop = () => (phone.matches && layout.dataset.view === 'map' ? $('controls').offsetHeight : 0);
 
 // Show only the markers that pass the current filter; optionally refit.
+// The map fits itself to the spots on show only when the filter changes,
+// so it otherwise stays where it was left.
+let fitKey = null;
+const filterKey = () => area + '|' + q.value.trim();
 function syncMarkers(fit) {
   const shown = [], home = [];
   for (const c of CAMS) {
@@ -231,7 +247,8 @@ function syncMarkers(fit) {
       if (HOME_AREAS.includes(c.area)) home.push([c.lat, c.lng]);
     } else if (map.hasLayer(m)) map.removeLayer(m);
   }
-  if (fit && shown.length) {
+  if (fit && shown.length && filterKey() !== fitKey) {
+    fitKey = filterKey();
     const unfiltered = area === 'All' && !q.value.trim();
     const target = unfiltered && home.length ? home : shown;
     map.fitBounds(target, { paddingTopLeft: [40, mapTop() + 30], paddingBottomRight: [40, 40], maxZoom: 14 });
