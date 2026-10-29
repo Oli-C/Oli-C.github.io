@@ -90,7 +90,7 @@ const condText = (c, k = conditions[c.id] && conditions[c.id].now) => {
 // `hs`: the day's hours (today's by default); only today has a past.
 function dayBars(c, hs = conditions[c.id] && conditions[c.id].hours, isToday = true) {
   if (!hs || !hs.length) return null;
-  const nowH = isToday ? new Date().getHours() : -1;
+  const nowH = isToday ? spotClock().h : -1;
   return BUCKETS.map((b) => {
     const rows = hs.filter((k) => !isDark(c, k) && hourOf(k.t) >= b.from && hourOf(k.t) < b.to);
     const totals = rows.map((k) => score(c, k)).filter(Boolean).map((r) => r.total);
@@ -189,7 +189,7 @@ async function loadObs() {
 const FC_VER = 1;
 let fcPromise = null, fcAt = 0;
 function loadWorkerForecast() {
-  if (!fcPromise || Date.now() - fcAt > 20 * 60000) {
+  if (!fcPromise || Date.now() - fcAt > 5 * 60000) {
     fcAt = Date.now();
     fcPromise = (async () => {
       if (!FEEDBACK_URL) throw new Error('no worker set');
@@ -208,16 +208,12 @@ function loadWorkerForecast() {
 async function loadConditions() {
   const ids = CAMS.map((c) => c.id).join();
   const today = new Date().toDateString();
-  try {
-    const cached = JSON.parse(localStorage.getItem('surf-cond') || 'null');
-    if (cached && cached.v === COND_VER && cached.ids === ids && cached.day === today && Date.now() - cached.t < COND_TTL) {
-      conditions = cached.data;
-      condNote = cached.note;
-      return;
-    }
-  } catch {}
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem('surf-cond') || 'null'); } catch {}
 
-  // First choice: the worker's hourly build (one small, pre-blended file).
+  // First choice, every time: the worker's hourly build (one pre-blended
+  // file the browser keeps 5 minutes), so every visitor sees the same one.
+  // The copy kept on this device is only for when the worker can't be had.
   try {
     const fc = await loadWorkerForecast();
     const next = {};
@@ -242,7 +238,13 @@ async function loadConditions() {
     condNote = `Scores from Open-Meteo swell, wind and tide at ${when} local, judged against each spot’s usual best.`;
     try { localStorage.setItem('surf-cond', JSON.stringify({ v: COND_VER, ids, day: today, t: Date.now(), data: conditions, note: condNote })); } catch {}
     return;
-  } catch (e) { console.info('surf: worker forecast unavailable, fetching directly —', e.message); }
+  } catch (e) { console.info('surf: worker forecast unavailable —', e.message); }
+  if (cached && cached.v === COND_VER && cached.ids === ids && cached.day === today && Date.now() - cached.t < COND_TTL) {
+    conditions = cached.data;
+    condNote = cached.note;
+    return;
+  }
+  console.info('surf: fetching and blending directly');
 
   const pts = CAMS.map(offshore);
   const lat = pts.map((p) => p[0]).join(','), lng = pts.map((p) => p[1]).join(',');

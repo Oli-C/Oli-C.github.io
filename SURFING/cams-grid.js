@@ -106,7 +106,7 @@ function patchConditions() {
   // low and high), averaged across every cam; late in the day the second
   // comes from tomorrow's hours.
   const tideEl = $('tide-now');
-  const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+  const clock = spotClock(), nowMins = clock.h * 60 + clock.m;
   const next = (coast || []).filter((e) => e.mins >= nowMins).map((e) => ({ ...e, tmrw: false }));
   if (next.length < 2) {
     const c = CAMS.find((x) => conditions[x.id] && conditions[x.id].tomorrow && conditions[x.id].tomorrow.length);

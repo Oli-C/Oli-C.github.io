@@ -798,8 +798,8 @@ function syncTimeControl() {
   timeLabel();
 }
 function timeLabel() {
-  const t = new Date(Date.now() + fieldHour * 3.6e6 + 1.8e6);   // the nearest hour, as the pins pick
-  timeCtl.getContainer().querySelector('output').textContent = fieldHour === 0 ? 'Now' : `${DAY_NAMES[t.getDay()]} ${String(t.getHours()).padStart(2, '0')}:00 · +${fieldHour} h`;
+  const t = spotClock(Date.now() + fieldHour * 3.6e6 + 1.8e6);   // the nearest hour, as the pins pick
+  timeCtl.getContainer().querySelector('output').textContent = fieldHour === 0 ? 'Now' : `${DAY_NAMES[t.dow]} ${String(t.h).padStart(2, '0')}:00 · +${fieldHour} h`;
 }
 function makeTimeControl() {
   const Ctl = L.Control.extend({

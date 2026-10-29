@@ -231,7 +231,7 @@ function renderToday(c) {
   const pct = (m) => (100 * m / 1440).toFixed(2) + '%';
   const pad = (n) => String(n).padStart(2, '0');
   const rise = cnd.sun && hhmm(cnd.sun.rise), set = cnd.sun && hhmm(cnd.sun.set);
-  const nowM = isToday ? new Date().getHours() * 60 + new Date().getMinutes() : null, nowH = isToday ? Math.floor(nowM / 60) : -1;
+  const clock = spotClock(), nowM = isToday ? clock.h * 60 + clock.m : null, nowH = isToday ? Math.floor(nowM / 60) : -1;
   // What the headlines describe before you scrub: now today, midday on another day.
   const now = isToday ? cnd.now : byHour[12] || hs[Math.floor(hs.length / 2)];
   // Too dark to surf: the same rule as the score (sun 6° down), not sunset itself.
@@ -467,7 +467,7 @@ todayEl.addEventListener('keydown', (e) => {
   if (!e.target.closest('.graph')) return;
   if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
     e.preventDefault();
-    const cur = todayEl._sel == null ? new Date().getHours() : todayEl._sel;
+    const cur = todayEl._sel == null ? spotClock().h : todayEl._sel;
     selectHour(Math.max(0, Math.min(23, cur + (e.key === 'ArrowRight' ? 1 : -1))));
   } else if (e.key === 'Escape' && todayEl._sel != null) { e.stopPropagation(); selectHour(null); }
 });

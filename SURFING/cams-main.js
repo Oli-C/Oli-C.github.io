@@ -113,12 +113,20 @@ CAMS.forEach(checkCam);
 setInterval(() => { for (const [id, why] of offline) if (why === 'probe') checkCam(byId(id)); }, 5 * 60 * 1000);
 
 // Shared model skill first (so the blend is weighted), then conditions;
-// both arrive after first paint and patch what depends on them.
-loadSharedSkill().then(loadConditions).then(() => {
-  patchConditions();
-  refreshPins();
-  if (!viewer.hidden && location.hash) {
-    const c = byId(location.hash.slice(1));
-    if (c) { renderScore(c); renderFb(c); renderSrc(c); renderToday(c); renderLocal(c); renderTune(c); }
-  }
-});
+// both arrive after first paint and patch what depends on them. An open
+// page keeps current: every 10 minutes, and on coming back to the tab.
+let condAt = 0;
+function refreshConditions() {
+  condAt = Date.now();
+  return loadSharedSkill().then(loadConditions).then(() => {
+    patchConditions();
+    refreshPins();
+    if (!viewer.hidden && location.hash) {
+      const c = byId(location.hash.slice(1).split('@')[0]);
+      if (c) { renderScore(c); renderFb(c); renderSrc(c); renderToday(c); renderLocal(c); renderTune(c); }
+    }
+  });
+}
+refreshConditions();
+setInterval(() => { if (!document.hidden) refreshConditions(); }, 10 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - condAt > 10 * 60 * 1000) refreshConditions(); });

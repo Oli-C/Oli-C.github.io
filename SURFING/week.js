@@ -14,7 +14,7 @@
    unavailable. */
 const DAYS = 16;       // today and fifteen ahead; past a week, a trend
 const NEAR = 7;        // days that count as a forecast (best bets, plain cards)
-const TTL = 60 * 60 * 1000;   // an hour; forecasts don't change faster than that
+const TTL = 60 * 60 * 1000;   // how long this device's copy stands in if the worker can't be had
 const VER = 6;
 
 const $ = (id) => document.getElementById(id);
@@ -36,13 +36,13 @@ async function load() {
   await loadSharedSkill();
   const ids = CAMS.map((c) => c.id).join(), today = new Date().toDateString();
   const skillStamp = sharedSkill && sharedSkill.updated || '';
-  try {
-    const c = JSON.parse(store.get('surf-week') || 'null');
-    if (c && c.v === VER && c.ids === ids && c.day === today && c.skill === skillStamp && Date.now() - c.t < TTL) { data = c.data; return; }
-  } catch {}
-  const keep = (d) => { data = d; store.set('surf-week', JSON.stringify({ v: VER, ids, day: today, skill: skillStamp, t: Date.now(), data })); };
-  // First choice: the worker's hourly build, already blended for every
-  // spot and day; fall back to fetching and blending here.
+  let cached = null;
+  try { cached = JSON.parse(store.get('surf-week') || 'null'); } catch {}
+  const keep = (d) => { data = d; digests.clear(); store.set('surf-week', JSON.stringify({ v: VER, ids, day: today, skill: skillStamp, t: Date.now(), data })); };
+  // First choice, every time: the worker's hourly build, already blended
+  // for every spot and day (the browser keeps it 5 minutes), so everyone
+  // sees the same one. Then this device's last copy, if recent; then
+  // fetching and blending here.
   try {
     const r = await fetch(SURF_WORKER + '/forecast');
     if (!r.ok) throw new Error('worker said ' + r.status);
@@ -56,7 +56,8 @@ async function load() {
       next[c.id] = { days: s.days.filter((d) => d.date >= from).slice(0, DAYS).map((d) => ({ date: d.date, hours: d.hours, tides: d.tides, sun: d.sun, conf: d.conf })) };
     }
     return keep(next);
-  } catch (e) { console.info('surf: worker forecast unavailable, fetching directly —', e.message); }
+  } catch (e) { console.info('surf: worker forecast unavailable —', e.message); }
+  if (cached && cached.v === VER && cached.ids === ids && cached.day === today && cached.skill === skillStamp && Date.now() - cached.t < TTL) { data = cached.data; digests.clear(); return; }
   const pts = CAMS.map(offshore);
   const lat = pts.map((p) => p[0]).join(','), lng = pts.map((p) => p[1]).join(',');
   // Same multi-model blend as the live page and the worker.
@@ -262,6 +263,13 @@ for (const x of $('units').querySelectorAll('button')) x.setAttribute('aria-pres
 
 renderChips();
 Account.favs.sync();
+// An open page keeps current: reloaded on coming back to it after a while.
+let loadedAt = Date.now();
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || Date.now() - loadedAt < 10 * 60 * 1000) return;
+  loadedAt = Date.now();
+  load().then(render).catch(() => {});
+});
 load().then(() => {
   const ds = dates();
   status.textContent = ds.length ? `Each tile is that day’s daylight average; the bars under the score are dawn, morning, afternoon and evening. Blended from ${WIND_MODELS.length} wind and ${MARINE_MODELS.filter((m) => !m.ocean).length} wave models, each weighted by how accurate it’s been that many days ahead.` : 'Forecast unavailable right now.';

@@ -574,6 +574,22 @@ try { skill = JSON.parse(localStorage.getItem(SKILL_KEY) || '{}') || {}; } catch
 // Shared skill, published by the scheduled Action (data/skill.json): every
 // model's running miss against IPMA stations (wind) and IH buoys (waves),
 // measured continuously for everyone. Device-local learning nudges it.
+// The spots' own clock (they're all in Portugal), so "now", the next tide
+// and the bars read the same for every visitor, whatever their device is
+// set to. { h, m, dow } (dow 0 = Sunday).
+const SPOT_TZ = 'Europe/Lisbon';
+let spotClockFmt = null;
+function spotClock(at = Date.now()) {
+  try {
+    spotClockFmt = spotClockFmt || new Intl.DateTimeFormat('en-GB', { timeZone: SPOT_TZ, hour: '2-digit', minute: '2-digit', weekday: 'short', hourCycle: 'h23' });
+    const p = Object.fromEntries(spotClockFmt.formatToParts(new Date(at)).map((x) => [x.type, x.value]));
+    return { h: +p.hour % 24, m: +p.minute, dow: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(p.weekday) };
+  } catch {
+    const d = new Date(at);
+    return { h: d.getHours(), m: d.getMinutes(), dow: d.getDay() };
+  }
+}
+
 let sharedSkill = null;
 // The worker's copy first (it has a new record within minutes), then the
 // site's data/skill.json.
@@ -918,7 +934,7 @@ const fmtMins = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(
 function tideTimes(src) {
   const ev = Array.isArray(src) ? src : src && src.tides;
   if (!ev || !ev.length) return '';
-  const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+  const clock = spotClock(), nowMins = clock.h * 60 + clock.m;
   const ahead = ev.filter((e) => e.mins >= nowMins);
   return (ahead.length ? ahead : ev).map((e) => `${e.kind} ${fmtMins(e.mins)}`).join(' · ');
 }
