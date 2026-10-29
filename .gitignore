@@ -1,3 +1,8 @@
 .DS_Store
 .idea/
 .claude/settings.local.json
+
+# tools/tides.py fit: raw gauge hours, kept locally for `tides.py check`
+SURFING/tools/.tide-*.npy
+# tools/swan.py: bathymetry and SWAN runs (the result is SURFING/swan.js)
+SURFING/tools/swan-work/

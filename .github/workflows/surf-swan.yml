@@ -1,0 +1,94 @@
+name: surf swan
+
+# How much of an offshore swell reaches each spot, from SWAN over the real
+# seabed (SURFING/tools/swan.py): an area a job, every period and direction,
+# then merged into SURFING/swan.js, which score.js reads. By hand only; the
+# seabed doesn't change. `quick` runs one case an area and commits nothing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      areas:
+        description: 'Areas (JSON list)'
+        default: '["lisbon","sintra","ericeira","peniche","nazare","arrifana"]'
+      quick:
+        description: 'One case an area, to test (commits nothing)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: surf-swan
+  cancel-in-progress: false
+
+env:
+  SWAN_URL: https://swanmodel.sourceforge.io/download/zip/SWAN-41.51-Linux.tar.gz
+
+jobs:
+  area:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        area: ${{ fromJSON(inputs.areas) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install
+        run: |
+          pip install numpy tifffile
+          sudo apt-get install -y -qq libgfortran5 libgomp1 > /dev/null
+          curl -sL "$SWAN_URL" | tar xz -C "$RUNNER_TEMP"
+          echo "SWAN_EXE=$RUNNER_TEMP/SWAN-41.51-Linux/bin/swan.exe" >> "$GITHUB_ENV"
+      - name: SWAN build check
+        run: ldd "$SWAN_EXE" | grep -i "not found" || echo "libraries ok"; nproc
+      - name: Bathymetry and the spots' points
+        run: python SURFING/tools/swan.py prep ${{ matrix.area }}
+      - name: Run SWAN
+        run: python SURFING/tools/swan.py run ${{ matrix.area }} ${{ inputs.quick && '--quick' || '' }} --jobs $(nproc)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: swan-${{ matrix.area }}
+          path: |
+            SURFING/tools/swan-work/${{ matrix.area }}/result.json
+            SURFING/tools/swan-work/${{ matrix.area }}/meta.json
+            SURFING/tools/swan-work/${{ matrix.area }}/cases/*/PRINT
+          if-no-files-found: warn
+
+  merge:
+    needs: area
+    if: ${{ !inputs.quick }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: swan-*
+          path: artifacts
+      - name: Merge
+        run: |
+          pip install numpy
+          for d in artifacts/swan-*; do a="${d#artifacts/swan-}"; mkdir -p "SURFING/tools/swan-work/$a"; cp "$d"/result.json "$d"/meta.json "SURFING/tools/swan-work/$a/" 2>/dev/null || true; done
+          python SURFING/tools/swan.py merge
+          python SURFING/tools/swan.py report
+      - name: Commit
+        run: |
+          git config user.name "surf-swan bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SURFING/swan.js
+          if git diff --cached --quiet; then echo "no change"; else git commit -m "swan: what reaches each spot [skip ci]" && git pull --rebase && git push; fi
