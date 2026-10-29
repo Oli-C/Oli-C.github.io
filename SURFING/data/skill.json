@@ -1,6 +1,6 @@
 {
  "v": 2,
- "updated": "2026-10-29T00:53:35.121Z",
+ "updated": "2026-10-29T09:54:43.699Z",
  "wind": {
   "icon_seamless": {
    "lead": [
@@ -623,7 +623,7 @@
    "n": 6704
   }
  },
- "lastWindObs": "2026-10-29T00:00",
+ "lastWindObs": "2026-10-29T09:00",
  "lastBuoyWind": {
   "nazare": "2026-10-28T12:00:00Z",
   "silleiro": "2026-10-28T12:00:00Z",
@@ -637,7 +637,7 @@
   "silleiro": "2026-10-28T12:00:00Z",
   "cadiz": "2026-10-28T12:00:00Z"
  },
- "runs": 15,
+ "runs": 16,
  "stations": [
   "Alcobaça",
   "Cabo Carvoeiro",
@@ -699,9 +699,9 @@
   }
  ],
  "learned": {
-  "updated": "2026-10-29T00:54:02.826Z",
-  "sessions": 1,
-  "used": 1,
+  "updated": "2026-10-29T09:55:14.283Z",
+  "sessions": 2,
+  "used": 2,
   "setAside": 0,
   "unusable": 0,
   "surface": {
@@ -732,22 +732,24 @@
    }
   },
   "coast": {
-   "n": 1,
+   "n": 2,
    "w": {
-    "bias": -0.25,
-    "tide:low": -0.25,
-    "wind:light": -0.25,
-    "size:in": -0.25,
-    "period:long": -0.25,
-    "dir:in": -0.25
+    "bias": -0.153,
+    "tide:low": -0.289,
+    "tide:mid": 0.136,
+    "wind:light": -0.153,
+    "size:in": -0.153,
+    "period:mid": 0.136,
+    "period:long": -0.289,
+    "dir:in": -0.153
    },
    "size": {
-    "n": 1,
-    "gain": 1.033
+    "n": 2,
+    "gain": 1.049
    },
    "rmse": {
-    "before": 3.5,
-    "after": 3.5,
+    "before": 2.53,
+    "after": 2.53,
     "loo": null
    }
   },
@@ -755,12 +757,12 @@
    "caparica-praia-nova": {
     "n": 1,
     "w": {
-     "bias": -0.182,
-     "tide:low": -0.182,
-     "wind:light": -0.182,
-     "size:in": -0.182,
-     "period:long": -0.182,
-     "dir:in": -0.182
+     "bias": -0.21,
+     "tide:low": -0.21,
+     "wind:light": -0.21,
+     "size:in": -0.21,
+     "period:long": -0.21,
+     "dir:in": -0.21
     },
     "bias": -3.5,
     "rmse": {
@@ -769,7 +771,27 @@
     },
     "size": {
      "n": 1,
-     "gain": 1.089
+     "gain": 1.103
+    }
+   },
+   "guincho-sul": {
+    "n": 1,
+    "w": {
+     "bias": 0.099,
+     "tide:mid": 0.099,
+     "wind:light": 0.099,
+     "size:in": 0.099,
+     "period:mid": 0.099,
+     "dir:in": 0.099
+    },
+    "bias": 0.75,
+    "rmse": {
+     "before": 0.75,
+     "after": 0.75
+    },
+    "size": {
+     "n": 1,
+     "gain": 1.079
     }
    }
   }
