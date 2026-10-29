@@ -338,7 +338,7 @@ body.pills-away .pill { animation-play-state: running, paused; }
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .page, .id-name .ch, .pill, .mix, .yr, .feature { animation: none; }
+  .page, .id-name .ch, .pill, .mix, .yr { animation: none; }
 }
 
 /* =============================================================================
@@ -482,6 +482,9 @@ body.pills-away .pill { animation-play-state: running, paused; }
   animation: smoke-emerge 820ms var(--ease) 1.3s backwards;
 }
 .feature .yr { margin-top: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .feature { animation: none; }
+}
 .feature-frame {
   position: relative;
   aspect-ratio: 16 / 9;
