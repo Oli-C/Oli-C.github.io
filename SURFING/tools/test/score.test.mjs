@@ -106,7 +106,7 @@ test('regression: set conditions keep their scores', () => {
   ];
   for (const [id, k, want] of table) assert.equal(site.score(spot(id), k).total, want, id);
 });
-const SNAP = { cds: 9, guincho: 7, nazare: 3, carcavelos: 3 };   // guincho 7.5 → 7: its 14 s swell now breaks bigger, past the top of its range
+const SNAP = { cds: 9, guincho: 7, nazare: 3, carcavelos: 3.5 };   // guincho 7.5 → 7: its 14 s swell now breaks bigger, past the top of its range; carcavelos 3 → 3.5: SWAN lets a SW swell in (0.91, not the hand rule's 0.52)
 
 test('period: longer swell breaks bigger; the wind sea can be the swell', () => {
   const g = spot('guincho-norte'), k = (p) => ({ ...base, h: 1.5, p, d: 300 });
@@ -119,4 +119,21 @@ test('period: longer swell breaks bigger; the wind sea can be the swell', () => 
   assert.ok(sw.main.windsea, 'the wind sea is the main train');
   assert.ok(!/wind chop/.test(site.score(g, ws).factors.find((f) => f.label === 'Sea state').now), 'and not counted as chop on itself');
   assert.equal(site.swellTrains(g, { ...ws, wwp: null }).main.windsea, undefined, 'no period, no train');
+});
+
+test('SWAN: a spot takes its table, by period and direction', () => {
+  // A made-up table for Carcavelos: 0.4 at 6 s to 0.8 at 18 s, the same from
+  // every direction; taken as a share of its best (0.8).
+  const periods = [6, 8, 10, 12, 14, 16, 18], dirs = [180, 195, 210, 225, 240, 255, 270, 285, 300, 315, 330, 345, 0];
+  const k = periods.map((p, i) => dirs.map(() => 0.4 + (0.4 * i) / 6));
+  const s2 = loadSite(['spots.js', 'stations.js', 'score.js'], { SWAN: { periods, dirs, nearDepth: 8, spots: { carcavelos: { k } } } });
+  const c = s2.CAMS.find((x) => x.id === 'carcavelos'), at = (d, p) => s2.arrival(c, { d, p }, true);
+  assert.ok(at(270, 12).swan, 'from the table');
+  assert.ok(Math.abs(at(270, 12).arrive - 0.75) < 1e-9, 'at a period in the table');
+  assert.ok(Math.abs(at(300, 11).arrive - 0.7083) < 1e-3, 'between periods');
+  assert.ok(Math.abs(at(270, 30).arrive - 1) < 1e-9, 'held at the ends: its best, whole');
+  assert.equal(at(90, 12).arrive, 0, 'from the land side, nothing');
+  assert.ok(at(170, 12).arrive > 0 && at(170, 12).arrive < 0.75, 'fading in just east of south');
+  // A spot without a table keeps the hand-set rule.
+  assert.equal(s2.arrival(s2.CAMS.find((x) => x.id === 'nazare-norte'), { d: 300, p: 14 }, true).swan, false);
 });

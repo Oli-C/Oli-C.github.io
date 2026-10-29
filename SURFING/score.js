@@ -61,6 +61,36 @@ function geoArrive(geo, d, p) {
   return at(d0) * (1 - f) + at(d1) * f;
 }
 
+// How much of a swell reaches a spot, from SWAN over the real seabed
+// (swan.js, tools/swan.py): k[period][direction] at the spot's nearshore
+// point, interpolated in period and direction (from S round to N; swell
+// from the land side, E–SE, doesn't arrive), as a share of the spot's best
+// case. SWAN gives the pattern (which swells get in, and how much less the
+// rest do); the level of the best one stays as the spots were set up (whole,
+// times any gain), since at 8 m deep SWAN reads under what surfers report,
+// and logged sessions tune the level from there.
+function swanArrive(s, d, p) {
+  if (!s.max) s.max = Math.max(...s.k.flat());
+  const P = SWAN.periods, D = SWAN.dirs, n = D.length;
+  const pc = Math.min(P[P.length - 1], Math.max(P[0], p || 10));
+  let i = 0;
+  while (i < P.length - 2 && pc > P[i + 1]) i++;
+  const tp = (pc - P[i]) / (P[i + 1] - P[i]);
+  // Directions run D[0] = 180 round to D[n-1] = 360 (0), every 15°.
+  const dn = ((d % 360) + 360) % 360, pos = dn >= D[0] ? (dn - D[0]) / 15 : dn === 0 ? n - 1 : null;
+  const at = (row) => {
+    if (pos == null) {
+      // E–SE: nothing, fading in from the table's ends over 45°.
+      const fromS = D[0] - dn, fromN = dn;
+      return Math.max(row[0] * (1 - fromS / 45), row[n - 1] * (1 - fromN / 45), 0);
+    }
+    const j = Math.min(n - 2, Math.floor(pos)), t = pos - j;
+    return row[j] * (1 - t) + row[j + 1] * t;
+  };
+  return (at(s.k[i]) * (1 - tp) + at(s.k[i + 1]) * tp) / s.max;
+}
+const USE_SWAN = true;
+
 // Wind direction is where it blows FROM. Offshore = inside the spot's
 // window (give or take 15°); onshore = roughly from the sea; the rest is
 // cross-shore, which is what a nortada does to the west-facing beaches.
@@ -78,9 +108,11 @@ const learnedSpot = (id) => (typeof sharedSkill !== 'undefined' && sharedSkill &
 function arrival(c, k, raw) {
   const b = c.best, p = k.p || 0;
   const bend = k.d != null ? angleDiff(k.d, c.faces) : 0;
-  const geo = USE_GEO && typeof GEO !== 'undefined' && GEO[c.id] && k.d != null;
+  const swan = USE_SWAN && typeof SWAN !== 'undefined' && SWAN.spots[c.id] && k.d != null;
+  const geo = !swan && USE_GEO && typeof GEO !== 'undefined' && GEO[c.id] && k.d != null;
   let arrive;
-  if (geo) arrive = geoArrive(GEO[c.id], k.d, p);
+  if (swan) arrive = swanArrive(SWAN.spots[c.id], k.d, p);
+  else if (geo) arrive = geoArrive(GEO[c.id], k.d, p);
   else {
     // Whole within 20° of the facing, then the cosine of the angle (a
     // swell 50° off hits with ~65% of its height), never below the floor.
@@ -97,7 +129,7 @@ function arrival(c, k, raw) {
     if (L && L.size && L.size.n >= 3) learned = L.size.gain;
     else if (C && C.size && C.size.n >= 15) learned = C.size.gain;
   }
-  return { arrive: arrive * (b.gain || 1) * learned, geo: !!geo };
+  return { arrive: arrive * (b.gain || 1) * learned, geo: !!geo, swan: !!swan };
 }
 // Breaking face height at the beach, as a [low, high] range in metres,
 // the way forecast apps quote surf: a little under the breaking height

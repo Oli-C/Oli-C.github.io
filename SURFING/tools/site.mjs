@@ -11,7 +11,7 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-export const SITE_FILES = ['spots.js', 'stations.js', 'score.js'];
+export const SITE_FILES = ['spots.js', 'stations.js', 'swan.js', 'score.js'];
 
 export function loadSite(files = SITE_FILES, globals = {}) {
   const mem = new Map();
