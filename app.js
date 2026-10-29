@@ -1082,6 +1082,43 @@
   })();
 
   // ============================================================================
+  //  Featured set — the embed plays muted with controls=0 under a poster and a
+  //  tap layer, so it reads as a tile. The poster lifts once playback has run
+  //  long enough for YouTube's title overlay to fade. The first tap reloads
+  //  the embed with controls and sound from wherever it had got to.
+  // ============================================================================
+  (function initFeature() {
+    const frame = document.getElementById('feature');
+    if (!frame) return;
+    const iframe = frame.querySelector('iframe');
+    const START = 2715; // 45:15
+    const loadedAt = Date.now();
+    let player = null;
+
+    window.onYouTubeIframeAPIReady = () => {
+      player = new YT.Player(iframe, {
+        events: {
+          onStateChange: e => {
+            if (e.data === YT.PlayerState.PLAYING) setTimeout(() => frame.classList.add('is-playing'), 3500);
+          },
+        },
+      });
+    };
+    const api = document.createElement('script');
+    api.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(api);
+
+    frame.querySelector('.feature-tap').addEventListener('click', () => {
+      const t = player && typeof player.getCurrentTime === 'function' && player.getCurrentTime();
+      const at = Math.floor(t || START + (Date.now() - loadedAt) / 1000);
+      player = null;
+      iframe.src = iframe.src.split('?')[0] + `?autoplay=1&start=${at}&playsinline=1&rel=0`;
+      iframe.removeAttribute('tabindex');
+      frame.classList.add('is-open');
+    }, { once: true });
+  })();
+
+  // ============================================================================
   //  Page state — applies theme / accent / grain from TWEAK_DEFAULTS.
   //  Theme follows the OS dark/light preference.
   // ============================================================================

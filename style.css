@@ -492,12 +492,55 @@ body.pills-away .pill { animation-play-state: running, paused; }
   box-shadow: 0 6px 22px -10px rgba(0, 0, 0, 0.35),
               0 2px 8px -3px color-mix(in srgb, var(--accent) 10%, transparent);
 }
-.feature-frame iframe {
+.feature-frame iframe,
+.feature-poster,
+.feature-tap {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   border: 0;
+}
+/* Covers the player until YouTube's title overlay has faded (.is-playing). */
+.feature-poster {
+  object-fit: cover;
+  pointer-events: none;
+  transition: opacity 700ms var(--ease);
+}
+.feature-frame.is-playing .feature-poster,
+.feature-frame.is-open .feature-poster { opacity: 0; }
+/* Sits over the iframe so hovering never wakes YouTube's chrome. */
+.feature-tap {
+  display: flex;
+  align-items: flex-end;
+  padding: 12px;
+  background: none;
+  cursor: pointer;
+  color: var(--fg);
+}
+.feature-tap:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: -2px; }
+.feature-frame.is-open .feature-tap { display: none; }
+.feature-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'Anek Kannada', sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1;
+  padding: 6px 7px 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--fg) 20%, transparent);
+  transition: border-color 200ms var(--ease), color 200ms var(--ease);
+}
+.feature-hint svg { margin-top: -2px; }
+@media (hover: hover) {
+  .feature-tap:hover .feature-hint {
+    color: var(--accent-ink);
+    border-color: color-mix(in srgb, var(--accent-ink) 45%, transparent);
+  }
 }
 
 /* =============================================================================

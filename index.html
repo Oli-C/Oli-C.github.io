@@ -18,7 +18,7 @@
      first paint no longer waits on the fonts.googleapis.com CSS round trip.
      crossorigin is required on font preloads even same-origin. -->
 <link rel="preload" href="assets/fonts/anek-kannada-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=106">
+<link rel="stylesheet" href="style.css?v=107">
 <script>
   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
     "theme": "charcoal",
@@ -94,14 +94,18 @@
     </div>
   </header>
 
-  <!-- Featured set — muted autoplay from halfway in (start = half of the 7398 s video) -->
+  <!-- Featured set — muted, chrome-free tile from 45:15 until tapped (app.js initFeature) -->
   <section class="feature" aria-label="Now playing: allfield at Collect Radio">
     <div class="yr yr-up"><span class="yr-num">now playing · collect radio</span><span class="yr-line"></span></div>
-    <div class="feature-frame">
-      <iframe src="https://www.youtube-nocookie.com/embed/uzVVx4DA_os?autoplay=1&amp;mute=1&amp;start=3699&amp;playsinline=1&amp;rel=0"
+    <div class="feature-frame" id="feature">
+      <iframe src="https://www.youtube-nocookie.com/embed/uzVVx4DA_os?autoplay=1&amp;mute=1&amp;start=2715&amp;controls=0&amp;disablekb=1&amp;iv_load_policy=3&amp;playsinline=1&amp;rel=0&amp;enablejsapi=1&amp;origin=https%3A%2F%2Fallfield.online"
         title="allfield at Collect Radio, Cais do Sodré, 27.10.2026"
         allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-        referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+        referrerpolicy="strict-origin-when-cross-origin" allowfullscreen tabindex="-1"></iframe>
+      <img class="feature-poster" src="https://i.ytimg.com/vi/uzVVx4DA_os/maxresdefault.jpg" alt="" decoding="async">
+      <button class="feature-tap" type="button" aria-label="Play with sound">
+        <span class="feature-hint"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M23 9l-6 6M17 9l6 6"/></svg>tap for sound</span>
+      </button>
     </div>
   </section>
 
@@ -110,6 +114,6 @@
 
   </main>
 
-<script src="app.js?v=99"></script>
+<script src="app.js?v=100"></script>
 </body>
 </html>
