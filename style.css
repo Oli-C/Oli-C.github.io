@@ -504,22 +504,42 @@ body.pills-away .pill { animation-play-state: running, paused; }
   height: 100%;
   border: 0;
 }
-/* The player runs 64px past the frame at top and bottom; YouTube letterboxes
-   the video and draws its title bar and logo in that band, so they're clipped. */
+/* The player runs 120px past the frame at top and bottom; YouTube letterboxes
+   the video and draws its title bar, logo and pause-screen "More videos" in
+   that band, so they're clipped. */
 .feature-frame iframe {
-  top: -64px;
-  height: calc(100% + 128px);
+  top: -120px;
+  height: calc(100% + 240px);
 }
 /* Silent clip from 45:15 — moves from first paint, then crossfades into the
-   player once it's playing (.is-playing). Comes back while paused so
-   YouTube's pause screen never shows. */
+   player once it has caught up with it (.is-playing). */
 .feature-loop {
   object-fit: cover;
   pointer-events: none;
   transition: opacity 600ms var(--ease);
 }
 .feature-frame.is-playing .feature-loop { opacity: 0; }
-.feature-frame.is-paused .feature-loop { opacity: 1; transition-duration: 150ms; }
+/* Paused: the real frame stays up, dimmed, with an own play mark over the
+   middle where YouTube would draw its own. */
+.feature-veil {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(16, 24, 32, 0.35);
+  color: #d6d2c4;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms var(--ease);
+}
+.feature-veil svg {
+  box-sizing: content-box;
+  padding: 24px 22px 24px 26px; /* nudged right so the triangle reads centred */
+  border-radius: 46% 54% 50% 50% / 56% 46% 54% 44%;
+  background: rgba(16, 24, 32, 0.92);
+}
+.feature-frame.is-paused .feature-veil { opacity: 1; }
 /* Own buffering spinner, sized to sit over YouTube's. */
 .feature-spin {
   position: absolute;

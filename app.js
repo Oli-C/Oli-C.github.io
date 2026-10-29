@@ -1084,15 +1084,19 @@
   // ============================================================================
   //  Featured set — a silent self-hosted clip from 45:15 plays from first
   //  paint while the YouTube player (muted, controls=0, chrome cropped by
-  //  style.css) loads underneath; the clip crossfades out once YouTube is
-  //  playing, and returns while paused. The first tap unmutes in place (no
-  //  reload) and hands over to the own control bar.
+  //  style.css) loads underneath. Once YouTube can play it's parked a little
+  //  ahead of the clip, released as the clip reaches that point, and the clip
+  //  crossfades out, so the handover doesn't jump. Pausing leaves the real
+  //  frame up under a veil. The first tap unmutes in place and hands over to
+  //  the own control bar. If YouTube fails, the clip stays and a tap opens
+  //  the set on YouTube instead.
   // ============================================================================
   (function initFeature() {
     const frame = document.getElementById('feature');
     if (!frame) return;
     const VIDEO = 'uzVVx4DA_os';
     const START = 2715; // 45:15
+    const LEAD = 1.5;   // clip seconds YouTube gets to seek and buffer
     const tap = frame.querySelector('.feature-tap');
     const playBtn = frame.querySelector('.fb-play');
     const muteBtn = frame.querySelector('.fb-mute');
@@ -1100,7 +1104,10 @@
     const [timeEl, durEl] = frame.querySelectorAll('.fb-time');
     const ytLink = frame.querySelector('.fb-yt');
     const loop = frame.querySelector('.feature-loop');
-    let player = null, ready = false, loading = false, wantOpen = false, revealed = false, dragging = false, hideTimer = 0;
+    let player = null, ready = false, wantOpen = false, failed = false, dragging = false, hideTimer = 0;
+    // Handover: 'wait' (clip only) → 'parked' (paused ahead of the clip) →
+    // 'released' (play sent) → 'done' (crossfaded to the player).
+    let handover = 'wait', pollTimer = 0;
 
     const fmt = s => {
       s = Math.max(0, Math.floor(s));
@@ -1125,12 +1132,58 @@
       }, 3000);
     }
 
+    function reveal() {
+      if (handover === 'done') return;
+      handover = 'done';
+      clearInterval(pollTimer);
+      frame.classList.remove('is-direct');
+      // A beat for the first frame to paint, then crossfade and park the clip.
+      setTimeout(() => {
+        frame.classList.add('is-playing');
+        setTimeout(() => loop.pause(), 700);
+      }, 150);
+    }
+    function release() {
+      clearInterval(pollTimer);
+      handover = 'released';
+      player.playVideo();
+      // Covers a PLAYING event that never comes (already playing when released).
+      setTimeout(() => {
+        const st = player.getPlayerState();
+        if (st === YT.PlayerState.PLAYING || st === YT.PlayerState.BUFFERING) reveal();
+      }, 4000);
+    }
+    function park() {
+      const at = loop.currentTime + LEAD;
+      // Clip blocked or about to wrap: nothing to match, just go.
+      if (loop.paused || !loop.duration || at > loop.duration - 0.3) { release(); return; }
+      handover = 'parked';
+      player.pauseVideo();
+      player.seekTo(START + at, true);
+      let last = loop.currentTime;
+      pollTimer = setInterval(() => {
+        const c = loop.currentTime;
+        // Release a hair early for the postMessage round trip; bail if the clip wrapped.
+        if (c >= at - 0.12 || c < last) release();
+        last = c;
+      }, 30);
+    }
+
+    function fail() {
+      failed = true;
+      clearInterval(pollTimer);
+      tap.setAttribute('aria-label', 'Watch on YouTube');
+      frame.querySelector('.feature-hint').lastChild.textContent = 'watch on youtube';
+    }
+
     function open() {
       frame.classList.add('is-open');
       tap.setAttribute('aria-label', 'Play or pause');
       player.unMute();
       player.setVolume(100);
-      player.playVideo();
+      // Mid-handover, sound beats a perfect match.
+      if (handover === 'done') player.playVideo();
+      else if (handover !== 'released') release();
       setTimeout(() => {
         const s = player.getPlayerState();
         if (s !== YT.PlayerState.PLAYING && s !== YT.PlayerState.BUFFERING) frame.classList.add('is-direct');
@@ -1140,48 +1193,41 @@
       showBar();
     }
 
-    function load() {
-      if (loading) return;
-      loading = true;
-      window.onYouTubeIframeAPIReady = () => {
-        player = new YT.Player(frame.querySelector('.feature-player'), {
-          host: 'https://www.youtube-nocookie.com',
-          videoId: VIDEO,
-          playerVars: { autoplay: 1, mute: 1, start: START, controls: 0, disablekb: 1, iv_load_policy: 3, playsinline: 1, rel: 0, origin: location.origin },
-          events: {
-            onReady: () => {
-              ready = true;
-              player.getIframe().tabIndex = -1;
-              const d = player.getDuration();
-              if (d) { seek.max = d; durEl.textContent = fmt(d); }
-              if (wantOpen) open();
-            },
-            onStateChange: e => {
-              const playing = e.data === YT.PlayerState.PLAYING;
-              const buffering = e.data === YT.PlayerState.BUFFERING;
-              frame.classList.toggle('is-paused', !playing && !buffering);
-              frame.classList.toggle('is-buffering', buffering);
-              playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
-              if (playing) {
-                frame.classList.remove('is-direct');
-                if (!revealed) {
-                  revealed = true;
-                  // A beat for the first frame to paint, then crossfade and park the clip.
-                  setTimeout(() => {
-                    frame.classList.add('is-playing');
-                    setTimeout(() => loop.pause(), 700);
-                  }, 400);
-                }
-              }
-            },
+    window.onYouTubeIframeAPIReady = () => {
+      player = new YT.Player(frame.querySelector('.feature-player'), {
+        host: 'https://www.youtube-nocookie.com',
+        videoId: VIDEO,
+        playerVars: { autoplay: 1, mute: 1, start: START, controls: 0, disablekb: 1, iv_load_policy: 3, playsinline: 1, rel: 0, origin: location.origin },
+        events: {
+          onReady: () => {
+            ready = true;
+            player.getIframe().tabIndex = -1;
+            const d = player.getDuration();
+            if (d) { seek.max = d; durEl.textContent = fmt(d); }
+            if (wantOpen) open();
           },
-        });
-      };
-      const api = document.createElement('script');
-      api.src = 'https://www.youtube.com/iframe_api';
-      document.head.appendChild(api);
-    }
-    load();
+          onStateChange: e => {
+            const playing = e.data === YT.PlayerState.PLAYING;
+            const buffering = e.data === YT.PlayerState.BUFFERING;
+            // The clip covers everything until the handover; only playback matters.
+            if (handover !== 'done') {
+              if (playing && handover === 'wait') park();
+              else if (playing && handover === 'released') reveal();
+              return;
+            }
+            frame.classList.toggle('is-paused', !playing && !buffering);
+            frame.classList.toggle('is-buffering', buffering);
+            playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+            if (playing) frame.classList.remove('is-direct');
+          },
+          onError: fail,
+        },
+      });
+    };
+    const api = document.createElement('script');
+    api.src = 'https://www.youtube.com/iframe_api';
+    api.onerror = fail;
+    document.head.appendChild(api);
 
     const togglePlay = () => {
       if (player.getPlayerState() === YT.PlayerState.PLAYING) player.pauseVideo();
@@ -1189,7 +1235,8 @@
     };
 
     tap.addEventListener('click', () => {
-      if (!ready) { wantOpen = true; load(); return; }
+      if (failed) { window.open(ytLink.href, '_blank', 'noopener'); return; }
+      if (!ready) { wantOpen = true; return; }
       if (!frame.classList.contains('is-open')) { open(); return; }
       // On touch the bar hides itself, so a tap first brings it back.
       if (!frame.classList.contains('bar-on')) { showBar(); return; }
