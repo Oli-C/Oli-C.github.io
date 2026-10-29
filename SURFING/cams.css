@@ -529,9 +529,14 @@ header { display: none; }
   padding: 6px 10px 6px;
   pointer-events: none;
 }
-.legend { flex-direction: column; align-items: flex-start; gap: 4px; }
-.lg-row { display: flex; align-items: center; gap: 10px; }
-.lg-k { color: var(--fg-muted); min-width: 34px; }
+/* A row a thing on the map, its name in a column of its own. */
+.legend { display: grid; grid-template-columns: auto auto; align-items: center; gap: 4px 10px; }
+.lg-row { display: contents; }
+.lg-k { color: var(--fg-muted); white-space: nowrap; }
+.lg-v { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.legend .st i { width: 14px; height: 2px; border-radius: 1px; }
+.legend .st i.st-w { background: rgba(236, 240, 244, 0.9); }
+.legend .st i.st-s { background: rgb(79, 195, 220); }
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
 .legend i { width: 9px; height: 9px; border-radius: 50%; background: var(--pin); }
 .legend .lg-row[hidden] { display: none; }
@@ -1493,7 +1498,17 @@ header { display: none; }
   }
   .page:has(.layout[data-view="map"]) .more { pointer-events: auto; }
   .page:has(.layout[data-view="map"]) .controls.more-open .more { top: calc(max(10px, env(safe-area-inset-top)) + 52px); right: 10px; }
-  .page:has(.layout[data-view="map"]) .m-info { display: none; }
+  /* The next-tide line rides under the chips as a frosted pill; best-now
+     and the Windy link step aside. */
+  .page:has(.layout[data-view="map"]) .m-info { margin-top: 6px; pointer-events: none; }
+  .page:has(.layout[data-view="map"]) .m-info .best { display: none; }
+  .page:has(.layout[data-view="map"]) .m-info .tide-now {
+    pointer-events: auto; padding: 3px 10px; border-radius: 999px;
+    background: color-mix(in srgb, var(--bg) 80%, transparent);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--border-2); box-shadow: 0 3px 12px rgba(0, 0, 0, 0.22);
+  }
+  .page:has(.layout[data-view="map"]) .map-hint { display: none; }
   /* Leaflet's corners clear the floating bar and the home indicator. */
   .layout[data-view="map"] .leaflet-top { top: calc(var(--controls-h) - 4px); }
   .layout[data-view="map"] .leaflet-bottom { bottom: env(safe-area-inset-bottom); }

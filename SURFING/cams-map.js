@@ -13,25 +13,37 @@ const windClass = (ws) => (ws < 12 ? 'w0' : ws < 25 ? 'w1' : ws < 40 ? 'w2' : 'w
 // now + fieldHour, from the worker's build (else today and tomorrow), with
 // that day's bars.
 let pinFc = null, popSpot = null;
+// Each spot's hours in one list, in time order, made once per build.
+const hourLists = new Map();
+function hoursOf(c) {
+  const cond = conditions[c.id], s = pinFc && pinFc.spots[c.id], src = s || cond;
+  const hit = hourLists.get(c.id);
+  if (hit && hit.src === src) return hit.list;
+  const days = s ? s.days : cond ? [{ hours: cond.hours }, { hours: cond.tomorrow || [] }] : [];
+  const list = [];
+  for (const d of days) for (const k of d.hours) list.push({ ms: Date.parse(k.t + ':00Z'), k, hs: d.hours, tides: d.tides });
+  list.sort((a, b) => a.ms - b.ms);
+  hourLists.set(c.id, { src, list });
+  return list;
+}
 function pinAt(c) {
   const cond = conditions[c.id];
   if (!fieldHour) return { k: cond && cond.now };
   const s = pinFc && pinFc.spots[c.id];
-  const days = s ? s.days : cond ? [{ hours: cond.hours }, { hours: cond.tomorrow || [] }] : [];
   const from = s ? spotNow(s.offset) : cond && cond.now && cond.now.t;
   if (!from) return {};
-  const at = Date.parse(from + ':00Z') + fieldHour * 3.6e6;
-  let best = null, bestD = 2 * 3.6e6;
-  for (const d of days) for (const k of d.hours) {
-    const dt = Math.abs(Date.parse(k.t + ':00Z') - at);
-    if (dt < bestD) { bestD = dt; best = { k, hs: d.hours, tides: d.tides }; }
-  }
-  return best || {};
+  const at = Date.parse(from + ':00Z') + fieldHour * 3.6e6, list = hoursOf(c);
+  // The hour nearest `at` (binary search), if within two hours.
+  let lo = 0, hi = list.length - 1;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (list[mid].ms < at) lo = mid + 1; else hi = mid; }
+  const best = [list[lo - 1], list[lo]].filter(Boolean).sort((a, b) => Math.abs(a.ms - at) - Math.abs(b.ms - at))[0];
+  return best && Math.abs(best.ms - at) < 2 * 3.6e6 ? { k: best.k, hs: best.hs, tides: best.tides } : {};
 }
 function slidePins() {
   if (!map) return;
   loadWorkerForecast().then((fc) => { pinFc = fc; }, () => {}).then(() => {
-    for (const c of CAMS) markers[c.id].setIcon(pinIcon(c));
+    // Only the pins whose content changed (scores are remembered per hour).
+    for (const c of CAMS) if (markers[c.id]._pinHtml !== pinHtml(c)) markers[c.id].setIcon(pinIcon(c));
     declutter();
     // An open popup / card keeps its size as the time moves: it may grow, never shrink.
     if (popSpot && popSpot.isOpen()) {
@@ -43,20 +55,32 @@ function slidePins() {
   });
 }
 
+// A pin's markup, remembered per spot and hour (scoring a day's bars is
+// the slow part); forgotten when the conditions, the build or units change.
+const pinMemo = { cond: null, fc: null, units: null, hour: -1, map: new Map() };
+function pinHtml(c) {
+  const hour = new Date().getHours();
+  if (pinMemo.cond !== conditions || pinMemo.fc !== pinFc || pinMemo.units !== units || pinMemo.hour !== hour) {
+    Object.assign(pinMemo, { cond: conditions, fc: pinFc, units, hour });
+    pinMemo.map.clear();
+  }
+  const key = c.id + '|' + fieldHour;
+  if (!pinMemo.map.has(key)) pinMemo.map.set(key, pinMarkup(c));
+  return pinMemo.map.get(key);
+}
 const pinIcon = (c) => {
+  const html = pinHtml(c);
+  if (markers[c.id]) markers[c.id]._pinHtml = html;
+  return L.divIcon({ className: 'pin-wrap', html, iconSize: [0, 0], iconAnchor: [0, 0], popupAnchor: [0, -14] });
+};
+const pinMarkup = (c) => {
   const at = pinAt(c), k = at.k, r = k ? score(c, k) : null;
   const lvl = r ? (r.dark ? 'lvl-dark' : 'lvl-' + r.level) : 'lvl-x';
   const data = k ? `<span class="d">
       <span class="row swell"><span style="display:inline-flex;--rot:${k.d != null ? Math.round(k.d + 180) : 0}deg">${k.d != null ? GLYPH : ''}</span><em>${hgt(k.h)}</em>${Math.round(k.p)}s</span>
       <span class="row wind ${r ? REL_SHORT[r.wind] : ''}"><span style="display:inline-flex;--rot:${Math.round(k.wd + 180)}deg">${GLYPH}</span><em>${kts(k.ws)}kt</em></span>
       ${at.hs ? miniBars(c, at.hs, hourOf(k.t)) : miniBars(c)}</span>` : '';
-  return L.divIcon({
-    className: 'pin-wrap',
-    html: `<span class="pin ${lvl}" title="${esc(c.name)}"><span class="sc">${!r ? '·' : r.dark ? (r.lit ? fmt(r.lit) : MOON) : r.total === 0 ? '–' : fmt(r.total)}</span>${data}</span>`,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-    popupAnchor: [0, -14],
-  });
+  return `<span class="pin ${lvl}" title="${esc(c.name)}"><span class="sc">${!r ? '·' : r.dark ? (r.lit ? fmt(r.lit) : MOON) : r.total === 0 ? '–' : fmt(r.total)}</span>${data}</span>`;
 };
 
 // Now, or the slider's hour: its score and conditions, that day's bars,
@@ -140,7 +164,7 @@ function initMap() {
     windField = new PL({ max: phone ? 450 : 1400, density: 1800, life: 90, fade: 0.9, width: 1.3, min: 0.5,
       speed: (ws) => 0.25 + ws * 0.045, color: windColor });
     swellField = new PL({ max: phone ? 250 : 700, density: 3600, life: 160, fade: 0.95, width: 1.8, min: 0.15,
-      speed: (h) => 0.25 + h * 0.3, color: swellColor });
+      speed: (h) => 0.25 + h * 0.3, color: swellColor, sea: true });
   }
   loadGrids().then(() => { if (grids && grids.swell) heatLayer.options.bounds = L.latLngBounds(heatBounds(grids.swell)); updateFields(); });
   let overlays = { wind: true, swell: true, heat: false };
@@ -151,10 +175,13 @@ function initMap() {
   L.control.layers({ 'Satellite': sat, 'Streets': osm }, { 'Wind': windLayer, 'Swell': swellLayer, 'Swell height': heatLayer }, { position: 'topright', collapsed: phone.matches }).addTo(map);
   makeTimeControl().addTo(map);
   syncTimeControl();
-  // The heat map's key shows while the heat map does.
-  const heatKey = () => $('lg-heat').hidden = !map.hasLayer(heatLayer);
-  map.on('overlayadd overlayremove', heatKey);
-  heatKey();
+  // The legend shows a row for each layer that's on.
+  const legendRows = () => {
+    $('lg-heat').hidden = !map.hasLayer(heatLayer);
+    $('lg-streaks').hidden = !windField || (!map.hasLayer(windLayer) && !map.hasLayer(swellLayer));
+  };
+  map.on('overlayadd overlayremove', legendRows);
+  legendRows();
   map.on('baselayerchange', (e) => { try { localStorage.setItem('surf-base2', e.layer === sat ? 'sat' : 'osm'); } catch {} });
   const saveOverlays = () => { try { localStorage.setItem('surf-overlays2', JSON.stringify({ wind: map.hasLayer(windLayer), swell: map.hasLayer(swellLayer), heat: map.hasLayer(heatLayer) })); } catch {} };
   map.on('overlayadd overlayremove', saveOverlays);
@@ -344,7 +371,7 @@ function stepOf(g, hoursAhead) {
 // A grid's value at a point and fractional step: bilinear in space (over
 // the corners that have a value), linear in time; null outside or on land.
 // `dir`: the field is a bearing, averaged as a vector.
-function gridAt(g, field, lat, lng, s, dir) {
+function gridAt(g, field, lat, lng, s, dir, minW = 0.25) {
   const fi = (lat - g.lat0) / g.dlat, fj = (lng - g.lng0) / g.dlng;
   if (fi < 0 || fj < 0 || fi > g.nlat - 1 || fj > g.nlng - 1) return null;
   const i0 = Math.floor(fi), j0 = Math.floor(fj), i1 = Math.min(i0 + 1, g.nlat - 1), j1 = Math.min(j0 + 1, g.nlng - 1);
@@ -360,7 +387,7 @@ function gridAt(g, field, lat, lng, s, dir) {
       w += ww;
     }
   }
-  if (w < 0.25) return null;   // mostly land (or no data): call it land
+  if (w < minW) return null;   // mostly land (or no data): call it land
   return dir ? (Math.atan2(a, b) * 180 / Math.PI + 360) % 360 : a / w;
 }
 
@@ -379,7 +406,8 @@ function swellFieldAt(hoursAhead) {
   if (!g) return null;
   const s = stepOf(g, hoursAhead);
   return (lat, lng) => {
-    const h = gridAt(g, 'h', lat, lng, s), d = gridAt(g, 'd', lat, lng, s, true), p = gridAt(g, 'p', lat, lng, s);
+    // Right up to the shore (any sea corner counts); the coastline masks the rest.
+    const h = gridAt(g, 'h', lat, lng, s, false, 0.01), d = gridAt(g, 'd', lat, lng, s, true, 0.01), p = gridAt(g, 'p', lat, lng, s, false, 0.01);
     return h == null || d == null ? null : { to: d + 180, mag: h / 100, spd: 0.12 + ((p || 100) / 10) * 0.045 };
   };
 }
@@ -439,6 +467,12 @@ function makeParticleLayer() {
         }
       }
       this._g = { cols, rows, u, v, mag, spd };
+      // Swell stays off the land: the coastline as a path on this canvas.
+      this._dpr = dpr;
+      if (this.options.sea) {
+        const origin = map.getPixelOrigin().add(map.containerPointToLayerPoint([0, 0]));
+        this._land = landPath(map, map.getZoom(), origin, [origin.x, origin.y, origin.x + size.x, origin.y + size.y]);
+      } else this._land = null;
       const n = this.field ? Math.min(this.options.max, Math.floor((size.x * size.y) / this.options.density)) : 0;
       this._parts = Array.from({ length: n }, () => this._spawn(true));
     },
@@ -446,7 +480,7 @@ function makeParticleLayer() {
     _spawn(any) {
       for (let k = 0; k < 8; k++) {
         const p = { x: Math.random() * this._w, y: Math.random() * this._h, age: any ? Math.floor(Math.random() * this.options.life) : 0 };
-        if (this._vel(p.x, p.y)) return p;
+        if (this._vel(p.x, p.y) && !(this._land && this._ctx.isPointInPath(this._land, p.x * this._dpr, p.y * this._dpr))) return p;
       }
       return { x: -1, y: -1, age: this.options.life };
     },
@@ -485,14 +519,21 @@ function makeParticleLayer() {
         ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(nx, ny); ctx.stroke();
         p.x = nx; p.y = ny; p.age++;
       }
+      if (this._land) {   // anything that strayed over the land, gone
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fill(this._land);
+        ctx.globalCompositeOperation = 'source-over';
+      }
       this._raf = requestAnimationFrame(() => this._frame());
     },
   });
   return ParticleLayerClass;
 }
 
-// Wind: strength palette (light → gale), brisk short trails.
-const windColor = (ws) => (ws < 12 ? 'rgba(158,176,92,0.85)' : ws < 25 ? 'rgba(227,162,58,0.9)' : ws < 40 ? 'rgba(255,130,0,0.95)' : 'rgba(229,72,77,1)');
+// Wind: one neutral colour, brighter the stronger (its speed shows in the
+// motion), so colour on the map only ever means a score or how the wind
+// sits on a beach; brisk short trails.
+const windColor = (ws) => `rgba(236,240,244,${Math.min(0.95, 0.45 + ws / 60).toFixed(2)})`;
 // Swell: sea blue, slow long streaks, brighter the bigger it is.
 const swellColor = (h) => `rgba(79,195,220,${Math.min(0.95, 0.35 + h * 0.2)})`;
 
@@ -508,56 +549,140 @@ const HEAT_COLS = [[255, 240, 210, 40], [254, 218, 150, 95], [253, 190, 105, 135
   [240, 118, 45, 185], [222, 82, 35, 205], [190, 45, 30, 220], [130, 18, 25, 235]];
 const heatBand = (m) => { let i = 0; while (i < HEAT_EDGES.length && m >= HEAT_EDGES[i]) i++; return i; };
 const heatCss = (c) => `rgba(${c[0]},${c[1]},${c[2]},${(c[3] / 255).toFixed(2)})`;
+// The coastline (coast.js, from OSM): land polygons, decoded once and
+// projected once per zoom; landPath gives the land at zoom z as a canvas
+// path in pixels from `origin`, only the polygons that reach `view`.
+let landRings = null;
+const landAt = new Map();   // zoom → [{ pts: Float64Array of x, y; box }]
+function landPath(map, z, origin, view) {
+  if (typeof COAST === 'undefined') return null;
+  if (!landRings) landRings = COAST.rings.map((r) => {
+    const out = [];
+    let y = 0, x = 0;
+    for (let i = 0; i < r.length; i += 2) { y += r[i]; x += r[i + 1]; out.push(L.latLng(y / COAST.q, x / COAST.q)); }
+    return out;
+  });
+  if (!landAt.has(z)) {
+    if (landAt.size > 6) landAt.clear();
+    landAt.set(z, landRings.map((r) => {
+      const pts = new Float64Array(r.length * 2), box = [Infinity, Infinity, -Infinity, -Infinity];
+      r.forEach((ll, i) => {
+        const p = map.project(ll, z);
+        pts[i * 2] = p.x; pts[i * 2 + 1] = p.y;
+        box[0] = Math.min(box[0], p.x); box[1] = Math.min(box[1], p.y); box[2] = Math.max(box[2], p.x); box[3] = Math.max(box[3], p.y);
+      });
+      return { pts, box };
+    }));
+  }
+  const path = new Path2D();
+  for (const { pts, box } of landAt.get(z)) {
+    if (box[2] < view[0] || box[0] > view[2] || box[3] < view[1] || box[1] > view[3]) continue;
+    path.moveTo(pts[0] - origin.x, pts[1] - origin.y);
+    for (let i = 2; i < pts.length; i += 2) path.lineTo(pts[i] - origin.x, pts[i + 1] - origin.y);
+    path.closePath();
+  }
+  return path;
+}
+
 function makeHeatLayer() {
   const LINE = 0.6, LINE_A = 150;   // the step lines: half-width in CSS px, alpha
   const Heat = L.GridLayer.extend({
     createTile(coords) {
-      const size = this.getTileSize(), cv = document.createElement('canvas');
+      const cv = document.createElement('canvas'), job = this._job(cv, coords);
+      if (job) job.step(Infinity);
+      return cv;
+    },
+    // A new hour: redraw the tiles where they stand (each keeps its old
+    // picture until the new one's done), in slices of rows, ~10 ms a
+    // frame, so dragging and the animation stay smooth.
+    refresh() {
+      cancelAnimationFrame(this._rf);
+      const jobs = Object.values(this._tiles || {}).filter((t) => t.current).map((t) => this._job(t.el, t.coords)).filter(Boolean);
+      const step = () => {
+        const until = performance.now() + 10;
+        while (jobs.length && performance.now() < until) if (jobs[0].step(until)) jobs.shift();
+        if (jobs.length) this._rf = requestAnimationFrame(step);
+      };
+      step();
+    },
+    // One tile's drawing as a job: step(until) does rows until the time's
+    // up, and true once the tile is drawn.
+    _job(cv, coords) {
+      const size = this.getTileSize();
       const dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.round(size.x * dpr), H = Math.round(size.y * dpr);
-      cv.width = W; cv.height = H;
       const g = grids && grids.swell;
-      if (!g) return cv;
+      if (!g) { cv.width = W; cv.height = H; return null; }
       // The lattice: metres every 8 CSS px, one extra row and column each side.
       const S = 8, n = size.x / S + 3, s = stepOf(g, fieldHour), origin = coords.scaleBy(size);
       const lat = new Float32Array(n * n);
       for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
         const ll = this._map.unproject(origin.add([(x - 1) * S, (y - 1) * S]), coords.z);
-        const h = gridAt(g, 'h', ll.lat, ll.lng, s);
+        const h = gridAt(g, 'h', ll.lat, ll.lng, s, false, 0.01);
         lat[y * n + x] = h == null ? NaN : h / 100;
       }
-      const ctx = cv.getContext('2d'), img = ctx.createImageData(W, H), d = img.data;
-      for (let py = 0; py < H; py++) {
-        const v = (py + 0.5) / dpr / S + 1, y0 = Math.floor(v), ty = v - y0;
-        for (let px = 0; px < W; px++) {
-          const u = (px + 0.5) / dpr / S + 1, x0 = Math.floor(u), tx = u - x0;
-          const a = lat[y0 * n + x0], b = lat[y0 * n + x0 + 1], c = lat[(y0 + 1) * n + x0], e = lat[(y0 + 1) * n + x0 + 1];
-          // Bilinear over the corners that are sea; mostly land: leave it clear.
-          let sum = 0, w = 0;
-          const add = (val, ww) => { if (val === val && ww) { sum += val * ww; w += ww; } };
-          add(a, (1 - tx) * (1 - ty)); add(b, tx * (1 - ty)); add(c, (1 - tx) * ty); add(e, tx * ty);
-          if (w < 0.4) continue;
-          const coast = Math.min(1, (w - 0.4) / 0.2);   // fades over the last bit, not a hard step
-          const h = sum / w, band = heatBand(h), col = HEAT_COLS[band];
-          // Distance to the nearest step, in CSS px, from the local slope.
-          let line = 0;
-          if (a === a && b === b && c === c && e === e) {
-            const gx = ((b - a) * (1 - ty) + (e - c) * ty) / S, gy = ((c - a) * (1 - tx) + (e - b) * tx) / S;
-            const grad = Math.hypot(gx, gy);
-            if (grad > 1e-6) {
-              let near = Infinity;
-              for (const edge of HEAT_EDGES) near = Math.min(near, Math.abs(h - edge));
-              line = Math.max(0, Math.min(1, 0.5 + (LINE - near / grad) * dpr));
+      const img = new ImageData(W, H), d = img.data;
+      const NE = HEAT_EDGES.length, k = 1 / (dpr * S);
+      let row = 0;
+      const map = this._map;
+      return {
+        step(until) {
+          while (row < H) {
+            const y0row = row, y1row = Math.min(H, row + 32);
+            for (let py = y0row; py < y1row; py++) {
+              const v = (py + 0.5) * k + 1, y0 = v | 0, ty = v - y0, row0 = y0 * n, row1 = row0 + n;
+              for (let px = 0; px < W; px++) {
+                const u = (px + 0.5) * k + 1, x0 = u | 0, tx = u - x0;
+                const a = lat[row0 + x0], b = lat[row0 + x0 + 1], c = lat[row1 + x0], e = lat[row1 + x0 + 1];
+                // Bilinear over the corners that are sea; mostly land: leave it clear.
+                const wa = (1 - tx) * (1 - ty), wb = tx * (1 - ty), wc = (1 - tx) * ty, we = tx * ty;
+                let sum = 0, w = 0;
+                if (a === a) { sum += a * wa; w += wa; }
+                if (b === b) { sum += b * wb; w += wb; }
+                if (c === c) { sum += c * wc; w += wc; }
+                if (e === e) { sum += e * we; w += we; }
+                if (w < 0.4) continue;
+                const coast = w >= 0.6 ? 1 : (w - 0.4) / 0.2;   // fades over the last bit, not a hard step
+                const h = sum / w;
+                let band = 0;
+                while (band < NE && h >= HEAT_EDGES[band]) band++;
+                const col = HEAT_COLS[band];
+                // Distance to the nearest step (one each side of this band), in CSS px, from the local slope.
+                let line = 0;
+                if (w > 0.999) {
+                  const gx = ((b - a) * (1 - ty) + (e - c) * ty) / S, gy = ((c - a) * (1 - tx) + (e - b) * tx) / S;
+                  const grad = Math.sqrt(gx * gx + gy * gy);
+                  if (grad > 1e-6) {
+                    const lo = band > 0 ? h - HEAT_EDGES[band - 1] : Infinity, hi = band < NE ? HEAT_EDGES[band] - h : Infinity;
+                    line = 0.5 + (LINE - (lo < hi ? lo : hi) / grad) * dpr;
+                    line = line < 0 ? 0 : line > 1 ? 1 : line;
+                  }
+                }
+                const o = (py * W + px) * 4;
+                d[o] = col[0] + (255 - col[0]) * line;
+                d[o + 1] = col[1] + (255 - col[1]) * line;
+                d[o + 2] = col[2] + (255 - col[2]) * line;
+                d[o + 3] = (col[3] + ((LINE_A > col[3] ? LINE_A : col[3]) - col[3]) * line) * coast;
+              }
             }
+            row = y1row;
+            if (performance.now() > until) break;
           }
-          const o = (py * W + px) * 4;
-          d[o] = col[0] + (255 - col[0]) * line;
-          d[o + 1] = col[1] + (255 - col[1]) * line;
-          d[o + 2] = col[2] + (255 - col[2]) * line;
-          d[o + 3] = (col[3] + (Math.max(LINE_A, col[3]) - col[3]) * line) * coast;
-        }
-      }
-      ctx.putImageData(img, 0, 0);
-      return cv;
+          if (row < H) return false;
+          if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+          const ctx = cv.getContext('2d');
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.putImageData(img, 0, 0);
+          // Clear the land along the real coastline (anti-aliased by the canvas).
+          const land = landPath(map, coords.z, origin, [origin.x, origin.y, origin.x + size.x, origin.y + size.y]);
+          if (land) {
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.fill(land);
+          }
+          return true;
+        },
+      };
     },
   });
   return new Heat({ className: 'heat', zIndex: 250, updateWhenZooming: false });
@@ -600,26 +725,63 @@ async function loadFieldGrid() {
   } catch { fieldGrid = []; }
 }
 // The grids, once; the stand-in if they can't be had.
+// The swell grid's sea runs a couple of cells into the coastal gaps (the
+// Tejo mouth, the bays), each empty cell taking the mean of its sea
+// neighbours, so its colour and streaks reach the shore; the coastline
+// trims whatever lands on land.
+function fillCoast(g, passes = 2) {
+  for (const field of ['h', 'd', 'p']) {
+    if (!g[field]) continue;
+    g[field] = g[field].map((arr) => {
+      let cur = arr.slice();
+      for (let pass = 0; pass < passes; pass++) {
+        const next = cur.slice();
+        for (let i = 0; i < g.nlat; i++) for (let j = 0; j < g.nlng; j++) {
+          if (cur[i * g.nlng + j] != null) continue;
+          let a = 0, b = 0, n = 0;
+          for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+            const ii = i + di, jj = j + dj;
+            if ((!di && !dj) || ii < 0 || jj < 0 || ii >= g.nlat || jj >= g.nlng) continue;
+            const v = cur[ii * g.nlng + jj];
+            if (v == null) continue;
+            if (field === 'd') { a += Math.sin(v * Math.PI / 180); b += Math.cos(v * Math.PI / 180); } else a += v;
+            n++;
+          }
+          if (n) next[i * g.nlng + j] = field === 'd' ? (Math.atan2(a, b) * 180 / Math.PI + 360) % 360 : a / n;
+        }
+        cur = next;
+      }
+      return cur;
+    });
+  }
+  return g;
+}
 async function loadGrids() {
   try {
     const r = await fetch(SURF_WORKER + '/grid');
-    if (r.ok) { const g = await r.json(); if (g.swell || g.wind) grids = g; }
+    if (r.ok) { const g = await r.json(); if (g.swell || g.wind) { grids = g; if (g.swell) fillCoast(g.swell); } }
   } catch {}
   if (!grids || !grids.wind || !grids.swell) await loadFieldGrid();
 }
-// Feed the particle layers and the heat map for the hour picked.
+
+// The streaks and the heat map for the hour picked, a frame apiece so the
+// work doesn't land in one long frame (a newer call drops an older chain).
+let fieldsRun = 0;
 function updateFields() {
+  const run = ++fieldsRun, next = (fn) => requestAnimationFrame(() => { if (run === fieldsRun) fn(); });
+  syncTimeControl();
+  renderHeatKey();
   if (windField) {
     const stand = (fieldGrid || []).filter((g) => g.ws != null && g.wd != null).map((g) => ({ lat: g.lat, lng: g.lng, toward: g.wd + 180, mag: g.ws }));
     windField.setField(windFieldAt(fieldHour) || samplesField(stand, (ws) => 0.25 + ws * 0.045));
   }
-  if (swellField) {
-    const stand = (fieldGrid || []).filter((g) => g.h != null && g.d != null).map((g) => ({ lat: g.lat, lng: g.lng, toward: g.d + 180, mag: g.h }));
-    swellField.setField(swellFieldAt(fieldHour) || samplesField(stand, (h) => 0.25 + h * 0.3));
-  }
-  if (heatLayer && grids && grids.swell && map.hasLayer(heatLayer)) heatLayer.redraw();
-  renderHeatKey();
-  syncTimeControl();
+  next(() => {
+    if (swellField) {
+      const stand = (fieldGrid || []).filter((g) => g.h != null && g.d != null).map((g) => ({ lat: g.lat, lng: g.lng, toward: g.d + 180, mag: g.h }));
+      swellField.setField(swellFieldAt(fieldHour) || samplesField(stand, (h) => 0.25 + h * 0.3));
+    }
+    next(() => { if (heatLayer && grids && grids.swell && map.hasLayer(heatLayer)) heatLayer.refresh(); });
+  });
 }
 
 // The time slider: now, then every 3 hours to 48 ahead (as far as the grids go).
@@ -633,8 +795,11 @@ function syncTimeControl() {
   const input = el.querySelector('input');
   input.max = Math.max(0, last);
   input.value = fieldHour;
+  timeLabel();
+}
+function timeLabel() {
   const t = new Date(Date.now() + fieldHour * 3.6e6 + 1.8e6);   // the nearest hour, as the pins pick
-  el.querySelector('output').textContent = fieldHour === 0 ? 'Now' : `${DAY_NAMES[t.getDay()]} ${String(t.getHours()).padStart(2, '0')}:00 · +${fieldHour} h`;
+  timeCtl.getContainer().querySelector('output').textContent = fieldHour === 0 ? 'Now' : `${DAY_NAMES[t.getDay()]} ${String(t.getHours()).padStart(2, '0')}:00 · +${fieldHour} h`;
 }
 function makeTimeControl() {
   const Ctl = L.Control.extend({
@@ -645,7 +810,21 @@ function makeTimeControl() {
       el.innerHTML = '<label><span class="k">Time</span><output>Now</output></label><input type="range" min="0" max="48" step="3" value="0" aria-label="Time for the scores, wind and swell">';
       L.DomEvent.disableClickPropagation(el);
       L.DomEvent.disableScrollPropagation(el);
-      el.querySelector('input').addEventListener('input', (e) => { fieldHour = +e.target.value; updateFields(); slidePins(); });
+      // Dragging moves the label and the pins at once (once a frame at
+      // most); the streaks and the heat map follow when it rests or lets go.
+      const input = el.querySelector('input');
+      let rest = 0, pinsAt = 0, pinsLater = 0;
+      const pins = () => { pinsAt = performance.now(); pinsLater = 0; slidePins(); };
+      input.addEventListener('input', () => {
+        fieldHour = +input.value;
+        timeLabel();
+        // The pins: at most every 100 ms while dragging, and once more at the end.
+        if (performance.now() - pinsAt > 100) pins();
+        else if (!pinsLater) pinsLater = setTimeout(pins, 100);
+        clearTimeout(rest);
+        rest = setTimeout(updateFields, 150);
+      });
+      input.addEventListener('change', () => { clearTimeout(rest); updateFields(); });
       return el;
     },
   });
@@ -666,6 +845,7 @@ function buildArrows() {
 async function showMap() {
   try {
     await loadScript(LIBS.leaflet);
+    await loadScript(LIBS.coast).catch(() => {});   // without it the swell layers just stop at the grid's land
   } catch {
     $('map-hint').textContent = 'Couldn’t load the map.';
     return;

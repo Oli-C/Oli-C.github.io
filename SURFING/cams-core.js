@@ -7,6 +7,7 @@ const LIBS = {
   plyr:    'https://cdn.jsdelivr.net/npm/plyr@3.7.8/dist/plyr.min.js',
   hls:     'https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js',
   leaflet: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js',
+  coast:   'coast.js',   // land polygons the map's swell layers stop at (tools/coast.mjs)
 };
 const COND_TTL = 30 * 60 * 1000; // re-fetch conditions after 30 minutes
 const COND_VER = 9;              // bump when the cached shape changes

@@ -102,17 +102,18 @@ function patchConditions() {
       (tide ? `<span class="tide-sum">Tide here: ${esc(tide)}</span>` : '') +
       (best ? `<span>Best now: <b>${esc(best.c.name)}</b> · ${fmt(best.r.total)}/10</span>` : '');
   }
-  // One coast-wide tide line in the header, averaged across every cam.
+  // One coast-wide tide line at the top: just the next high and low (or
+  // low and high), averaged across every cam; late in the day the second
+  // comes from tomorrow's hours.
   const tideEl = $('tide-now');
-  if (coast) {
-    const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
-    const ahead = coast.filter((e) => e.mins >= nowMins);
-    const list = ahead.length ? ahead : coast;
-    tideEl.hidden = false;
-    tideEl.innerHTML = `<span class="k">${ahead.length ? 'Tide' : 'Tide today'}</span>` + list.map((e) => `<span>${e.kind} ${e.t}</span>`).join('');
-  } else {
-    tideEl.hidden = true;
+  const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+  const next = (coast || []).filter((e) => e.mins >= nowMins).map((e) => ({ ...e, tmrw: false }));
+  if (next.length < 2) {
+    const c = CAMS.find((x) => conditions[x.id] && conditions[x.id].tomorrow && conditions[x.id].tomorrow.length);
+    if (c) next.push(...tideEvents(conditions[c.id].tomorrow).map((e) => ({ ...e, tmrw: true })));
   }
+  tideEl.hidden = !next.length;
+  tideEl.innerHTML = next.length ? `<span class="k">Next tide</span>` + next.slice(0, 2).map((e) => `<span>${e.kind} ${e.tmrw ? 'tmrw ' : ''}${e.t}</span>`).join('') : '';
   const bestEl = $('best');
   const night = CAMS.some((c) => { const r = scoreOf(c); return r && r.dark; });
   if (night) {

@@ -32,6 +32,7 @@ whoever builds it.
 | `stations.js` | the buoys and tide gauges the models are checked against |
 | `score.js` | models, blending, scoring, light, tides — shared by everything |
 | `geo.js` | per-spot exposure from coastline geometry (`tools/exposure.mjs`) |
+| `coast.js` | land polygons the map's swell layers stop at, from the OSM coastline (`tools/coast.mjs`; run by hand if the grids' area changes) |
 | `toolbar.js` / `.css` | the bar on every surf page |
 | `account.js` / `.css` | accounts, favourites, the toolbar's account link |
 | `account.html`, `account-page.js` | the account page: sign in, my spots (in order), my sessions (`GET /s/mine`) |
