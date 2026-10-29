@@ -14,7 +14,7 @@ const loadFb = () => { try { return JSON.parse(localStorage.getItem(FB_KEY) || '
 const FEEDBACK_URL = SURF_WORKER;   // score.js
 // The conditions snapshot saved with every session: the blended forecast
 // hour, every field the score and training use.
-const K_KEEP = ['h', 'p', 'd', 'ws', 'wd', 'wg', 'day', 'tn', 'tdir', 'wwh', 'th', 'h2', 'p2', 'd2', 'sst', 'air', 'tide', 'conf'];
+const K_KEEP = ['h', 'p', 'd', 'ws', 'wd', 'wg', 'day', 'tn', 'tdir', 'wwh', 'wwp', 'wwd', 'th', 'h2', 'p2', 'd2', 'sst', 'air', 'tide', 'conf'];
 const snapK = (k) => Object.fromEntries(K_KEEP.filter((f) => k[f] != null).map((f) => [f, typeof k[f] === 'number' ? +k[f].toFixed(3) : k[f]]));
 
 // Logging a session needs an account (account.js): the panel carries the

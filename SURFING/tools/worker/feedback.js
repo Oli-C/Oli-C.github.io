@@ -54,7 +54,7 @@ async function isAdmin(req, env) {
 // A forecast hour as the page blends it. Physical ranges; anything else goes.
 const K_RANGES = {
   h: [0, 20], p: [0, 30], d: [0, 360], ws: [0, 200], wd: [0, 360], wg: [0, 250], day: [0, 1],
-  tn: [0, 1], wwh: [0, 15], th: [0, 25], h2: [0, 15], p2: [0, 30], d2: [0, 360],
+  tn: [0, 1], wwh: [0, 15], wwp: [0, 30], wwd: [0, 360], th: [0, 25], h2: [0, 15], p2: [0, 30], d2: [0, 360],
   sst: [-2, 35], air: [-25, 50], tide: [-6, 6], conf: [0, 1],
 };
 function cleanK(k) {

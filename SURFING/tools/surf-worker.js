@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build c2caaec926. */
-const WORKER_BUILD = 'c2caaec926';
+   Build bb0621448a. */
+const WORKER_BUILD = 'bb0621448a';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (16-day outlook).
@@ -524,23 +524,23 @@ function arrival(c, k, raw) {
   return { arrive: arrive * (b.gain || 1) * learned, geo: !!geo };
 }
 // Breaking face height at the beach, as a [low, high] range in metres,
-// the way forecast apps quote surf. Faces run a little under the arriving
-// significant height, more so when the period is short.
+// the way forecast apps quote surf: a little under the breaking height
+// (which already carries the period, see breakFactor).
 function faceRange(c, k, raw) {
   if (!k || k.h == null) return [0, 0];
-  const sw = swellTrains(c, k, raw), p = sw.main.p;
-  const face = sw.h * (p >= 12 ? 0.9 : p >= 9 ? 0.8 : 0.7);
+  const sw = swellTrains(c, k, raw);
+  const face = sw.h * 0.8;
   return [+(face * 0.8).toFixed(1), +(face * 1.1).toFixed(1)];
 }
 
 // Size, period and direction points for one swell train at this spot
-// (t.ha is its height on arrival at the beach).
+// (t.hb is its breaking height at the beach, see swellTrains).
 // Full marks only in the sweet spot, so "within spec" isn't "perfect":
 // size peaks across 45–85% of the spot's range and eases to 3.3 at its top
 // before falling away; direction peaks at the middle of the swell window
 // and eases to 2.6 at its edges.
 function swellPts(c, t) {
-  const b = c.best, [lo, hi] = b.size, P = b.period, h = t.ha;
+  const b = c.best, [lo, hi] = b.size, P = b.period, h = t.hb;
   const s1 = lo + 0.45 * (hi - lo), s2 = lo + 0.85 * (hi - lo);
   const size = h <= s1 ? lerp(h, lo * 0.5, 0, s1, 4) : h <= s2 ? 4 : h <= hi ? lerp(h, s2, 4, hi, 3.3) : lerp(h, hi, 3.3, hi * 1.4, 0);
   const per = lerp(t.p, P - 2, 0, P + 5, 3);
@@ -564,18 +564,33 @@ function swellPts(c, t) {
 // main swell. Within 30° of each other they add up as energy (heights
 // combine as the root of the sum of squares); further apart, the other
 // one is a cross swell.
+// How a swell grows or shrinks breaking on the beach, by its period:
+// breaking height runs with T^0.4 (Komar & Gaynor's breaker formula),
+// pinned to 1 at 10 s so the spots' size ranges keep meaning metres of a
+// 10 s swell. A 16 s swell breaks ~20% bigger than its offshore height
+// says, an 8 s one ~9% smaller. (The formula's H^0.8 is left to each
+// spot's size correction, learned from sessions.)
+const breakFactor = (p) => Math.min(1.3, Math.max(0.75, ((p || 10) / 10) ** 0.4));
+
+// The swell trains at this spot: the swell, any second swell, and the wind
+// sea as a train of its own (when it's most of the energy, a nortada
+// windswell say, it's what there is to ride). Each with its height on
+// arrival (ha) and breaking (hb). The main one carries the most energy
+// here; the other is the next swell (the wind sea counts as chop instead,
+// unless it's the main train); two within 30° of each other combine.
 function swellTrains(c, k, raw) {
   const ts = [{ h: k.h, p: k.p || 0, d: k.d }];
   if (k.h2 != null && k.h2 >= 0.2 && k.p2 >= 6 && k.d2 != null) ts.push({ h: k.h2, p: k.p2, d: k.d2, second: true });
+  if (k.wwh != null && k.wwh >= 0.3 && k.wwp >= 4 && k.wwd != null) ts.push({ h: k.wwh, p: k.wwp, d: k.wwd, windsea: true });
   for (const t of ts) {
     const a = arrival(c, t, raw);
-    t.arrive = a.arrive; t.geo = a.geo; t.ha = t.h * a.arrive;
+    t.arrive = a.arrive; t.geo = a.geo; t.ha = t.h * a.arrive; t.hb = t.ha * breakFactor(t.p);
     t.pts = swellPts(c, t);
   }
   ts.sort((a, b) => b.ha * b.ha * b.p - a.ha * a.ha * a.p);
-  const [main, other = null] = ts;
+  const main = ts[0], other = ts.slice(1).find((t) => !t.windsea) || null;
   const merged = !!other && main.d != null && other.d != null && angleDiff(main.d, other.d) <= 30;
-  return { main, other, merged, h: merged ? Math.sqrt(main.ha * main.ha + other.ha * other.ha) : main.ha };
+  return { main, other, merged, h: merged ? Math.sqrt(main.hb * main.hb + other.hb * other.hb) : main.hb };
 }
 
 function windRel(c, k) {
@@ -625,12 +640,13 @@ function score(c, k) {
   // The main swell is whichever train works best here; see swellTrains.
   const sw = swellTrains(c, k), m = sw.main, p = m.p;
   const h = sw.h;
-  let hNow = Math.abs(m.arrive - 1) < 0.05 ? hgt(h) : `${hgt(h)} at the beach (${hgt(m.h)} offshore)`;
+  let hNow = Math.abs(h / Math.max(m.h, 0.01) - 1) < 0.05 ? hgt(h) : `${hgt(h)} at the beach (${hgt(m.h)} offshore)`;
   if (sw.merged) hNow += `, two swells from the ${dirName(m.d)} combined`;
   else if (m.second) hNow += `, from the ${dirName(m.d)} secondary swell`;
+  else if (m.windsea) hNow += `, wind swell from the ${dirName(m.d)}`;
   if (m.geo) hNow += ' · by geometry';
 
-  const size = sw.merged ? swellPts(c, { ...m, ha: h }).size : m.pts.size;
+  const size = sw.merged ? swellPts(c, { ...m, hb: h }).size : m.pts.size;
   f.push({ label: 'Size', pts: size, max: 4, now: hNow, likes: rng(lo, hi) });
 
   const per = m.pts.per;
@@ -665,9 +681,10 @@ function score(c, k) {
   // the main swell.
   let sea = 1;
   if (h > 0 && (k.wwh != null || k.th != null || sw.other)) {
-    const wwh = k.wwh || 0, h2 = k.h2 || 0;
-    const rest = k.th != null ? Math.sqrt(Math.max(0, k.th * k.th - k.h * k.h - h2 * h2 - wwh * wwh)) * m.arrive : 0;
-    const other = sw.other && !sw.merged ? sw.other.ha : 0;
+    // The wind sea is chop on the swell, unless it's the train being ridden.
+    const wwAll = k.wwh || 0, wwh = m.windsea ? 0 : wwAll, h2 = k.h2 || 0;
+    const rest = k.th != null ? Math.sqrt(Math.max(0, k.th * k.th - k.h * k.h - h2 * h2 - wwAll * wwAll)) * m.arrive : 0;
+    const other = sw.other && !sw.merged ? sw.other.hb : 0;
     const cross = Math.sqrt(other * other + rest * rest);
     const crossDir = other >= rest && sw.other ? sw.other.d : null;
     const r = wwh * (rel === 'offshore' ? 0.5 : 1) / Math.max(m.h, 0.1) + cross / Math.max(h, 0.1);
@@ -891,7 +908,7 @@ const offshore = (c) => {
 
 // Secondary swell comes from Météo-France and NCEP; the DWD models don't
 // split it out.
-const MARINE = ['swell_wave_height', 'swell_wave_period', 'swell_wave_peak_period', 'swell_wave_direction', 'secondary_swell_wave_height', 'secondary_swell_wave_period', 'secondary_swell_wave_direction', 'wave_height', 'wave_period', 'wave_peak_period', 'wave_direction', 'wind_wave_height', 'sea_level_height_msl', 'sea_surface_temperature'];
+const MARINE = ['swell_wave_height', 'swell_wave_period', 'swell_wave_peak_period', 'swell_wave_direction', 'secondary_swell_wave_height', 'secondary_swell_wave_period', 'secondary_swell_wave_direction', 'wave_height', 'wave_period', 'wave_peak_period', 'wave_direction', 'wind_wave_height', 'wind_wave_period', 'wind_wave_direction', 'sea_level_height_msl', 'sea_surface_temperature'];
 const WIND = ['wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m', 'is_day', 'temperature_2m'];
 
 // Several models per metric, so one model's quirk doesn't decide a score.
@@ -1321,6 +1338,8 @@ const toK = (m, w) => {
   const p = m.swell_wave_peak_period ?? (m.swell_wave_period != null ? +(m.swell_wave_period * 1.25).toFixed(1) : m.wave_period);
   return {
     h, p, d: m.swell_wave_direction ?? m.wave_direction, wwh: m.wind_wave_height, th: m.wave_height,
+    // The wind sea's period is a mean too; its peak runs ~20% longer.
+    wwp: m.wind_wave_period != null ? +(m.wind_wave_period * 1.2).toFixed(1) : null, wwd: m.wind_wave_direction,
     // Secondary swell period is a mean period; a single swell's peak runs ~10% longer.
     h2: m.secondary_swell_wave_height, p2: m.secondary_swell_wave_period != null ? +(m.secondary_swell_wave_period * 1.1).toFixed(1) : null, d2: m.secondary_swell_wave_direction,
     ws: w.wind_speed_10m, wd: w.wind_direction_10m, wg: w.wind_gusts_10m, day: w.is_day == null ? 1 : w.is_day,
@@ -1685,7 +1704,7 @@ async function isAdmin(req, env) {
 // A forecast hour as the page blends it. Physical ranges; anything else goes.
 const K_RANGES = {
   h: [0, 20], p: [0, 30], d: [0, 360], ws: [0, 200], wd: [0, 360], wg: [0, 250], day: [0, 1],
-  tn: [0, 1], wwh: [0, 15], th: [0, 25], h2: [0, 15], p2: [0, 30], d2: [0, 360],
+  tn: [0, 1], wwh: [0, 15], wwp: [0, 30], wwd: [0, 360], th: [0, 25], h2: [0, 15], p2: [0, 30], d2: [0, 360],
   sst: [-2, 35], air: [-25, 50], tide: [-6, 6], conf: [0, 1],
 };
 function cleanK(k) {

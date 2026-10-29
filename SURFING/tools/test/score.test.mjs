@@ -106,4 +106,17 @@ test('regression: set conditions keep their scores', () => {
   ];
   for (const [id, k, want] of table) assert.equal(site.score(spot(id), k).total, want, id);
 });
-const SNAP = { cds: 9, guincho: 7.5, nazare: 3, carcavelos: 3 };
+const SNAP = { cds: 9, guincho: 7, nazare: 3, carcavelos: 3 };   // guincho 7.5 → 7: its 14 s swell now breaks bigger, past the top of its range
+
+test('period: longer swell breaks bigger; the wind sea can be the swell', () => {
+  const g = spot('guincho-norte'), k = (p) => ({ ...base, h: 1.5, p, d: 300 });
+  const faces = [8, 12, 16].map((p) => site.faceRange(g, k(p))[1]);
+  assert.ok(faces[0] < faces[1] && faces[1] < faces[2], 'same height, longer period, bigger faces');
+  assert.ok(site.score(g, k(8)).total < site.score(g, k(16)).total, 'and a better score');
+  // A small swell under a big nortada windswell: the windswell is what's ridden, not chop on top.
+  const ws = { ...base, h: 0.4, p: 11, d: 290, wwh: 1.3, wwp: 7, wwd: 340, ws: 30, wd: 350, th: 1.4 };
+  const sw = site.swellTrains(g, ws);
+  assert.ok(sw.main.windsea, 'the wind sea is the main train');
+  assert.ok(!/wind chop/.test(site.score(g, ws).factors.find((f) => f.label === 'Sea state').now), 'and not counted as chop on itself');
+  assert.equal(site.swellTrains(g, { ...ws, wwp: null }).main.windsea, undefined, 'no period, no train');
+});

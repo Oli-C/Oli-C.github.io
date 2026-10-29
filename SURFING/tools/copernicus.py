@@ -41,7 +41,7 @@ VARS = {
     'VHM0': ('wave_height', 2), 'VTPK': ('wave_peak_period', 1), 'VMDR': ('wave_direction', 0), 'VTM02': ('wave_period', 1),
     'VHM0_SW1': ('swell_wave_height', 2), 'VTM01_SW1': ('swell_wave_period', 1), 'VMDR_SW1': ('swell_wave_direction', 0),
     'VHM0_SW2': ('secondary_swell_wave_height', 2), 'VTM01_SW2': ('secondary_swell_wave_period', 1), 'VMDR_SW2': ('secondary_swell_wave_direction', 0),
-    'VHM0_WW': ('wind_wave_height', 2),
+    'VHM0_WW': ('wind_wave_height', 2), 'VTM01_WW': ('wind_wave_period', 1), 'VMDR_WW': ('wind_wave_direction', 0),
 }
 PUBLIC_MAPS = PUBLIC.replace('mdl-arco-geo-032', 'mdl-arco-time-032').replace('geoChunked.zarr', 'timeChunked.zarr')   # chunked by time step: whole maps
 PAST_H, AHEAD_H = 48, 10 * 24
