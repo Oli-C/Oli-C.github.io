@@ -31,9 +31,19 @@ import sys
 import urllib.request
 
 import numpy as np
+
+try:  # the operating system's certificates, where a network inspects TLS (optional)
+    import truststore
+    truststore.inject_into_ssl()
+except ImportError:
+    pass
+
 import xarray as xr
 
 DATASET = 'cmems_mod_ibi_wav_anfc_0.027deg_PT1H-i'
+# The same model run back over past years (a reanalysis); it reaches to a
+# few months ago, the analysis-forecast's own archive covers since then.
+REANALYSIS = 'cmems_mod_ibi_wav_my_0.027deg_PT1H-i'
 PUBLIC = ('https://s3.waw3-1.cloudferro.com/mdl-arco-geo-032/arco/IBI_ANALYSISFORECAST_WAV_005_005/'
           'cmems_mod_ibi_wav_anfc_0.027deg_PT1H-i_202411/geoChunked.zarr')
 # IBI's names → the blend's (Open-Meteo's), with how many decimals to keep.
@@ -52,11 +62,11 @@ GRID_VARS = {'VHM0': ('h', 100), 'VMDR_SW1': ('d', 1), 'VTPK': ('p', 10)}   # st
 REACH = 3            # cells around a point searched for sea (~8 km)
 
 
-def open_dataset(t0, t1):
+def open_dataset(t0, t1, dataset=DATASET):
     if os.environ.get('COPERNICUSMARINE_SERVICE_USERNAME'):
         try:
             import copernicusmarine as cm
-            ds = cm.open_dataset(dataset_id=DATASET, variables=list(VARS), start_datetime=t0.isoformat(), end_datetime=t1.isoformat(),
+            ds = cm.open_dataset(dataset_id=dataset, variables=list(VARS), start_datetime=t0.isoformat(), end_datetime=t1.isoformat(),
                                  minimum_latitude=35.5, maximum_latitude=43.5, minimum_longitude=-11.5, maximum_longitude=-5.5,
                                  service='arco-time-series')   # chunked for time series at points
             return ds, 'copernicusmarine (account)'
@@ -125,8 +135,78 @@ def clusters(cells, span=20):
     return groups
 
 
+def sample(ds, points):
+    """Each point's nearest sea cell (within ~12 km): {id: {cell, km, var: [...]}}."""
+    lats, lngs = ds['latitude'].values, ds['longitude'].values
+    cells = [(int(np.abs(lats - p['lat']).argmin()), int(np.abs(lngs - p['lng']).argmin())) for p in points]
+    out = {}
+    for g in clusters(cells):
+        y0 = max(0, min(cells[i][0] for i in g) - REACH); y1 = max(cells[i][0] for i in g) + REACH + 1
+        x0 = max(0, min(cells[i][1] for i in g) - REACH); x1 = max(cells[i][1] for i in g) + REACH + 1
+        win = ds.isel(latitude=slice(y0, y1), longitude=slice(x0, x1)).load()
+        sea = np.isfinite(win['VHM0'].values).mean(axis=0) > 0.9
+        wl, wg = win['latitude'].values, win['longitude'].values
+        for i in g:
+            p = points[i]
+            best = None
+            for yy, xx in zip(*np.nonzero(sea)):
+                d = math.hypot((wl[yy] - p['lat']) * 111.2, (wg[xx] - p['lng']) * 111.2 * math.cos(math.radians(p['lat'])))
+                if best is None or d < best[0]:
+                    best = (d, yy, xx)
+            if best is None or best[0] > 12:
+                print(f'{p["id"]}: no sea cell within reach', file=sys.stderr)
+                continue
+            d, yy, xx = best
+            rec = {'cell': [round(float(wl[yy]), 4), round(float(wg[xx]), 4)], 'km': round(d, 1)}
+            for v, (name, nd) in VARS.items():
+                a = win[v].values[:, yy, xx]
+                rec[name] = [None if not np.isfinite(x) else (round(float(x), nd) if nd else int(round(float(x)))) for x in a]
+            out[p['id']] = rec
+    return out
+
+
+def history(pts, start, end, out_path):
+    """The spots' hours from `start` to `end` (UTC dates): the reanalysis while
+    it reaches, the analysis-forecast's archive after. For backfill.mjs."""
+    import copernicusmarine as cm
+    t0 = dt.datetime.fromisoformat(start).replace(tzinfo=dt.timezone.utc)
+    t1 = dt.datetime.fromisoformat(end).replace(tzinfo=dt.timezone.utc) + dt.timedelta(hours=23)
+    # Where the reanalysis ends.
+    ds_r, _ = open_dataset(t0, t1, REANALYSIS)
+    last_r = dt.datetime.fromisoformat(str(ds_r['time'].values[-1])[:19]).replace(tzinfo=dt.timezone.utc) if ds_r['time'].size else t0 - dt.timedelta(hours=1)
+    parts = []
+    if last_r >= t0:
+        parts.append((REANALYSIS, t0, min(t1, last_r)))
+    if last_r < t1:
+        parts.append((DATASET, max(t0, last_r + dt.timedelta(hours=1)), t1))
+    out = {'v': 1, 'from': start, 'to': end, 'times': [], 'parts': [], 'spots': {}}
+    for dataset, a, b in parts:
+        ds, source = open_dataset(a, b, dataset)
+        times = [str(t)[:16] for t in ds['time'].values]
+        rec = sample(ds, pts['spots'])
+        n0 = len(out['times'])
+        out['times'] += times
+        out['parts'].append({'dataset': dataset, 'from': times[0] if times else None, 'to': times[-1] if times else None, 'source': source})
+        for sid, r in rec.items():
+            o = out['spots'].setdefault(sid, {'cell': r['cell'], 'km': r['km']})
+            for name, _ in VARS.values():
+                o.setdefault(name, [None] * n0)
+                o[name] += r[name]
+        for o in out['spots'].values():   # a spot missing from a part: nulls there
+            for name, _ in VARS.values():
+                o.setdefault(name, [])
+                o[name] += [None] * (len(out['times']) - len(o[name]))
+        print(f'{dataset}: {len(times)} hours {times[0] if times else "-"} to {times[-1] if times else "-"}, {len(rec)} spots', file=sys.stderr)
+    open(out_path, 'w', encoding='utf-8').write(json.dumps(out, separators=(',', ':')))
+    print('wrote', out_path, file=sys.stderr)
+
+
 def main():
     args = sys.argv[1:]
+    if '--history' in args:
+        i = args.index('--history')
+        history(json.load(open(args[0], encoding='utf-8')), args[i + 1], args[i + 2], args[args.index('--out') + 1])
+        return
     out_path = args[args.index('--out') + 1] if '--out' in args else None
     now = dt.datetime.now(dt.timezone.utc).replace(minute=0, second=0, microsecond=0)
     if '--grid' in args:

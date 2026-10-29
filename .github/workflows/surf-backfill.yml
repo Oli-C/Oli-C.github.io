@@ -1,0 +1,64 @@
+name: surf backfill
+
+# The spots' past from reanalyses, filed in the worker's history database
+# so the trends page has seasons before the live history builds up:
+# Copernicus's Iberian waves (reanalysis, then the analysis-forecast's
+# archive), ERA5 wind, the tide tables; scored by the worker with today's
+# logic (SURFING/tools/backfill.mjs). By hand. Days the history already
+# has are left alone, so it's safe to run again.
+#
+# Secrets: COPERNICUSMARINE_SERVICE_USERNAME / _PASSWORD, FEEDBACK_URL,
+# FEEDBACK_KEY.
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: 'From (YYYY-MM-DD)'
+        default: '2025-10-26'
+      to:
+        description: 'To (YYYY-MM-DD)'
+        default: '2026-10-25'
+      post:
+        description: 'Send to the worker (off: a dry run, scores only)'
+        type: boolean
+        default: true
+      hours:
+        description: 'File the hours too (~140k rows a year)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: surf-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: SURFING/tools/requirements-ibi.txt
+      - name: Install
+        run: pip install -r SURFING/tools/requirements-ibi.txt utide
+      - name: Waves (Copernicus IBI, back over the span)
+        env:
+          COPERNICUSMARINE_SERVICE_USERNAME: ${{ secrets.COPERNICUSMARINE_SERVICE_USERNAME }}
+          COPERNICUSMARINE_SERVICE_PASSWORD: ${{ secrets.COPERNICUSMARINE_SERVICE_PASSWORD }}
+        run: |
+          node SURFING/tools/points.mjs > points.json
+          python SURFING/tools/copernicus.py points.json --history ${{ inputs.from }} ${{ inputs.to }} --out waves.json
+      - name: Tides (the tide tables, back over the span)
+        run: python SURFING/tools/tides.py history ${{ inputs.from }} ${{ inputs.to }} tides.json
+      - name: Score and file
+        env:
+          FEEDBACK_URL: ${{ secrets.FEEDBACK_URL }}
+          FEEDBACK_KEY: ${{ secrets.FEEDBACK_KEY }}
+        run: node SURFING/tools/backfill.mjs --waves waves.json --tides tides.json --from ${{ inputs.from }} --to ${{ inputs.to }} ${{ inputs.post && '--post' || '' }} ${{ inputs.hours && '--hours' || '' }}

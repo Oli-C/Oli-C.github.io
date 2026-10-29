@@ -99,6 +99,13 @@ test('suggesting a spot', async () => {
   assert.equal((await call('POST', '/a/suggest', { spot: 'One too many', dev }, { token })).status, 429, 'five a day');
 });
 
+test('history import: admin only', async () => {
+  const { call } = await loadWorker();
+  const day = { date: '2026-01-10', hours: [{ t: '2026-01-10T12:00', h: 1.5, p: 12, d: 290, ws: 8, wd: 80 }], tides: [], sun: null };
+  assert.equal((await call('POST', '/history/import', { spot: 'carcavelos', days: [day] }, { origin: null })).status, 403);
+  assert.equal((await call('POST', '/history/import', { spot: 'carcavelos', days: [day] }, { key: 'test-key', origin: null })).status, 503, 'no database here');
+});
+
 test('rate limits per IP', async () => {
   const { call } = await loadWorker();
   const auth = [];

@@ -11,6 +11,9 @@ model's sea level. See stations.js for the gauges.
                                           days back to 400 ahead ->
                                           SURFING/data/tides.json
                                           Monthly, by .github/workflows/surf-tides.yml.
+  python SURFING/tools/tides.py history FROM TO OUT
+                                          hourly heights for past dates (UTC), for
+                                          tools/backfill.mjs; same shape as tides.json
   python SURFING/tools/tides.py check     the fit against its last month,
                                           held out: how far off, in height
                                           and in the time of high and low.
@@ -199,6 +202,19 @@ def cmd_predict():
     print('wrote', OUT, f"{len(out['gauges'])} gauges x {n} hours from {out['start']}")
 
 
+def cmd_history(start, end, out_path):
+    fit = json.load(open(FIT))
+    t0h = int(datetime.fromisoformat(start).replace(tzinfo=timezone.utc).timestamp() // 3600)
+    t1h = int(datetime.fromisoformat(end).replace(tzinfo=timezone.utc).timestamp() // 3600) + 24
+    out = {'built': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M'), 'fit': fit['built'],
+           'start': datetime.fromtimestamp(t0h * 3600, timezone.utc).strftime('%Y-%m-%dT%H:%M'), 'step': 1, 'gauges': {}}
+    for gid, g in fit['gauges'].items():
+        coef = coef_from_json(g['coef'])
+        out['gauges'][gid] = [int(round(x * 100)) for x in predict(coef, t0h, t1h - t0h) - coef['mean']]
+    json.dump(out, open(out_path, 'w'), separators=(',', ':'))
+    print('wrote', out_path, f"{len(out['gauges'])} gauges x {t1h - t0h} hours from {out['start']}")
+
+
 def extremes(hs, v):
     """High and low waters: hour (fractional, by a parabola through each turning point) and kind."""
     out = []
@@ -245,4 +261,7 @@ def cmd_check():
 
 
 if __name__ == '__main__':
-    {'fit': cmd_fit, 'predict': cmd_predict, 'check': cmd_check}[sys.argv[1] if len(sys.argv) > 1 else 'predict']()
+    if len(sys.argv) > 1 and sys.argv[1] == 'history':
+        cmd_history(sys.argv[2], sys.argv[3], sys.argv[4])
+    else:
+        {'fit': cmd_fit, 'predict': cmd_predict, 'check': cmd_check}[sys.argv[1] if len(sys.argv) > 1 else 'predict']()

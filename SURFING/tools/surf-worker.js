@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build 707d682edd. */
-const WORKER_BUILD = '707d682edd';
+   Build 6fc89e50cd. */
+const WORKER_BUILD = '6fc89e50cd';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (16-day outlook).
@@ -2340,34 +2340,68 @@ async function archiveWaveForecasts(db) {
   return insertRows(db, 'fc', ['pt', 'model', 't', 'lead', 'h', 'p', 'd', 'issued'], rows);
 }
 
+// A spot's hour and its day, as spot_hour / spot_day rows.
+const HOUR_COLS = ['h', 'p', 'd', 'h2', 'p2', 'd2', 'wwh', 'th', 'ws', 'wd', 'wg', 'tide', 'tn', 'sst', 'air', 'wwp', 'wwd'];
+const DAY_COLS = ['spot', 'date', 'score', 'level', 'best', 'best_part', 'face_lo', 'face_hi', 'h', 'p', 'd', 'h2', 'd2', 'ws_lo', 'ws_hi', 'wd', 'rel', 'surface', 'tides', 'rise', 'sunset', 'build'];
+const hourRow = (c, k) => [sqlStr(c.id), sqlStr(k.t), ...HOUR_COLS.map((f) => sqlNum(k[f]))];
+function dayRow(c, day, build) {
+  const g = dayDigest(c, day);
+  if (!g) return null;
+  return [sqlStr(c.id), sqlStr(day.date), sqlNum(g.top), g.level, sqlNum(g.best && g.best.score), sqlStr(g.best && g.best.label), sqlNum(g.hMin), sqlNum(g.hMax),
+    sqlNum(g.sw.h), sqlNum(g.p), sqlNum(g.sw.d), sqlNum(g.s2 && g.s2.h), sqlNum(g.s2 && g.s2.d), sqlNum(g.wsLo), sqlNum(g.wsHi), sqlNum(g.wd), sqlStr(g.rel),
+    g.surf ? g.surf.most : 'NULL', sqlStr((day.tides || []).map((e) => `${e.kind[0]}${e.t}`).join(' ')), sqlStr(day.sun && day.sun.rise), sqlStr(day.sun && day.sun.set), sqlStr(build)];
+}
+// Rows in, 300 a statement: replacing what's there, or leaving it.
+async function putRows(db, table, cols, rows, replace) {
+  const stmts = [];
+  for (let i = 0; i < rows.length; i += 300) stmts.push(db.prepare(`INSERT OR ${replace ? 'REPLACE' : 'IGNORE'} INTO ${table} (${cols.join(',')}) VALUES ${rows.slice(i, i + 300).map((r) => `(${r.join(',')})`).join(',')}`));
+  if (!stmts.length) return 0;
+  const res = await db.batch(stmts);
+  return res.reduce((a, r) => a + ((r.meta && r.meta.changes) || 0), 0);
+}
+
 // The spots' finished days from the latest build: the hours raw, and each
 // day summed up.
 async function archiveSpots(db, env) {
   const fc = JSON.parse((await env.FEEDBACK.get('fc:latest')) || 'null');
   if (!fc) return 0;
-  const H = ['h', 'p', 'd', 'h2', 'p2', 'd2', 'wwh', 'th', 'ws', 'wd', 'wg', 'tide', 'tn', 'sst', 'air', 'wwp', 'wwd'];
   const hours = [], days = [];
   for (const c of CAMS) {
     const s = fc.spots[c.id];
     if (!s) continue;
     const today = new Date(Date.now() + (s.offset || 0) * 1000).toISOString().slice(0, 10);
     for (const day of s.days.filter((d) => d.date < today)) {
-      for (const k of day.hours) hours.push([sqlStr(c.id), sqlStr(k.t), ...H.map((f) => sqlNum(k[f]))]);
-      const g = dayDigest(c, day);
-      if (!g) continue;
-      days.push([sqlStr(c.id), sqlStr(day.date), sqlNum(g.top), g.level, sqlNum(g.best && g.best.score), sqlStr(g.best && g.best.label), sqlNum(g.hMin), sqlNum(g.hMax),
-        sqlNum(g.sw.h), sqlNum(g.p), sqlNum(g.sw.d), sqlNum(g.s2 && g.s2.h), sqlNum(g.s2 && g.s2.d), sqlNum(g.wsLo), sqlNum(g.wsHi), sqlNum(g.wd), sqlStr(g.rel),
-        g.surf ? g.surf.most : 'NULL', sqlStr((day.tides || []).map((e) => `${e.kind[0]}${e.t}`).join(' ')), sqlStr(day.sun && day.sun.rise), sqlStr(day.sun && day.sun.set), sqlStr(WORKER_BUILD)]);
+      for (const k of day.hours) hours.push(hourRow(c, k));
+      const r = dayRow(c, day, WORKER_BUILD);
+      if (r) days.push(r);
     }
   }
   // Replaced, not ignored: the last couple of days settle as later runs come in.
-  const put = async (table, cols, rows) => {
-    const stmts = [];
-    for (let i = 0; i < rows.length; i += 300) stmts.push(db.prepare(`INSERT OR REPLACE INTO ${table} (${cols.join(',')}) VALUES ${rows.slice(i, i + 300).map((r) => `(${r.join(',')})`).join(',')}`));
-    if (stmts.length) await db.batch(stmts);
-    return rows.length;
-  };
-  return (await put('spot_hour', ['spot', 't', ...H], hours)) + (await put('spot_day', ['spot', 'date', 'score', 'level', 'best', 'best_part', 'face_lo', 'face_hi', 'h', 'p', 'd', 'h2', 'd2', 'ws_lo', 'ws_hi', 'wd', 'rel', 'surface', 'tides', 'rise', 'sunset', 'build'], days));
+  return (await putRows(db, 'spot_hour', ['spot', 't', ...HOUR_COLS], hours, true)) + (await putRows(db, 'spot_day', DAY_COLS, days, true));
+}
+
+// POST /history/import (admin): a spot's past days from a reanalysis
+// (tools/backfill.mjs), scored here with today's logic and filed as
+// `build`. Days already in the history (real forecasts) are left alone;
+// hours only if asked (a year of them is a lot of rows).
+async function importDays(req, env, json) {
+  if (!(await isAdmin(req, env))) return json({ error: 'no' }, 403);
+  if (!env.DB) return json({ error: 'no history database bound' }, 503);
+  let b;
+  try { b = await req.json(); } catch { return json({ error: 'bad json' }, 400); }
+  const c = b && CAMS.find((x) => x.id === b.spot);
+  if (!c || !Array.isArray(b.days) || !b.days.length || b.days.length > 62) return json({ error: 'spot, and 1-62 days' }, 400);
+  const build = typeof b.build === 'string' && /^[\w.:-]{1,40}$/.test(b.build) ? b.build : 'import';
+  const days = [], hours = [];
+  for (const day of b.days) {
+    if (!day || !/^\d{4}-\d\d-\d\d$/.test(day.date) || !Array.isArray(day.hours)) continue;
+    const r = dayRow(c, day, build);
+    if (r) days.push(r);
+    if (b.hours) for (const k of day.hours) if (k && typeof k.t === 'string') hours.push(hourRow(c, k));
+  }
+  const d = await putRows(env.DB, 'spot_day', DAY_COLS, days, false);
+  const h = hours.length ? await putRows(env.DB, 'spot_hour', ['spot', 't', ...HOUR_COLS], hours, false) : 0;
+  return json({ ok: true, spot: c.id, days: days.length, filed: d, hours: h });
 }
 
 async function archiveHistory(env, force) {
@@ -2416,9 +2450,10 @@ async function receiveIbi(req, env, json) {
   return json({ ok: true, built: run.built, spots: Object.keys(run.spots).length, buoys: Object.keys(run.buoys).length, hours: n, filed });
 }
 
-// Routes: POST /ibi, GET /skill/waves, GET /obs, GET /history/status. Null otherwise.
+// Routes: POST /ibi, POST /history/import, GET /skill/waves, GET /obs, GET /history/status. Null otherwise.
 async function handleHistory(req, env, url, json) {
   if (req.method === 'POST' && url.pathname === '/ibi') return receiveIbi(req, env, json);
+  if (req.method === 'POST' && url.pathname === '/history/import') return importDays(req, env, json);
   if (req.method !== 'GET' || !['/skill/waves', '/obs', '/history/status', '/history/refresh', '/history/spot', '/history/spot/hours'].includes(url.pathname)) return null;
   if (!env.DB) return json({ error: 'no history database bound' }, 503);
   if (url.pathname === '/history/refresh') {
