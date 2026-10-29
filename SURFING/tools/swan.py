@@ -27,7 +27,7 @@ for offshore heights of 1, 2 and 4 m (the edge spectra scaled), so that
 breaking on big days shows. At each spot SWAN's breaking height is the
 highest Hs along a line out from the beach (before it breaks it only
 grows; after, it falls), over the offshore height. Diffraction is on where
-headlands shelter the spots (the Cascais line, Peniche).
+headlands shelter the spots (the Cascais line).
 
 Run by .github/workflows/surf-swan.yml (by hand; SWAN's Linux build, an
 area a job). Needs numpy and tifffile; `run` needs swan.exe on PATH or in
@@ -82,7 +82,7 @@ FINE = {
                  'spots': ['sao-pedro-estoril', 'carcavelos']},
     'nazare':   {'parent': 'nazare', 'box': (-9.17, 39.55, -9.06, 39.66), 'res': 0.0003, 'diffrac': False,
                  'spots': ['nazare-norte']},
-    'peniche':  {'parent': 'peniche', 'box': (-9.43, 39.32, -9.30, 39.40), 'res': 0.0003, 'diffrac': True,
+    'peniche':  {'parent': 'peniche', 'box': (-9.43, 39.32, -9.30, 39.40), 'res': 0.0003, 'diffrac': False,
                  'spots': ['peniche-supertubos', 'peniche-lagide']},
 }
 HEIGHTS = [1, 2, 4]          # m, offshore
