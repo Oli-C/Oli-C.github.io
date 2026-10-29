@@ -27,6 +27,10 @@ on:
         description: 'File the hours too (~140k rows a year)'
         type: boolean
         default: false
+      why:
+        description: 'Print a breakdown a spot (months, what holds scores down)'
+        type: boolean
+        default: false
 
 concurrency:
   group: surf-backfill
@@ -61,4 +65,12 @@ jobs:
         env:
           FEEDBACK_URL: ${{ secrets.FEEDBACK_URL }}
           FEEDBACK_KEY: ${{ secrets.FEEDBACK_KEY }}
-        run: node SURFING/tools/backfill.mjs --waves waves.json --tides tides.json --from ${{ inputs.from }} --to ${{ inputs.to }} ${{ inputs.post && '--post' || '' }} ${{ inputs.hours && '--hours' || '' }}
+        run: node SURFING/tools/backfill.mjs --waves waves.json --tides tides.json --from ${{ inputs.from }} --to ${{ inputs.to }} ${{ inputs.post && '--post' || '' }} ${{ inputs.hours && '--hours' || '' }} ${{ inputs.why && '--why' || '' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backfill-inputs
+          path: |
+            waves.json
+            tides.json
+          if-no-files-found: ignore

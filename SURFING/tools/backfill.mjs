@@ -17,6 +17,8 @@
    --post   sends them (needs FEEDBACK_URL and FEEDBACK_KEY); without it,
             prints a summary of what it would send
    --hours  files the hours too (a year is ~140k rows; mind D1's daily writes)
+   --why    a breakdown a spot: its days month by month, and how often each
+            part of the score holds it back (daylight hours)
    Run by .github/workflows/surf-backfill.yml. */
 import fs from 'node:fs';
 import { loadSite } from './site.mjs';
@@ -49,9 +51,13 @@ async function era5(c) {
   const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=${FROM}&end_date=${TO}`
     + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,is_day&daily=sunrise,sunset&models=era5&timezone=' + encodeURIComponent(TZ);
   for (let attempt = 0; ; attempt++) {
-    const r = await fetch(url);
-    if (r.ok) return r.json();
-    if (attempt >= 4) throw new Error(`ERA5 ${c.id}: ${r.status} ${(await r.text()).slice(0, 200)}`);
+    let why;
+    try {
+      const r = await fetch(url);
+      if (r.ok) return r.json();
+      why = `${r.status} ${(await r.text()).slice(0, 200)}`;
+    } catch (e) { why = e.message; }   // a timeout, a reset: try again
+    if (attempt >= 5) throw new Error(`ERA5 ${c.id}: ${why}`);
     await sleep(15000 * (attempt + 1));
   }
 }
@@ -83,6 +89,36 @@ function spotDays(c, w) {
   });
 }
 
+// What holds a spot's scores down: by month, the days' mean and best, and
+// over daylight hours the share capped (flat / too small / too big) and the
+// mean of each part.
+function why(c, days) {
+  const months = {};
+  for (const d of days) {
+    const m = d.date.slice(0, 7), g = site.dayDigest(c, d);
+    const o = months[m] = months[m] || { tops: [], n: 0, flat: 0, small: 0, big: 0, size: 0, per: 0, dir: 0, wind: 0, sea: 0, tide: 0, clean: 0, h: 0, p: 0, total: 0 };
+    if (g) o.tops.push(g.top);
+    for (const k of d.hours) {
+      if (site.isDark(c, k)) continue;
+      const r = site.score(c, k);
+      if (!r) continue;
+      const f = (l) => r.factors.find((x) => x.label === l);
+      o.n++; o.total += r.total; o.h += site.swellTrains(c, k).h; o.p += k.p || 0;
+      if (/flat/.test(r.cap)) o.flat++; else if (/too small/.test(r.cap)) o.small++; else if (/too big/.test(r.cap)) o.big++;
+      o.size += f('Size') ? f('Size').pts : 0; o.per += f('Period') ? f('Period').pts : 0; o.dir += f('Direction') ? f('Direction').pts : 0;
+      o.wind += f('Wind') ? f('Wind').mult : 1; o.sea += f('Sea state') ? f('Sea state').mult : 1; o.tide += f('Tide') ? f('Tide').mult : 1;
+      o.clean += (k.p < 8 ? 0.6 : k.p < 10 ? 0.8 : k.p < 12 ? 0.9 : 1);
+    }
+  }
+  const [lo, hi] = c.best.size;
+  console.log(`  likes ${lo}-${hi} m, ${c.best.period} s. month: day mean/best | hours: breaking h, period | capped flat/small/big % | size/4 period/3 dir/3 | wind sea tide clean`);
+  for (const [m, o] of Object.entries(months)) {
+    const a = (x) => (o.n ? x / o.n : 0), pc = (x) => Math.round(100 * a(x));
+    const mean = o.tops.length ? o.tops.reduce((x, y) => x + y, 0) / o.tops.length : 0;
+    console.log(`  ${m}: ${mean.toFixed(1)}/${Math.max(0, ...o.tops)} | ${a(o.h).toFixed(1)} m ${a(o.p).toFixed(1)} s | ${pc(o.flat)}/${pc(o.small)}/${pc(o.big)} | ${a(o.size).toFixed(1)} ${a(o.per).toFixed(1)} ${a(o.dir).toFixed(1)} | ${a(o.wind).toFixed(2)} ${a(o.sea).toFixed(2)} ${a(o.tide).toFixed(2)} ${a(o.clean).toFixed(2)}`);
+  }
+}
+
 async function post(body) {
   for (let attempt = 0; ; attempt++) {
     const r = await fetch(`${WORKER}/history/import`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Surf-Key': KEY }, body: JSON.stringify(body) });
@@ -101,6 +137,7 @@ for (const c of site.CAMS) {
   const tops = days.map((d) => (site.dayDigest(c, d) || {}).top).filter((x) => x != null);
   const good = tops.filter((x) => x > 6.5).length;
   console.log(`${c.id}: ${days.length} days, mean ${(tops.reduce((a, x) => a + x, 0) / tops.length).toFixed(1)}, Good or better ${good} (${Math.round((100 * good) / tops.length)}%), gauge ${gaugeFor(c) ? gaugeFor(c).id : '-'}`);
+  if (has('--why')) why(c, days);
   if (!has('--post')) continue;
   for (let i = 0; i < days.length; i += 31) {
     const j = await post({ spot: c.id, build: 'reanalysis', hours: has('--hours'), days: days.slice(i, i + 31) });
