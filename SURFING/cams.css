@@ -41,7 +41,7 @@
   --lvl-1:   #8b2f45;
   --lvl-2:   #e3a23a;
   --lvl-3:   #9eb05c;
-  --lvl-4:   #ff8200;
+  --lvl-4:   #ff5ca8;   /* epic: pink, apart from the orange accent */
   --radius-sm: 4px;
   --radius:    10px;
   --radius-lg: 14px;
@@ -62,7 +62,7 @@
 }
 [data-theme="light"] {
   --accent:   #ff6900;
-  --lvl-4:    #ff6900;
+  --lvl-4:    #f0509a;
   --bg:       #d7d2cb;
   --bg-2:     #bfb8af;
   --bg-3:     #eae6e0;
@@ -953,7 +953,7 @@ header { display: none; }
 }
 .go-top span { padding-top: 2px; }
 .go-top:hover, .go-top:focus-visible { border-color: var(--accent); color: var(--accent-ink); outline: none; }
-@media (max-width: 700px) {
+@media (max-width: 700px), (max-height: 500px) and (orientation: landscape) {
   .sheet-head { gap: 8px; padding-left: 14px; }
   .sheet-head #v-open { display: none; }
   .sheet-title .name {
@@ -1399,7 +1399,7 @@ header { display: none; }
 .sheet-foot a { color: var(--accent-ink); }
 
 /* Phones: the viewer becomes a full-screen sheet */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 500px) and (orientation: landscape) {
   .viewer { padding: 0; place-items: stretch; }
   .sheet {
     width: 100%;
@@ -1414,9 +1414,16 @@ header { display: none; }
   .seg button { padding: 7px 10px 7px; }
   .tbar span { font-size: 10px; }
 }
+/* Phones on their side: the cam fills the height (the whole picture,
+   letterboxed at the sides) under a slimmer header. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .sheet-head { padding-top: 6px; padding-bottom: 6px; padding-left: max(14px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+  .sheet-title .where { display: none; }
+  .frame.video { width: auto; max-width: 100%; height: calc(100dvh - 54px); margin: 0 auto; background: #000; }
+}
 
 /* ---------- Phones ---------- (the bar's phone layout is in toolbar.css) */
-@media (max-width: 700px) {
+@media (max-width: 700px), (max-height: 500px) and (orientation: landscape) {
   .page { padding-bottom: 24px; }
   .m-info .tide-now { gap: 6px; font-size: 12px; }
   .m-info .tide-now span + span::before { margin-right: 6px; }

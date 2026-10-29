@@ -222,12 +222,12 @@
   .m-info { order: 10; flex: 1 0 100%; margin-top: -2px; }
 }
 /* Phones: 16px input stops iOS zooming on focus */
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 500px) and (orientation: landscape) {
   .search input { font-size: 16px; padding: 7px 10px 7px 32px; }
 }
 
 /* ---------- Phones: one compact bar ---------- */
-@media (max-width: 700px) {
+@media (max-width: 700px), (max-height: 500px) and (orientation: landscape) {
   .controls {
     margin: 0 -16px 10px;
     padding: max(8px, env(safe-area-inset-top)) 12px 7px;
@@ -330,4 +330,9 @@
   .r1 { gap: 4px; }
   .brand { font-size: 15px; padding-right: 2px; }
   #view-seg button, #view-seg a { padding: 1px 6px 1px; }
+}
+/* Phones on their side: the phone bar (above), and it scrolls away with
+   the page rather than holding a third of a short screen. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .controls { position: relative; }
 }
