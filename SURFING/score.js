@@ -802,6 +802,9 @@ function sourcesOf(bh, windW, counts = {}) {
      opts.keep   (t) => true for hours whose per-model values to keep, for
                  the Sources panel (kept[t] = { src, model })
      opts.counts model key → station checks on this device (sourcesOf)
+     opts.tide   (utcHour) => metres above mean sea level, or null: the tide
+                 from tide tables (the worker's tides.json, nearest gauge),
+                 in place of the ocean model's sea level
    Returns { offset, days: [{ date, hours, tides, sun, conf }], kept }. */
 function blendSpot(c, m, w, opts = {}) {
   const offset = w.utc_offset_seconds ?? m.utc_offset_seconds ?? 0;
@@ -810,10 +813,13 @@ function blendSpot(c, m, w, opts = {}) {
   const n = Math.min(m.hourly.time.length, w.hourly.time.length);
   for (let j = 0; j < n; j++) {
     const t = m.hourly.time[j], lead = leadOf(t, offset);
-    const extra = opts.extra ? opts.extra(new Date(Date.parse(t + ':00Z') - offset * 1000).toISOString().slice(0, 16), lead) : null;
+    const utc = new Date(Date.parse(t + ':00Z') - offset * 1000).toISOString().slice(0, 16);
+    const extra = opts.extra ? opts.extra(utc, lead) : null;
     const bh = blendHour(m.hourly, w.hourly, j, windWL[lead], marineWL[lead], extra);
     if (!bh) continue;
     const k = { t, ...bh.k };
+    const tide = opts.tide ? opts.tide(utc) : null;
+    if (tide != null) k.tide = tide;
     if (opts.obs) {
       const away = (Date.parse(t + ':00Z') - Date.parse(opts.obs.at + ':00Z')) / 3.6e6;
       if (away >= -0.5 && away <= 2.5) applyObs(k, opts.obs.ob, obsWeight(opts.obs.ob, Math.max(0, away)));

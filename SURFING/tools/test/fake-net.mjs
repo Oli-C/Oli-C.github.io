@@ -31,6 +31,15 @@ function value(v, li, mi, h) {
   }
 }
 
+// A tide table for one gauge (Cascais): a 1.55 m semidiurnal tide, unlike
+// the model's 1.2 m, from two days back to twenty ahead, in whole cm.
+export const TIDE_AMP = 1.55;
+export function fakeTides() {
+  const t0 = Math.floor(Date.now() / 3.6e6) * 3.6e6 - 48 * 3.6e6;
+  const hs = Array.from({ length: 22 * 24 }, (_, i) => Math.round(100 * TIDE_AMP * Math.sin(((t0 / 3.6e6 + i) / 12.42) * 2 * Math.PI)));
+  return { built: new Date().toISOString().slice(0, 16), start: new Date(t0).toISOString().slice(0, 16), step: 1, gauges: { cascais: hs } };
+}
+
 export function openMeteo(url) {
   const q = url.searchParams, lats = q.get('latitude').split(','), models = (q.get('models') || 'best_match').split(',');
   const vars = (q.get('hourly') || '').split(',').filter(Boolean), past = +(q.get('past_days') || 0), days = +(q.get('forecast_days') || 7);
@@ -58,5 +67,6 @@ export async function fakeFetch(input) {
   if (/open-meteo\.com$/.test(url.hostname)) return json(openMeteo(url));
   if (url.hostname === 'api.ipma.pt') return json(url.pathname.endsWith('stations.json') ? [] : {});
   if (url.pathname.endsWith('/data/skill.json')) return json(SKILL);
+  if (url.pathname.endsWith('/data/tides.json')) return json(fakeTides());
   return json({ error: 'not faked: ' + url.href }, 404);
 }

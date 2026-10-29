@@ -6,3 +6,4 @@
 SURFING/tools/.tide-*.npy
 # tools/swan.py: bathymetry and SWAN runs (the result is SURFING/swan.js)
 SURFING/tools/swan-work/
+SURFING/tools/__pycache__/

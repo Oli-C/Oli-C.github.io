@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build d746be9970. */
-const WORKER_BUILD = 'd746be9970';
+   Build 6fe61af4a9. */
+const WORKER_BUILD = '6fe61af4a9';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (16-day outlook).
@@ -1226,6 +1226,9 @@ function sourcesOf(bh, windW, counts = {}) {
      opts.keep   (t) => true for hours whose per-model values to keep, for
                  the Sources panel (kept[t] = { src, model })
      opts.counts model key → station checks on this device (sourcesOf)
+     opts.tide   (utcHour) => metres above mean sea level, or null: the tide
+                 from tide tables (the worker's tides.json, nearest gauge),
+                 in place of the ocean model's sea level
    Returns { offset, days: [{ date, hours, tides, sun, conf }], kept }. */
 function blendSpot(c, m, w, opts = {}) {
   const offset = w.utc_offset_seconds ?? m.utc_offset_seconds ?? 0;
@@ -1234,10 +1237,13 @@ function blendSpot(c, m, w, opts = {}) {
   const n = Math.min(m.hourly.time.length, w.hourly.time.length);
   for (let j = 0; j < n; j++) {
     const t = m.hourly.time[j], lead = leadOf(t, offset);
-    const extra = opts.extra ? opts.extra(new Date(Date.parse(t + ':00Z') - offset * 1000).toISOString().slice(0, 16), lead) : null;
+    const utc = new Date(Date.parse(t + ':00Z') - offset * 1000).toISOString().slice(0, 16);
+    const extra = opts.extra ? opts.extra(utc, lead) : null;
     const bh = blendHour(m.hourly, w.hourly, j, windWL[lead], marineWL[lead], extra);
     if (!bh) continue;
     const k = { t, ...bh.k };
+    const tide = opts.tide ? opts.tide(utc) : null;
+    if (tide != null) k.tide = tide;
     if (opts.obs) {
       const away = (Date.parse(t + ':00Z') - Date.parse(opts.obs.at + ':00Z')) / 3.6e6;
       if (away >= -0.5 && away <= 2.5) applyObs(k, opts.obs.ob, obsWeight(opts.obs.ob, Math.max(0, away)));
@@ -1967,8 +1973,28 @@ async function fcObs() {
   return out;
 }
 
+// Tides from tide tables: tools/tides.py's hourly predictions for each
+// gauge (data/tides.json on the site, refreshed monthly). A spot takes its
+// nearest gauge's; null (so the ocean model's sea level stands) where the
+// file's missing or doesn't reach.
+async function tideTables() {
+  try {
+    const r = await fetch(SITE + 'data/tides.json', { cf: { cacheTtl: 3600 } });
+    if (!r.ok) return null;
+    const x = await r.json(), t0 = Date.parse(x.start + ':00Z');
+    if (!x.gauges || !Number.isFinite(t0)) return null;
+    return (c) => {
+      const g = GAUGES.filter((g) => x.gauges[g.id]).sort((a, b) => km(c.lat, c.lng, a.lat, a.lng) - km(c.lat, c.lng, b.lat, b.lng))[0];
+      if (!g) return null;
+      const hs = x.gauges[g.id];
+      return (utc) => { const i = Math.round((Date.parse(utc + ':00Z') - t0) / 3.6e6); return i >= 0 && i < hs.length && hs[i] != null ? hs[i] / 100 : null; };
+    };
+  } catch { return null; }
+}
+
 async function buildForecast(env) {
   const started = Date.now();
+  const tidesFor = await tideTables();
   // The models' record: as tools/skill.mjs last posted it, else the site's copy.
   try { sharedSkill = JSON.parse((await env.FEEDBACK.get('skill:latest')) || 'null'); } catch {}
   if (!sharedSkill) try { const r = await fetch(SITE + 'data/skill.json', { cf: { cacheTtl: 300 } }); if (r.ok) sharedSkill = await r.json(); } catch {}
@@ -2006,6 +2032,7 @@ async function buildForecast(env) {
       extra: ib && ((utc, lead) => { const ii = ibiAt[utc]; return ii != null && ib.wave_height[ii] != null ? [{ model: IBI_MODEL, row: ibiRow(ib, ii), w: ibiWL[lead][0] }] : null; }),
       // Per-model values for the hours a page might call "now" before the next run.
       keep: (t) => { const dh = (Date.parse(t + ':00Z') - Date.parse(nowLocal + ':00Z')) / 3.6e6; return dh >= -1.5 && dh <= 2.5; },
+      tide: tidesFor && tidesFor(c),
     });
     const days = f.days.map((d) => {
       const day = { ...d, hours: d.hours.map(roundK) };
@@ -2015,7 +2042,7 @@ async function buildForecast(env) {
     spots[c.id] = { offset, days, src: f.kept, obs: ob };
   });
   try {
-    const ext = await extendedDays(env);
+    const ext = await extendedDays(env, tidesFor);
     for (const [id, s] of Object.entries(spots)) {
       const last = s.days.length ? s.days[s.days.length - 1].date : '';
       s.days.push(...((ext.spots[id] || []).filter((d) => d.date > last)));
@@ -2028,7 +2055,7 @@ async function buildForecast(env) {
   return { built, spots: Object.keys(spots).length, days: Object.keys(byDay), ms: Date.now() - started };
 }
 
-async function extendedDays(env) {
+async function extendedDays(env, tidesFor) {
   try { const x = JSON.parse((await env.FEEDBACK.get('fc:ext')) || 'null'); if (x && Date.now() - Date.parse(x.built) < FC_EXT_EVERY) return x; } catch {}
   const day = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
   const pts = CAMS.map(offshore);
@@ -2041,7 +2068,7 @@ async function extendedDays(env) {
   const M = asList(marine), W = asList(wind), spots = {};
   CAMS.forEach((c, i) => {
     const m = M[i], w = W[i];
-    if (m && w && m.hourly && w.hourly) spots[c.id] = blendSpot(c, m, w).days.map((d) => ({ ...d, hours: d.hours.map(roundK) }));
+    if (m && w && m.hourly && w.hourly) spots[c.id] = blendSpot(c, m, w, { tide: tidesFor && tidesFor(c) }).days.map((d) => ({ ...d, hours: d.hours.map(roundK) }));
   });
   const ext = { built: new Date().toISOString(), spots };
   await env.FEEDBACK.put('fc:ext', JSON.stringify(ext));

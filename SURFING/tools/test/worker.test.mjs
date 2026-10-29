@@ -166,6 +166,9 @@ test('forecast: the hourly build, end to end', async () => {
   assert.ok(src.swell.some((r) => r.name === 'Copernicus IBI'), 'IBI among the sources');
   assert.ok(kv.has(`fc:day:${new Date().toISOString().slice(0, 10)}`), 'today archived');
   assert.ok(kv.has('fc:ext'), 'the far days kept for the next builds');
+  // Tides come from the tide table (the fake's 1.55 m tide), not the model's 1.2 m.
+  const tides = fc.spots.carcavelos.days[3].hours.map((k) => k.tide);
+  assert.ok(Math.max(...tides) > 1.4 && Math.max(...tides) <= 1.55, 'the tide table, not the ocean model');
   const far = fc.spots['guincho-norte'].days.at(-1), near = fc.spots['guincho-norte'].days[3];
   assert.ok(far.conf < near.conf, 'the far days are less sure');
 });

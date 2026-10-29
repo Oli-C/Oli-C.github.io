@@ -43,6 +43,8 @@ whoever builds it.
 | `week.css`, `week.js` | the 16-day page: day cards, or a compact table of day scores |
 | `insights.html` / `.css` / `.js` | a spot's history beside its logged sessions: trends, what it likes, what the forecast has learned |
 | `data/` | public, anonymised: model skill, logged sessions |
+| `tools/tides.py`, `data/tide-fit.json`, `data/tides.json` | tides from tide tables: each gauge's harmonic constants (fitted by hand about yearly, `tides.py fit`) and hourly predictions 400 days ahead (monthly, surf-tides.yml), which the worker uses for every spot's tide |
+| `tools/swan.py`, `swan.js` | how much of an offshore swell reaches each spot, from SWAN over the real seabed (by hand, surf-swan.yml) |
 | `tools/worker/` | the worker's sources; `build-worker.mjs` bundles them |
 | `tools/skill.mjs`, `copernicus.py`, `points.mjs` | the scheduled jobs |
 | `tools/test/` | tests |

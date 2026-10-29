@@ -65,8 +65,28 @@ async function fcObs() {
   return out;
 }
 
+// Tides from tide tables: tools/tides.py's hourly predictions for each
+// gauge (data/tides.json on the site, refreshed monthly). A spot takes its
+// nearest gauge's; null (so the ocean model's sea level stands) where the
+// file's missing or doesn't reach.
+async function tideTables() {
+  try {
+    const r = await fetch(SITE + 'data/tides.json', { cf: { cacheTtl: 3600 } });
+    if (!r.ok) return null;
+    const x = await r.json(), t0 = Date.parse(x.start + ':00Z');
+    if (!x.gauges || !Number.isFinite(t0)) return null;
+    return (c) => {
+      const g = GAUGES.filter((g) => x.gauges[g.id]).sort((a, b) => km(c.lat, c.lng, a.lat, a.lng) - km(c.lat, c.lng, b.lat, b.lng))[0];
+      if (!g) return null;
+      const hs = x.gauges[g.id];
+      return (utc) => { const i = Math.round((Date.parse(utc + ':00Z') - t0) / 3.6e6); return i >= 0 && i < hs.length && hs[i] != null ? hs[i] / 100 : null; };
+    };
+  } catch { return null; }
+}
+
 async function buildForecast(env) {
   const started = Date.now();
+  const tidesFor = await tideTables();
   // The models' record: as tools/skill.mjs last posted it, else the site's copy.
   try { sharedSkill = JSON.parse((await env.FEEDBACK.get('skill:latest')) || 'null'); } catch {}
   if (!sharedSkill) try { const r = await fetch(SITE + 'data/skill.json', { cf: { cacheTtl: 300 } }); if (r.ok) sharedSkill = await r.json(); } catch {}
@@ -104,6 +124,7 @@ async function buildForecast(env) {
       extra: ib && ((utc, lead) => { const ii = ibiAt[utc]; return ii != null && ib.wave_height[ii] != null ? [{ model: IBI_MODEL, row: ibiRow(ib, ii), w: ibiWL[lead][0] }] : null; }),
       // Per-model values for the hours a page might call "now" before the next run.
       keep: (t) => { const dh = (Date.parse(t + ':00Z') - Date.parse(nowLocal + ':00Z')) / 3.6e6; return dh >= -1.5 && dh <= 2.5; },
+      tide: tidesFor && tidesFor(c),
     });
     const days = f.days.map((d) => {
       const day = { ...d, hours: d.hours.map(roundK) };
@@ -113,7 +134,7 @@ async function buildForecast(env) {
     spots[c.id] = { offset, days, src: f.kept, obs: ob };
   });
   try {
-    const ext = await extendedDays(env);
+    const ext = await extendedDays(env, tidesFor);
     for (const [id, s] of Object.entries(spots)) {
       const last = s.days.length ? s.days[s.days.length - 1].date : '';
       s.days.push(...((ext.spots[id] || []).filter((d) => d.date > last)));
@@ -126,7 +147,7 @@ async function buildForecast(env) {
   return { built, spots: Object.keys(spots).length, days: Object.keys(byDay), ms: Date.now() - started };
 }
 
-async function extendedDays(env) {
+async function extendedDays(env, tidesFor) {
   try { const x = JSON.parse((await env.FEEDBACK.get('fc:ext')) || 'null'); if (x && Date.now() - Date.parse(x.built) < FC_EXT_EVERY) return x; } catch {}
   const day = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
   const pts = CAMS.map(offshore);
@@ -139,7 +160,7 @@ async function extendedDays(env) {
   const M = asList(marine), W = asList(wind), spots = {};
   CAMS.forEach((c, i) => {
     const m = M[i], w = W[i];
-    if (m && w && m.hourly && w.hourly) spots[c.id] = blendSpot(c, m, w).days.map((d) => ({ ...d, hours: d.hours.map(roundK) }));
+    if (m && w && m.hourly && w.hourly) spots[c.id] = blendSpot(c, m, w, { tide: tidesFor && tidesFor(c) }).days.map((d) => ({ ...d, hours: d.hours.map(roundK) }));
   });
   const ext = { built: new Date().toISOString(), spots };
   await env.FEEDBACK.put('fc:ext', JSON.stringify(ext));

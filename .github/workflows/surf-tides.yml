@@ -1,0 +1,45 @@
+name: surf tides
+
+# Tide predictions from tide tables: SURFING/tools/tides.py predict turns
+# each gauge's harmonic constants (SURFING/data/tide-fit.json, fitted by
+# hand about once a year with `tides.py fit`) into hourly heights from two
+# days back to 400 ahead, SURFING/data/tides.json, which the worker's
+# hourly build reads for every spot's tide. Monthly; safe to run by hand.
+
+on:
+  schedule:
+    - cron: '23 4 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: surf-tides
+  cancel-in-progress: false
+
+jobs:
+  tides:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: pip install numpy utide
+      - name: Predict
+        run: python SURFING/tools/tides.py predict
+      - name: Commit if changed
+        run: |
+          git config user.name "surf-tides bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add SURFING/data/tides.json
+          if git diff --cached --quiet; then
+            echo "no change"
+          else
+            git commit -m "tides: predictions [skip ci]"
+            git pull --rebase
+            git push
+          fi
