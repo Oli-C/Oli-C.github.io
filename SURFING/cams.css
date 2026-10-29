@@ -1414,6 +1414,36 @@ header { display: none; }
   .seg button { padding: 7px 10px 7px; }
   .tbar span { font-size: 10px; }
 }
+/* Phones on their side, Cams view (html.wall, cams-grid.js tileWalls):
+   an area a screen, its cams tiled to fill it, snapping area to area. */
+@media (max-height: 500px) and (orientation: landscape) {
+  html.wall { scroll-snap-type: y proximity; }
+  html.wall .area:not([hidden]) {
+    min-height: 100vh; min-height: 100dvh; box-sizing: border-box;
+    margin: 0; padding: 8px 0 10px; scroll-snap-align: start;
+  }
+  html.wall .area-head { margin-bottom: 6px; padding-bottom: 4px; }
+  html.wall .area-head h2 { font-size: 15px; }
+  html.wall .area-sum { font-size: 11px; }
+  html.wall .layout .cards { grid-template-columns: repeat(var(--cols, 2), var(--tw, 1fr)) !important; justify-content: center; gap: 8px !important; }
+  html.wall .cam { border-radius: var(--radius); }
+  html.wall .cam:hover { transform: none; }
+}
+/* Phones on their side, Map view: the map fills the whole screen; what
+   floats on it keeps clear of the notch, and the area chips and the next
+   tide share a row under the bar. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .page:has(.layout[data-view="map"]) .controls {
+    display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px;
+    padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right));
+  }
+  .page:has(.layout[data-view="map"]) .r1 { flex: 1 0 100%; }
+  .page:has(.layout[data-view="map"]) .r2 { flex: 1 1 0; min-width: 0; }
+  .page:has(.layout[data-view="map"]) .m-info { flex: none; margin-top: 6px; }
+  .layout[data-view="map"] .leaflet-left { left: env(safe-area-inset-left); }
+  .layout[data-view="map"] .leaflet-right { right: env(safe-area-inset-right); }
+  .layout[data-view="map"] .legend { left: max(8px, env(safe-area-inset-left)); }
+}
 /* Phones on their side: the cam fills the height (the whole picture,
    letterboxed at the sides) under a slimmer header. */
 @media (max-height: 500px) and (orientation: landscape) {

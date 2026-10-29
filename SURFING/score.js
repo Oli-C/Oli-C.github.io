@@ -373,7 +373,7 @@ const SIZE_BANDS = ['Flat', 'Knee–thigh', 'Waist–chest', 'Shoulder–head', 
 const SIZE_FACE = [0.15, 0.55, 1.05, 1.6, 2.3, 3.2];
 const SIZE_EDGES = [0.3, 0.8, 1.3, 1.9, 2.7];
 const sizeBand = (face) => { let i = 0; while (i < SIZE_EDGES.length && face >= SIZE_EDGES[i]) i++; return i; };
-const SESSION_WHY = { wind: 'Wind', small: 'Too small', big: 'Too big', tide: 'Wrong tide', inconsistent: 'Inconsistent', crowd: 'Crowded' };
+const SESSION_WHY = { wind: 'Wind', small: 'Too small', big: 'Too big', tide: 'Wrong tide', inconsistent: 'Inconsistent', crowd: 'Crowded', paddle: 'Paddle out was tough' };
 // Wave shape: whether the waves were rideable, the other half of "clean".
 const SESSION_SHAPE = ['Peeling', 'Mixed', 'Closing out'];
 

@@ -157,7 +157,34 @@ function applyFilter() {
   empty.classList.toggle('show', shown === 0 && effectiveView() !== 'map');
   if (map) syncMarkers(true);
   syncTiles();
+  tileWalls();
 }
+
+// Phones on their side, Cams view: each area (or My spots) fills one
+// screen, its cams tiled 16:9 in however many columns makes them biggest,
+// and the page snaps from area to area.
+const landscape = matchMedia('(max-height: 500px) and (orientation: landscape)');
+function tileWalls() {
+  const on = landscape.matches && effectiveView() === 'grid';
+  document.documentElement.classList.toggle('wall', on);
+  for (const sec of grid.querySelectorAll('.area')) {
+    const box = sec.querySelector('.cards');
+    if (!on || sec.hidden) { box.style.removeProperty('--cols'); box.style.removeProperty('--tw'); continue; }
+    const n = [...box.children].filter((el) => !el.hidden).length;
+    if (!n) continue;
+    const gap = 8, W = box.clientWidth, H = innerHeight - sec.querySelector('.area-head').offsetHeight - 22;
+    let best = { w: 0, cols: 1 };
+    for (let cols = 1; cols <= n; cols++) {
+      const rows = Math.ceil(n / cols);
+      const w = Math.min((W - gap * (cols - 1)) / cols, ((H - gap * (rows - 1)) / rows) * 16 / 9);
+      if (w > best.w + 0.5) best = { w, cols };
+    }
+    box.style.setProperty('--cols', best.cols);
+    box.style.setProperty('--tw', Math.floor(best.w) + 'px');
+  }
+}
+landscape.addEventListener('change', tileWalls);
+addEventListener('resize', () => { if (landscape.matches) tileWalls(); });
 
 /* ---------- Live tiles ---------- */
 
@@ -286,6 +313,7 @@ function reorder() {
     return live + (order === 'near' && here || order === 'best' ? Math.min(...cs.map(spotRank)) : AREAS.indexOf(sec.dataset.area));
   };
   arrange(grid, [...grid.querySelectorAll(':scope > .area')].sort((a, b) => secRank(a) - secRank(b)));
+  tileWalls();
 }
 // Where you are, for Order: nearest. Remembered for half an hour.
 function locate() {

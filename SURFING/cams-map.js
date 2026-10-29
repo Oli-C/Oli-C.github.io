@@ -172,7 +172,7 @@ function initMap() {
   if (overlays.wind) windLayer.addTo(map);
   if (overlays.swell) swellLayer.addTo(map);
   if (overlays.heat) heatLayer.addTo(map);
-  L.control.layers({ 'Satellite': sat, 'Streets': osm }, { 'Wind': windLayer, 'Swell': swellLayer, 'Swell height': heatLayer }, { position: 'topright', collapsed: phone.matches }).addTo(map);
+  L.control.layers({ 'Satellite': sat, 'Streets': osm }, { 'Wind': windLayer, 'Swell': swellLayer, 'Swell height': heatLayer }, { position: 'topright', collapsed: phone.matches || matchMedia('(max-height: 500px)').matches }).addTo(map);
   makeTimeControl().addTo(map);
   syncTimeControl();
   // The legend shows a row for each layer that's on.

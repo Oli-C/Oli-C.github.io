@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build 3c73bf5718. */
-const WORKER_BUILD = '3c73bf5718';
+   Build 3addd1cdaa. */
+const WORKER_BUILD = '3addd1cdaa';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (7-day outlook).
@@ -797,7 +797,7 @@ const SIZE_BANDS = ['Flat', 'Knee–thigh', 'Waist–chest', 'Shoulder–head', 
 const SIZE_FACE = [0.15, 0.55, 1.05, 1.6, 2.3, 3.2];
 const SIZE_EDGES = [0.3, 0.8, 1.3, 1.9, 2.7];
 const sizeBand = (face) => { let i = 0; while (i < SIZE_EDGES.length && face >= SIZE_EDGES[i]) i++; return i; };
-const SESSION_WHY = { wind: 'Wind', small: 'Too small', big: 'Too big', tide: 'Wrong tide', inconsistent: 'Inconsistent', crowd: 'Crowded' };
+const SESSION_WHY = { wind: 'Wind', small: 'Too small', big: 'Too big', tide: 'Wrong tide', inconsistent: 'Inconsistent', crowd: 'Crowded', paddle: 'Paddle out was tough' };
 // Wave shape: whether the waves were rideable, the other half of "clean".
 const SESSION_SHAPE = ['Peeling', 'Mixed', 'Closing out'];
 
@@ -1700,7 +1700,7 @@ const num = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= l
 const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
 const SPOT_ID = /^[a-z0-9-]{2,40}$/;
 const HOUR_T = /^\d{4}-\d\d-\d\dT\d\d:\d\d$/;            // the forecast's local hour stamp
-const WHY = ['wind', 'small', 'big', 'tide', 'closeouts', 'inconsistent', 'crowd'];
+const WHY = ['wind', 'small', 'big', 'tide', 'closeouts', 'inconsistent', 'crowd', 'paddle'];
 const MINS = [30, 60, 90, 120, 180];
 
 // The name someone gave: letters (any alphabet), digits, spaces and a few

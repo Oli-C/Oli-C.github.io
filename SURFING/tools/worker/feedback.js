@@ -73,7 +73,7 @@ const num = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= l
 const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
 const SPOT_ID = /^[a-z0-9-]{2,40}$/;
 const HOUR_T = /^\d{4}-\d\d-\d\dT\d\d:\d\d$/;            // the forecast's local hour stamp
-const WHY = ['wind', 'small', 'big', 'tide', 'closeouts', 'inconsistent', 'crowd'];
+const WHY = ['wind', 'small', 'big', 'tide', 'closeouts', 'inconsistent', 'crowd', 'paddle'];
 const MINS = [30, 60, 90, 120, 180];
 
 // The name someone gave: letters (any alphabet), digits, spaces and a few
