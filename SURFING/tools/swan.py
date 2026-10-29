@@ -197,7 +197,7 @@ def swan_input(meta, period, dirn):
     x0, y0 = w + res / 2, s + res / 2
     xl, yl = (nx - 1) * res, (ny - 1) * res
     sides = '\n'.join(f'BOUNDSPEC SIDE {sd} CCW CONSTANT PAR {HS} {period} {dirn} {SPREAD}' for sd in ('N', 'W', 'S', 'E'))
-    return f"""PROJECT '{meta['area']}' 'T{period}D{dirn}'
+    return f"""PROJECT '{meta['area']}' '{period:02d}{dirn // 15:02d}'
 SET LEVEL=0. NAUTICAL
 MODE STATIONARY TWODIMENSIONAL
 COORDINATES SPHERICAL
