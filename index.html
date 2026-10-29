@@ -18,7 +18,7 @@
      first paint no longer waits on the fonts.googleapis.com CSS round trip.
      crossorigin is required on font preloads even same-origin. -->
 <link rel="preload" href="assets/fonts/anek-kannada-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=109">
+<link rel="stylesheet" href="style.css?v=110">
 <script>
   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
     "theme": "charcoal",
@@ -99,10 +99,11 @@
     <div class="yr yr-up"><span class="yr-num">now playing · collect radio</span><span class="yr-line"></span></div>
     <div class="feature-frame" id="feature">
       <div class="feature-player"></div>
-      <img class="feature-poster" src="https://i.ytimg.com/vi/uzVVx4DA_os/maxresdefault.jpg" alt="" decoding="async">
+      <video class="feature-loop" src="assets/feature-col-001.mp4" poster="assets/feature-col-001.jpg" muted autoplay loop playsinline preload="auto" aria-hidden="true"></video>
       <button class="feature-tap" type="button" aria-label="Play with sound">
         <span class="feature-hint"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M23 9l-6 6M17 9l6 6"/></svg>tap for sound</span>
       </button>
+      <span class="feature-spin" aria-hidden="true"></span>
       <div class="feature-bar">
         <button class="fb-btn fb-play" type="button" aria-label="Pause">
           <svg class="i-pause" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
@@ -125,6 +126,6 @@
 
   </main>
 
-<script src="app.js?v=101"></script>
+<script src="app.js?v=102"></script>
 </body>
 </html>

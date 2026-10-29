@@ -1082,11 +1082,11 @@
   })();
 
   // ============================================================================
-  //  Featured set — plays muted with controls=0 under a poster and a tap
-  //  layer, so it reads as a tile. The poster lifts once playback has run long
-  //  enough for YouTube's title overlay to fade, and returns while paused. The
-  //  first tap unmutes in place (no reload) and hands over to the own control
-  //  bar. The player loads after the intro cascade so it can't stutter it.
+  //  Featured set — a silent self-hosted clip from 45:15 plays from first
+  //  paint while the YouTube player (muted, controls=0, chrome cropped by
+  //  style.css) loads underneath; the clip crossfades out once YouTube is
+  //  playing, and returns while paused. The first tap unmutes in place (no
+  //  reload) and hands over to the own control bar.
   // ============================================================================
   (function initFeature() {
     const frame = document.getElementById('feature');
@@ -1099,7 +1099,8 @@
     const seek = frame.querySelector('.fb-seek');
     const [timeEl, durEl] = frame.querySelectorAll('.fb-time');
     const ytLink = frame.querySelector('.fb-yt');
-    let player = null, ready = false, loading = false, wantOpen = false, dragging = false, hideTimer = 0;
+    const loop = frame.querySelector('.feature-loop');
+    let player = null, ready = false, loading = false, wantOpen = false, revealed = false, dragging = false, hideTimer = 0;
 
     const fmt = s => {
       s = Math.max(0, Math.floor(s));
@@ -1131,7 +1132,8 @@
       player.setVolume(100);
       player.playVideo();
       setTimeout(() => {
-        if (player.getPlayerState() !== YT.PlayerState.PLAYING) frame.classList.add('is-direct');
+        const s = player.getPlayerState();
+        if (s !== YT.PlayerState.PLAYING && s !== YT.PlayerState.BUFFERING) frame.classList.add('is-direct');
       }, 1500);
       setInterval(sync, 250);
       sync();
@@ -1156,11 +1158,20 @@
             },
             onStateChange: e => {
               const playing = e.data === YT.PlayerState.PLAYING;
-              frame.classList.toggle('is-paused', !playing && e.data !== YT.PlayerState.BUFFERING);
+              const buffering = e.data === YT.PlayerState.BUFFERING;
+              frame.classList.toggle('is-paused', !playing && !buffering);
+              frame.classList.toggle('is-buffering', buffering);
               playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
               if (playing) {
                 frame.classList.remove('is-direct');
-                if (!frame.classList.contains('is-playing')) setTimeout(() => frame.classList.add('is-playing'), 3500);
+                if (!revealed) {
+                  revealed = true;
+                  // A beat for the first frame to paint, then crossfade and park the clip.
+                  setTimeout(() => {
+                    frame.classList.add('is-playing');
+                    setTimeout(() => loop.pause(), 700);
+                  }, 400);
+                }
               }
             },
           },
@@ -1170,7 +1181,7 @@
       api.src = 'https://www.youtube.com/iframe_api';
       document.head.appendChild(api);
     }
-    setTimeout(load, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 2600);
+    load();
 
     const togglePlay = () => {
       if (player.getPlayerState() === YT.PlayerState.PLAYING) player.pauseVideo();
