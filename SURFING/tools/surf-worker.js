@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build f8dc47f9bb. */
-const WORKER_BUILD = 'f8dc47f9bb';
+   Build d746be9970. */
+const WORKER_BUILD = 'd746be9970';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (16-day outlook).
@@ -213,7 +213,7 @@ const CAMS = [
     town:    'Estoril', area: 'Cascais', zone: 'Linha de Cascais',
     country: 'Portugal',
     tags:    ['reef break', 'right', 'south facing', 'linha de cascais', 'sao pedro', 'bafureira', 'bico'],
-    lat: 38.6930, lng: -9.3712, faces: 180,
+    lat: 38.6936, lng: -9.3698, faces: 180,
     best: {
       swell: [200, 300], size: [0.5, 2.2], period: 10, exposure: 0.45, wind: [340, 60], tide: { range: [0, 0.7], dir: 'falling', text: 'low to mid, on the drop' },
       notes: 'Reef and point setups, Bafureira’s right on the left of the bay, the Bico point next door. A decent NW groundswell wraps into the Linha at roughly half size, so there’s usually something small and rideable here; the reefs line up properly from about a metre of SW–W swell, with a N/NE wind. Low to mid on a dropping tide is the usual call. Intermediate and up; less crowded than Bico.',
@@ -347,7 +347,7 @@ const CAMS = [
     town:    'Ericeira', area: 'Ericeira', zone: 'Mafra',
     country: 'Portugal',
     tags:    ['point', 'reef', 'right', 'ericeira', 'mafra', 'world surfing reserve'],
-    lat: 38.9880, lng: -9.4208, faces: 275,   // OSM: Ribeira d'Ilhas beach, the bay north of Ericeira
+    lat: 38.9872, lng: -9.4194, faces: 275,   // OSM: Ribeira d'Ilhas beach, the bay north of Ericeira
     best: {
       swell: [280, 330], size: [1.0, 3.0], period: 10, exposure: 0.75, wind: [50, 140], tide: { range: [0.35, 0.85], dir: 'rising', text: 'mid to high, on the push' },
       notes: 'The heart of the Ericeira World Surfing Reserve: a long, walling right-hand point over reef and boulders that peels for a couple of hundred metres on a clean NW swell. Handles size well and holds its shape at 2–3 m when the beaches close out. Mid to high tide on the push is the classic call; low tide gets fast and shallow on the inside. E/NE wind is dead offshore. WSL contest venue, so expect a crowd and a strong local pack when it’s on.',

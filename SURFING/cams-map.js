@@ -261,7 +261,8 @@ mapCard.addEventListener('click', (e) => {
 });
 
 // How much of the map's top edge the floating phone toolbar covers.
-const mapTop = () => (phone.matches && layout.dataset.view === 'map' ? $('controls').offsetHeight : 0);
+// How far down the map the floating toolbar reaches (map view only).
+const mapTop = () => (layout.dataset.view === 'map' ? Math.round($('controls').getBoundingClientRect().bottom) : 0);
 
 // Show only the markers that pass the current filter; optionally refit.
 // The map fits itself to the spots on show only when the filter changes,
@@ -312,9 +313,11 @@ function declutter() {
       if (!pin) continue;
       pin.style.translate = '';
       const p = map.latLngToLayerPoint(m.getLatLng());
-      items.push({ el, pin, x: p.x, y0: p.y, y: p.y, w: pin.offsetWidth, h: pin.offsetHeight });
+      // The pin's box runs from half its score bubble left of the spot.
+      const l = p.x - pin.querySelector('.sc').offsetWidth / 2 - 1.5;
+      items.push({ el, pin, x: p.x, l, r: l + pin.offsetWidth, y0: p.y, y: p.y, h: pin.offsetHeight });
     }
-    const touch = (a, b) => Math.abs(a.x - b.x) < (a.w + b.w) / 2 + PIN_GAP && Math.abs(a.y - b.y) < (a.h + b.h) / 2 + PIN_GAP;
+    const touch = (a, b) => a.l < b.r + PIN_GAP && b.l < a.r + PIN_GAP && Math.abs(a.y - b.y) < (a.h + b.h) / 2 + PIN_GAP;
     const stack = (g) => {
       g.sort((a, b) => a.y0 - b.y0 || a.x - b.x);
       const total = g.reduce((s, it) => s + it.h, 0) + PIN_GAP * (g.length - 1);

@@ -257,6 +257,39 @@ header { display: none; }
 }
 .layout[data-view="map"] .map-pane { position: relative; top: 0; }
 .page:has(.layout[data-view="map"]) { padding-bottom: 14px; }
+/* Map view on a computer: as on a phone, the map is the whole window and
+   the page doesn't scroll; the toolbar floats over it as one frosted bar
+   (all on one row, as there's room), and the map's corners clear it. */
+@media (min-width: 701px) and (min-height: 501px) {
+  html:has(.layout[data-view="map"]),
+  html:has(.layout[data-view="map"]) body { overflow: hidden; overscroll-behavior: none; }
+  .layout[data-view="map"] .map-pane { position: fixed; inset: 0; z-index: 0; }
+  .layout[data-view="map"] .map-pane > div { height: 100%; }
+  .layout[data-view="map"] #map { height: 100%; min-height: 0; border: 0; border-radius: 0; }
+  .page:has(.layout[data-view="map"]) .controls {
+    position: fixed; top: 12px; left: 12px; right: 12px; z-index: 10; margin: 0;
+    padding: 8px 12px;
+    background: color-mix(in srgb, var(--bg) 80%, transparent);
+    backdrop-filter: blur(14px) saturate(1.4);
+    -webkit-backdrop-filter: blur(14px) saturate(1.4);
+    border: 1px solid var(--border-2);
+    border-radius: 16px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
+  }
+  .layout[data-view="map"] .leaflet-top { top: calc(var(--controls-h) + 16px); }
+  .layout[data-view="map"] .map-hint { top: calc(var(--controls-h) + 92px); }
+  /* The next tide rides beside the areas; best-now steps aside, as on a phone. */
+  .page:has(.layout[data-view="map"]) .m-info { flex: 0 0 auto; order: 10; margin: 0; }
+  .page:has(.layout[data-view="map"]) .m-info .best { display: none; }
+  /* The cams' order and data saver don't touch the map. */
+  .page:has(.layout[data-view="map"]) .order,
+  .page:has(.layout[data-view="map"]) #saver { display: none; }
+}
+/* Split: the map's narrower, so the legend keeps to the scores (and the
+   swell heights when they're on), short of the time slider. */
+.layout[data-view="split"] .legend { max-width: calc(100% - 236px); }
+.layout[data-view="split"] .legend .lg-row:nth-child(2),
+.layout[data-view="split"] .legend #lg-streaks { display: none; }
 @media (max-width: 999px) {
   .layout[data-view="split"] { grid-template-columns: 1fr; }
   .layout[data-view="split"] .map-pane { display: none; }
@@ -605,10 +638,14 @@ header { display: none; }
    colour; swell, wind and the day's four bars on the right. Zoomed out
    (below 11) only the score segment shows. */
 .pin-wrap { background: none; border: 0; }
+/* The score bubble sits on the spot (the swell and wind run off to its
+   right), so the colour you look at is on the beach. */
 .pin {
+  --sc: 32px;
   position: absolute;
   left: 0; top: 0;
-  transform: translate(-50%, -50%);
+  transform: translate(calc(var(--sc) / -2 - 1.5px), -50%);
+  transform-origin: calc(var(--sc) / 2 + 1.5px) 50%;
   display: inline-flex;
   align-items: stretch;
   height: 22px;
@@ -622,7 +659,8 @@ header { display: none; }
 .pin .sc {
   display: grid;
   place-items: center;
-  min-width: 30px;
+  width: var(--sc);
+  box-sizing: border-box;
   padding: 0.5px 6px 0.5px;
   border-radius: 9px 0 0 9px;
   font-size: 12px;
@@ -648,7 +686,7 @@ header { display: none; }
 .pin.lvl-4 .sc { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.4); }
 .leaflet-container:not(.labels) .pin .d { display: none; }
 .leaflet-container:not(.labels) .pin .sc { border-radius: 9px; }
-.leaflet-marker-icon:hover .pin, .leaflet-marker-icon.hot .pin { transform: translate(-50%, -50%) scale(1.1); }
+.leaflet-marker-icon:hover .pin, .leaflet-marker-icon.hot .pin { transform: translate(calc(var(--sc) / -2 - 1.5px), -50%) scale(1.1); }
 .leaflet-marker-icon.hot { z-index: 1000 !important; }
 
 /* Animated particle field (wind / swell), drawn between tiles and pins */
@@ -1567,7 +1605,8 @@ header { display: none; }
   .map-pane.has-card .legend { display: none; }
   /* Bigger pins for fingers. */
   .pin { height: 26px; border-radius: 13px; }
-  .pin .sc { min-width: 34px; font-size: 13px; border-radius: 11px 0 0 11px; }
+  .pin { --sc: 34px; }
+  .pin .sc { font-size: 13px; border-radius: 11px 0 0 11px; }
   .leaflet-container:not(.labels) .pin .sc { border-radius: 11px; }
   /* Tighter panels and graphs on phones. */
   .panel { padding: 12px 14px; }
