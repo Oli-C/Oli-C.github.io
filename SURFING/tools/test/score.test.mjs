@@ -137,3 +137,18 @@ test('SWAN: a spot takes its table, by period and direction', () => {
   // A spot without a table keeps the hand-set rule.
   assert.equal(s2.arrival(s2.CAMS.find((x) => x.id === 'nazare-norte'), { d: 300, p: 14 }, true).swan, false);
 });
+
+test('SWAN fine grid: breaking height by offshore height, as a share of 1.5 m, 10 s', () => {
+  // Made up: the breaking ratio 1.0 for a 1 m swell, 0.9 at 2 m, 0.6 at 4 m (big swells break out), any period and direction.
+  const periods = [6, 8, 10, 12, 14, 16, 18], dirs = [180, 195, 210, 225, 240, 255, 270, 285, 300, 315, 330, 345, 0];
+  const k = [1, 0.9, 0.6].map((r) => periods.map(() => dirs.map(() => r)));
+  const s2 = loadSite(['spots.js', 'stations.js', 'score.js'], { SWAN: { periods, dirs, heights: [1, 2, 4], spots: {}, fine: { carcavelos: { k } } } });
+  const c = s2.CAMS.find((x) => x.id === 'carcavelos'), ref = 1 * (1 - Math.log(1.5) / Math.log(2)) + 0.9 * (Math.log(1.5) / Math.log(2));
+  const a = (h, p) => s2.arrival(c, { h, d: 230, p }, true);
+  assert.ok(a(1.5, 10).fine && Math.abs(a(1.5, 10).arrive - 1) < 1e-9, 'its reference, whole');
+  assert.ok(Math.abs(a(4, 10).arrive - 0.6 / ref) < 1e-9, 'a 4 m swell keeps less of itself');
+  assert.ok(Math.abs(a(8, 10).arrive - 0.6 / ref) < 1e-9, 'held at the biggest height run');
+  // The breaking height is the arrival itself: no period factor on top.
+  const sw = s2.swellTrains(c, { h: 1.5, p: 16, d: 230 }, true);
+  assert.ok(Math.abs(sw.main.hb - sw.main.ha) < 1e-9);
+});

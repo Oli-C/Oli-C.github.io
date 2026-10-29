@@ -71,6 +71,10 @@ function geoArrive(geo, d, p) {
 // and logged sessions tune the level from there.
 function swanArrive(s, d, p) {
   if (!s.max) s.max = Math.max(...s.k.flat());
+  return swanPD(s.k, d, p) / s.max;
+}
+// A [period][direction] table (SWAN.periods × SWAN.dirs) at period p, from d.
+function swanPD(k, d, p) {
   const P = SWAN.periods, D = SWAN.dirs, n = D.length;
   const pc = Math.min(P[P.length - 1], Math.max(P[0], p || 10));
   let i = 0;
@@ -87,7 +91,25 @@ function swanArrive(s, d, p) {
     const j = Math.min(n - 2, Math.floor(pos)), t = pos - j;
     return row[j] * (1 - t) + row[j + 1] * t;
   };
-  return (at(s.k[i]) * (1 - tp) + at(s.k[i + 1]) * tp) / s.max;
+  return at(k[i]) * (1 - tp) + at(k[i + 1]) * tp;
+}
+// The spots with a fine grid (swan.js fine): SWAN's breaking height over the
+// offshore height, by offshore height (1, 2, 4 m: big swells break further
+// out and lose more), period and direction, as a share of the spot's
+// reference (1.5 m, 10 s, from its best direction), so its size settings
+// keep their meaning. Carries the period and the breaking itself, so
+// breakFactor doesn't apply on top.
+function swanBreak(f, h, d, p) {
+  const H = SWAN.heights;
+  const at = (hh, dd, pp) => {
+    const hc = Math.min(H[H.length - 1], Math.max(H[0], hh));
+    let i = 0;
+    while (i < H.length - 2 && hc > H[i + 1]) i++;
+    const t = Math.log(hc / H[i]) / Math.log(H[i + 1] / H[i]);
+    return swanPD(f.k[i], dd, pp) * (1 - t) + swanPD(f.k[i + 1], dd, pp) * t;
+  };
+  if (!f.ref) f.ref = Math.max(...SWAN.dirs.map((dd) => at(1.5, dd, 10))) || 1;
+  return at(h || 1.5, d, p) / f.ref;
 }
 const USE_SWAN = true;
 
@@ -108,10 +130,12 @@ const learnedSpot = (id) => (typeof sharedSkill !== 'undefined' && sharedSkill &
 function arrival(c, k, raw) {
   const b = c.best, p = k.p || 0;
   const bend = k.d != null ? angleDiff(k.d, c.faces) : 0;
+  const fine = USE_SWAN && typeof SWAN !== 'undefined' && SWAN.fine && SWAN.fine[c.id] && SWAN.heights && k.d != null;
   const swan = USE_SWAN && typeof SWAN !== 'undefined' && SWAN.spots[c.id] && k.d != null;
   const geo = !swan && USE_GEO && typeof GEO !== 'undefined' && GEO[c.id] && k.d != null;
   let arrive;
-  if (swan) arrive = swanArrive(SWAN.spots[c.id], k.d, p);
+  if (fine) arrive = swanBreak(SWAN.fine[c.id], k.h, k.d, p);
+  else if (swan) arrive = swanArrive(SWAN.spots[c.id], k.d, p);
   else if (geo) arrive = geoArrive(GEO[c.id], k.d, p);
   else {
     // Whole within 20° of the facing, then the cosine of the angle (a
@@ -129,7 +153,7 @@ function arrival(c, k, raw) {
     if (L && L.size && L.size.n >= 3) learned = L.size.gain;
     else if (C && C.size && C.size.n >= 15) learned = C.size.gain;
   }
-  return { arrive: arrive * (b.gain || 1) * learned, geo: !!geo, swan: !!swan };
+  return { arrive: arrive * (b.gain || 1) * learned, geo: !!geo, swan: !!swan, fine: !!fine };
 }
 // Breaking face height at the beach, as a [low, high] range in metres,
 // the way forecast apps quote surf: a little under the breaking height
@@ -192,7 +216,8 @@ function swellTrains(c, k, raw) {
   if (k.wwh != null && k.wwh >= 0.3 && k.wwp >= 4 && k.wwd != null) ts.push({ h: k.wwh, p: k.wwp, d: k.wwd, windsea: true });
   for (const t of ts) {
     const a = arrival(c, t, raw);
-    t.arrive = a.arrive; t.geo = a.geo; t.ha = t.h * a.arrive; t.hb = t.ha * breakFactor(t.p);
+    // A fine grid's arrival is already the breaking height; elsewhere the period does it.
+    t.arrive = a.arrive; t.geo = a.geo; t.ha = t.h * a.arrive; t.hb = a.fine ? t.ha : t.ha * breakFactor(t.p);
     t.pts = swellPts(c, t);
   }
   ts.sort((a, b) => b.ha * b.ha * b.p - a.ha * a.ha * a.p);
