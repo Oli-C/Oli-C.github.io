@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build bb0621448a. */
-const WORKER_BUILD = 'bb0621448a';
+   Build f8dc47f9bb. */
+const WORKER_BUILD = 'f8dc47f9bb';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (16-day outlook).
@@ -1933,7 +1933,7 @@ const FC_PAST = 2, FC_DAYS = 7;
 // fc:ext, and added to each hourly build.
 const FC_EXT = 15, FC_EXT_EVERY = 6 * 3600e3;
 // Keep every field the pages and training read; numbers to 3 places.
-const FC_K = ['h', 'p', 'd', 'ws', 'wd', 'wg', 'day', 'tn', 'tdir', 'wwh', 'th', 'h2', 'p2', 'd2', 'sst', 'air', 'tide', 'obsW'];
+const FC_K = ['h', 'p', 'd', 'ws', 'wd', 'wg', 'day', 'tn', 'tdir', 'wwh', 'wwp', 'wwd', 'th', 'h2', 'p2', 'd2', 'sst', 'air', 'tide', 'obsW'];
 const roundK = (k) => {
   const o = { t: k.t };
   for (const f of FC_K) if (k[f] != null) o[f] = typeof k[f] === 'number' ? Math.round(k[f] * 1000) / 1000 : k[f];
@@ -2122,7 +2122,7 @@ async function handleForecast(req, env, url, json) {
              buoy, for every hour 0–7 days ahead; `lead` is whole days between the run
              we saw and the hour, and the first forecast seen at a lead is kept
      runs  (t, kind, n, ms, note)                  a line per archive run
-     spot_hour (spot, t, h, p, d, h2, p2, d2, wwh, th, ws, wd, wg, tide, tn, sst, air)
+     spot_hour (spot, t, h, p, d, h2, p2, d2, wwh, th, ws, wd, wg, tide, tn, sst, air, wwp, wwd)
              every spot's blended conditions, hour by hour, for each day that's
              over (raw, so any later scoring can be run over them again)
      spot_day  (spot, date, score, level, best, best_part, face_lo, face_hi, h, p, d,
@@ -2251,7 +2251,7 @@ async function archiveWaveForecasts(db) {
 async function archiveSpots(db, env) {
   const fc = JSON.parse((await env.FEEDBACK.get('fc:latest')) || 'null');
   if (!fc) return 0;
-  const H = ['h', 'p', 'd', 'h2', 'p2', 'd2', 'wwh', 'th', 'ws', 'wd', 'wg', 'tide', 'tn', 'sst', 'air'];
+  const H = ['h', 'p', 'd', 'h2', 'p2', 'd2', 'wwh', 'th', 'ws', 'wd', 'wg', 'tide', 'tn', 'sst', 'air', 'wwp', 'wwd'];
   const hours = [], days = [];
   for (const c of CAMS) {
     const s = fc.spots[c.id];

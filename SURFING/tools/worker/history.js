@@ -15,7 +15,7 @@
              buoy, for every hour 0–7 days ahead; `lead` is whole days between the run
              we saw and the hour, and the first forecast seen at a lead is kept
      runs  (t, kind, n, ms, note)                  a line per archive run
-     spot_hour (spot, t, h, p, d, h2, p2, d2, wwh, th, ws, wd, wg, tide, tn, sst, air)
+     spot_hour (spot, t, h, p, d, h2, p2, d2, wwh, th, ws, wd, wg, tide, tn, sst, air, wwp, wwd)
              every spot's blended conditions, hour by hour, for each day that's
              over (raw, so any later scoring can be run over them again)
      spot_day  (spot, date, score, level, best, best_part, face_lo, face_hi, h, p, d,
@@ -144,7 +144,7 @@ async function archiveWaveForecasts(db) {
 async function archiveSpots(db, env) {
   const fc = JSON.parse((await env.FEEDBACK.get('fc:latest')) || 'null');
   if (!fc) return 0;
-  const H = ['h', 'p', 'd', 'h2', 'p2', 'd2', 'wwh', 'th', 'ws', 'wd', 'wg', 'tide', 'tn', 'sst', 'air'];
+  const H = ['h', 'p', 'd', 'h2', 'p2', 'd2', 'wwh', 'th', 'ws', 'wd', 'wg', 'tide', 'tn', 'sst', 'air', 'wwp', 'wwd'];
   const hours = [], days = [];
   for (const c of CAMS) {
     const s = fc.spots[c.id];

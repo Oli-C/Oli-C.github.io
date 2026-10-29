@@ -31,7 +31,7 @@ const FC_PAST = 2, FC_DAYS = 7;
 // fc:ext, and added to each hourly build.
 const FC_EXT = 15, FC_EXT_EVERY = 6 * 3600e3;
 // Keep every field the pages and training read; numbers to 3 places.
-const FC_K = ['h', 'p', 'd', 'ws', 'wd', 'wg', 'day', 'tn', 'tdir', 'wwh', 'th', 'h2', 'p2', 'd2', 'sst', 'air', 'tide', 'obsW'];
+const FC_K = ['h', 'p', 'd', 'ws', 'wd', 'wg', 'day', 'tn', 'tdir', 'wwh', 'wwp', 'wwd', 'th', 'h2', 'p2', 'd2', 'sst', 'air', 'tide', 'obsW'];
 const roundK = (k) => {
   const o = { t: k.t };
   for (const f of FC_K) if (k[f] != null) o[f] = typeof k[f] === 'number' ? Math.round(k[f] * 1000) / 1000 : k[f];
