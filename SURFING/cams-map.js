@@ -160,10 +160,9 @@ function initMap() {
   heatLayer = makeHeatLayer();
   if (!reducedMotion) {
     const PL = makeParticleLayer();
-    const phone = matchMedia('(max-width: 640px)').matches;
-    windField = new PL({ max: phone ? 450 : 1400, density: 1800, life: 90, fade: 0.9, width: 1.3, min: 0.5,
+    windField = new PL({ max: phone.matches ? 450 : 1400, density: 1800, life: 90, fade: 0.9, width: 1.3, min: 0.5,
       speed: (ws) => 0.25 + ws * 0.045, color: windColor });
-    swellField = new PL({ max: phone ? 250 : 700, density: 3600, life: 160, fade: 0.95, width: 1.8, min: 0.15,
+    swellField = new PL({ max: phone.matches ? 250 : 700, density: 3600, life: 160, fade: 0.95, width: 1.8, min: 0.15,
       speed: (h) => 0.25 + h * 0.3, color: swellColor, sea: true });
   }
   loadGrids().then(() => { if (grids && grids.swell) heatLayer.options.bounds = L.latLngBounds(heatBounds(grids.swell)); updateFields(); });
@@ -172,7 +171,7 @@ function initMap() {
   if (overlays.wind) windLayer.addTo(map);
   if (overlays.swell) swellLayer.addTo(map);
   if (overlays.heat) heatLayer.addTo(map);
-  L.control.layers({ 'Satellite': sat, 'Streets': osm }, { 'Wind': windLayer, 'Swell': swellLayer, 'Swell height': heatLayer }, { position: 'topright', collapsed: phone.matches || matchMedia('(max-height: 500px)').matches }).addTo(map);
+  L.control.layers({ 'Satellite': sat, 'Streets': osm }, { 'Wind': windLayer, 'Swell': swellLayer, 'Swell height': heatLayer }, { position: 'topright', collapsed: phone.matches || landscape.matches }).addTo(map);
   makeTimeControl().addTo(map);
   syncTimeControl();
   // The legend shows a row for each layer that's on.

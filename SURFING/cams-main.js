@@ -93,7 +93,7 @@ setOrder(order);
 const VIEWS = ['grid', 'split', 'map'];
 let tabView = '', savedView = '';
 try { tabView = sessionStorage.getItem('surf-view') || ''; savedView = localStorage.getItem('surf-view') || ''; } catch {}
-// ?view= (the 7-day page's Cams / Split / Map buttons) wins, then the
+// ?view= (the 16-day page's Cams / Split / Map buttons) wins, then the
 // address is tidied so a refresh falls back to the remembered view.
 const urlView = new URLSearchParams(location.search).get('view');
 if (VIEWS.includes(urlView)) {

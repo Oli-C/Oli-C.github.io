@@ -175,7 +175,7 @@ h1 span { color: var(--accent-ink); }
 }
 
 /* ---------- Toolbar ----------
-   The bar itself lives in toolbar.css, shared with the 7-day page. Here:
+   The bar itself lives in toolbar.css, shared with the other surf pages. Here:
    the old header stays hidden, and the info line carries the tide and
    the best spots right now. */
 header { display: none; }

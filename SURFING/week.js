@@ -1,4 +1,4 @@
-/* Seven days for every spot: the spot's name and a card per day, headed by
+/* Sixteen days for every spot: the spot's name and a card per day, headed by
    the day's score (the daylight average, same engine as the live page) on
    its colour, greyer when less certain; then size at the beach, the swell
    and any second swell (arrows, height, period, from), the wind (arrow,
@@ -28,8 +28,6 @@ let look = store.get('surf-week-view') === 'compact' ? 'compact' : 'cards';
 let sel = null;       // the opened tile: { id, i }
 let data = {};        // cam id -> { days: [{ date, hours:[k], tides:[], sun, conf }] }
 
-const byId = (id) => CAMS.find((x) => x.id === id);
-const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /* ---------- Fetch ---------- */
 async function load() {
@@ -83,7 +81,7 @@ const digestOf = (c, i) => {
   return digests.get(key);
 };
 const dates = () => { const any = Object.values(data)[0]; return any ? any.days.map((d) => d.date) : []; };
-const dayName = (iso, i, long) => (i === 0 ? 'Today' : i === 1 && long ? 'Tomorrow' : (long ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] : DOW)[new Date(iso + 'T12:00').getDay()]);
+const dayName = (iso, i, long) => (i === 0 ? 'Today' : i === 1 && long ? 'Tomorrow' : (long ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] : DAY_NAMES)[new Date(iso + 'T12:00').getDay()]);
 
 /* ---------- Render ---------- */
 const q = $('q');

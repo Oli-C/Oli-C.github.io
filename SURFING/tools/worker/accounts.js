@@ -22,7 +22,7 @@
    which signs the account out everywhere.
 
    Favourite spots (GET / POST /a/favs): the person's own list of spot ids,
-   in their order, which leads the 7-day page on every device they sign
+   in their order, which leads the 16-day page on every device they sign
    in on. Up to 40, known spots only. */
 const FAVS_MAX = 40;
 

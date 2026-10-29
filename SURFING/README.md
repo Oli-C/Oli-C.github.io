@@ -1,17 +1,20 @@
 # Surf cams
 
-Live cams, scores and a 7-day outlook for the Portuguese coast, at
+Live cams, scores and a 16-day outlook for the Portuguese coast, at
 [allfield.online/SURFING](https://allfield.online/SURFING/).
 
 ## How it fits together
 
 ```
 GitHub Pages (this folder)          Cloudflare worker (tools/worker → tools/surf-worker.js)
-  index.html  cams, map, viewer       hourly: blend every model for every spot → KV fc:latest
-  week.html   16-day outlook          GET /forecast, /skill, /history/status, /obs, /health
-     │  read /forecast, /skill        accounts, favourites, sessions (/a/*, /s)
-     └─ fall back to Open-Meteo        D1 surf-history: measurements + forecasts by lead day
-                                      ▲ POST /skill, /ibi (X-Surf-Key)
+  index.html     cams, map, viewer    hourly: blend every model for every spot → KV fc:latest,
+  week.html      16-day outlook         and the map's wind grid
+  insights.html  a spot's trends      GET /forecast, /grid, /skill, /history/*, /obs, /health
+  account.html   account, my spots,   accounts, favourites, suggestions, sessions (/a/*, /s)
+                 suggest, sessions    D1 surf-history: measurements + forecasts by lead day
+     │  read the worker first (every page, every load; the browser keeps it 5 min)
+     └─ else this device's recent copy, else Open-Meteo blended here
+                                      ▲ POST /skill, /ibi, /grid/swell (X-Surf-Key)
 GitHub Actions                       │
   surf-skill    every 3 h: score the models against IPMA stations and buoys,
                 train on logged sessions → data/skill.json + POST /skill

@@ -108,7 +108,6 @@ function sessSlots(data, date) {
 }
 // The forecast hours a session covers (an hour counts if the session is in the water during it).
 const sessHours = (data, local, mins) => (data.byDate[local.slice(0, 10)] || []).filter((k) => k.t.slice(0, 13) >= local.slice(0, 13) && k.t < addMins(local, mins));
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 async function openSess(c) {
   sess = { id: c.id, day: null, slot: null, mins: 90, rating: null, size: null, surface: null, shape: null, why: new Set(), opened: Date.now(), data: null, msg: '', warn: '', busy: true, done: false };

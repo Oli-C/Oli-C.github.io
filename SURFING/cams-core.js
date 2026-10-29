@@ -24,6 +24,7 @@ const wide = matchMedia('(min-width: 1000px)');
 // Phones get the compact toolbar and always open on the cams (the map is
 // one tap away); only wider screens remember their last view.
 const phone = matchMedia('(max-width: 700px)');
+const landscape = matchMedia('(max-height: 500px) and (orientation: landscape)');   // a phone on its side
 
 const $ = (id) => document.getElementById(id);
 const grid = $('grid'), chips = $('chips'), q = $('q'), empty = $('empty');
@@ -47,7 +48,6 @@ const tiles = {};      // cam id -> { video, hls, visible, active, hold, dead }
 const nativeHls = !!document.createElement('video').canPlayType('application/vnd.apple.mpegurl');
 
 const matches = (c) => spotMatches(c, q.value, area);   // toolbar.js
-const byId = (id) => CAMS.find((x) => x.id === id);
 const cards = () => [...grid.querySelectorAll('.cam')];
 // 'split' only exists on wide screens; narrower ones fall back to the grid.
 const effectiveView = () => (view === 'split' && !wide.matches ? 'grid' : view);

@@ -4,9 +4,6 @@
    logged (GET /s/mine), and spots to suggest (POST / GET /a/suggest).
    account.js does the forms and the favourites. */
 const $ = (id) => document.getElementById(id);
-const byId = (id) => CAMS.find((x) => x.id === id);
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 let mine = null;   // my sessions: null loading, [] none, or { error }
 let me = null;     // GET /a/me: { name, created, sessions }
@@ -109,7 +106,7 @@ function renderSessions() {
   if (!mine.length) { el.innerHTML = '<p class="none">None yet. Open a cam and tap “Surfed here? Log a session” after you’ve been in.</p>'; return; }
   el.innerHTML = `<ol class="sess-list">${mine.map((s) => {
     const c = byId(s.id), d = new Date(s.local + ':00Z');
-    const when = `${DOW[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} · ${s.local.slice(11, 16)}`;
+    const when = `${DAY_NAMES[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} · ${s.local.slice(11, 16)}`;
     const bits = [lengthOf(s.mins), SIZE_BANDS[s.size], s.surface != null ? SURFACES[s.surface] : '', s.shape != null ? SESSION_SHAPE[s.shape] : '',
       s.model != null ? `forecast said ${fmt(s.model)}` : ''].filter(Boolean);
     return `<li class="lvl-${s.rating}">

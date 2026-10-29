@@ -4,11 +4,11 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build 3addd1cdaa. */
-const WORKER_BUILD = '3addd1cdaa';
+   Build c2caaec926. */
+const WORKER_BUILD = 'c2caaec926';
 
 /* ===== spots.js ===== */
-/* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (7-day outlook).
+/* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (16-day outlook).
    Plain script, no modules, so file:// and GitHub Pages both work. */
 
 /* ---------------------------------------------------------------------------
@@ -48,7 +48,7 @@ const WORKER_BUILD = '3addd1cdaa';
              'page'  — a full web page in a frame (no player-only embed
                        available), shown tall
              'none'  — no camera (yet): left out of the Cams grid, but on
-                       the map, in Best right now and the 7-day outlook, with
+                       the map, in Best right now and the 16-day outlook, with
                        its score and session logging; its viewer points to
                        the nearest cams. Leave out embed, link and source.
      embed   the .m3u8 URL for 'hls', otherwise the URL loaded in the iframe
@@ -422,10 +422,14 @@ const BUOY_WIND_10M = 1.09;
 
 
 /* ===== score.js ===== */
-/* Scoring engine, units, Open-Meteo field mapping and tide helpers — shared by index.html (live cams) and week.html (7-day outlook).
+/* Scoring engine, units, Open-Meteo field mapping and tide helpers — shared by index.html (live cams) and week.html (16-day outlook).
    Plain script, no modules, so file:// and GitHub Pages both work. */
 
 const LEVELS = ['Flat', 'Poor', 'Fair', 'Good', 'Epic'];
+// Shared by every page: a spot by id, and day and month names.
+const byId = (id) => CAMS.find((c) => c.id === id);
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // The Cloudflare worker (tools/worker/): feedback in, hourly forecast out.
 const SURF_WORKER = 'https://surf-feedback.odj-clarke.workers.dev';
 // The day in four blocks, dawn → evening (local hours, [from, to)).
@@ -1007,7 +1011,7 @@ function spotClock(at = Date.now()) {
   try {
     spotClockFmt = spotClockFmt || new Intl.DateTimeFormat('en-GB', { timeZone: SPOT_TZ, hour: '2-digit', minute: '2-digit', weekday: 'short', hourCycle: 'h23' });
     const p = Object.fromEntries(spotClockFmt.formatToParts(new Date(at)).map((x) => [x.type, x.value]));
-    return { h: +p.hour % 24, m: +p.minute, dow: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(p.weekday) };
+    return { h: +p.hour % 24, m: +p.minute, dow: DAY_NAMES.indexOf(p.weekday) };
   } catch {
     const d = new Date(at);
     return { h: d.getHours(), m: d.getMinutes(), dow: d.getDay() };
@@ -1198,7 +1202,7 @@ function sourcesOf(bh, windW, counts = {}) {
    hour, each model weighted for how far ahead the hour is; a fresh
    station reading folded into the hours around it; then grouped into
    days, each with its tide range, highs and lows, light and confidence.
-   The worker's hourly build, the live page and the 7-day page all use it.
+   The worker's hourly build, the live page and the 16-day page all use it.
      opts.obs    { ob, at }  a station reading and its spot-local time
      opts.extra  (utcHour, lead) => [{ model, row, w }]  wave rows from
                  elsewhere (the worker's Copernicus IBI)
@@ -1406,7 +1410,7 @@ const seaward = (c, km) => {
    which signs the account out everywhere.
 
    Favourite spots (GET / POST /a/favs): the person's own list of spot ids,
-   in their order, which leads the 7-day page on every device they sign
+   in their order, which leads the 16-day page on every device they sign
    in on. Up to 40, known spots only. */
 const FAVS_MAX = 40;
 
@@ -2514,7 +2518,7 @@ export default {
       || (await handleHistory(req, env, url, json))
       || (await handleAccounts(req, env, url, json, ipTag))
       || (await handleFeedback(req, env, url, json, ipTag))
-      || json({ routes: ['GET /forecast', 'GET /forecast/day?d=', 'GET /health', 'POST /a/signup', 'POST /a/login', 'POST /a/recover', 'POST /a/password', 'POST /a/logout', 'GET /a/me', 'POST /a/suggest', 'GET /a/suggest', 'POST /s', 'GET /s/mine', 'GET /skill/waves?days=', 'GET /obs?src=&since=', 'GET /history/status', 'GET /history/spot?id=&from=&to=', 'GET /history/spot/hours?id=&date=', 'GET /skill', 'POST /skill', 'GET /grid', 'POST /grid/swell', 'POST /ibi'] }, 404);
+      || json({ routes: ['GET /forecast', 'GET /forecast/day?d=', 'GET /health', 'POST /a/signup', 'POST /a/login', 'POST /a/recover', 'POST /a/password', 'POST /a/logout', 'GET /a/me', 'GET /a/favs', 'POST /a/favs', 'POST /a/suggest', 'GET /a/suggest', 'POST /s', 'GET /s/mine', 'GET /skill/waves?days=', 'GET /obs?src=&since=', 'GET /history/status', 'GET /history/spot?id=&from=&to=', 'GET /history/spot/hours?id=&date=', 'GET /skill', 'POST /skill', 'GET /grid', 'POST /grid/swell', 'POST /ibi'] }, 404);
   },
 
   async scheduled(event, env, ctx) {

@@ -11,14 +11,11 @@ const $ = (id) => document.getElementById(id);
 const out = $('out'), spotSel = $('spot'), spanSel = $('span');
 const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
 units = store.get('surf-units') === 'ft' ? 'ft' : 'm';
-const byId = (id) => CAMS.find((c) => c.id === id);
-const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const isoDay = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
 const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
 const half = (x) => Math.round(x * 2) / 2;
 const signed = (x) => `${x > 0 ? '+' : x < 0 ? '−' : '±'}${fmt(Math.abs(Math.round(x * 2) / 2))}`;
-const dayLabel = (iso) => { const d = new Date(iso + 'T12:00'); return `${DOW[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`; };
+const dayLabel = (iso) => { const d = new Date(iso + 'T12:00'); return `${DAY_NAMES[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`; };
 
 // The spot picker, by area; the spot from the address, else your first.
 spotSel.innerHTML = AREAS.map((a) => `<optgroup label="${esc(a)}">${CAMS.filter((c) => c.area === a).map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</optgroup>`).join('');

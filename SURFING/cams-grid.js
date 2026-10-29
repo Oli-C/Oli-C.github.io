@@ -37,7 +37,7 @@ function renderChips() {
 
 // The tile is the preview; name, place and conditions overlay the bottom.
 // Spots without a camera (type 'none') stay out of the grid; they're on
-// the map, in Best right now and on the 7-day page.
+// the map, in Best right now and on the 16-day page.
 const noCam = (c) => c.type === 'none';
 const cardHtml = (c) => `
   <button class="cam" type="button" data-id="${esc(c.id)}" aria-label="Watch ${esc(c.name)}, ${esc(c.town)}">
@@ -163,7 +163,6 @@ function applyFilter() {
 // Phones on their side, Cams view: each area (or My spots) fills one
 // screen, its cams tiled 16:9 in however many columns makes them biggest,
 // and the page snaps from area to area.
-const landscape = matchMedia('(max-height: 500px) and (orientation: landscape)');
 function tileWalls() {
   const on = landscape.matches && effectiveView() === 'grid';
   document.documentElement.classList.toggle('wall', on);
@@ -280,7 +279,7 @@ const offline = new Map();   // id -> 'probe' | 'play' | 'blocked'
 /* How the cams are ordered (Order, in the toolbar's options): by area
    (the list's own order), nearest to you (asks for your location once),
    best right now, or your spots first, in your order (account.js; set on
-   the 7-day page), in a section of their own. Dead cams sink to the end
+   the 16-day page), in a section of their own. Dead cams sink to the end
    of their group whatever the order; an area with nothing live, to the
    end of the list. Cards only move when the order really changes, as
    moving a playing video stops it. */

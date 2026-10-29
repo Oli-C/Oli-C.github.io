@@ -545,11 +545,11 @@ function noCamHtml(c) {
 frame.addEventListener('click', (e) => { const b = e.target.closest('[data-near]'); if (b) open(b.dataset.near); });
 
 // The star: in or out of this person's spots (account.js keeps the list,
-// on the account when signed in), which lead the 7-day page.
+// on the account when signed in), which lead the 16-day page.
 function syncFav(c) {
   const on = Account.favs.has(c.id), b = $('v-fav');
   b.setAttribute('aria-pressed', on);
-  b.title = b.ariaLabel = on ? 'In my spots: tap to remove' : 'Add to my spots (leads the 7-day page)';
+  b.title = b.ariaLabel = on ? 'In my spots: tap to remove' : 'Add to my spots (leads the 16-day page)';
 }
 $('v-fav').addEventListener('click', () => { const c = byId(location.hash.slice(1)) || byId($('v-go').dataset.go); if (c) { Account.favs.toggle(c.id); syncFav(c); } });
 Account.favs.onChange(() => { const c = byId($('v-go').dataset.go); if (c && !viewer.hidden) syncFav(c); });

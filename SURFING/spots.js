@@ -1,4 +1,4 @@
-/* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (7-day outlook).
+/* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (16-day outlook).
    Plain script, no modules, so file:// and GitHub Pages both work. */
 
 /* ---------------------------------------------------------------------------
@@ -38,7 +38,7 @@
              'page'  — a full web page in a frame (no player-only embed
                        available), shown tall
              'none'  — no camera (yet): left out of the Cams grid, but on
-                       the map, in Best right now and the 7-day outlook, with
+                       the map, in Best right now and the 16-day outlook, with
                        its score and session logging; its viewer points to
                        the nearest cams. Leave out embed, link and source.
      embed   the .m3u8 URL for 'hls', otherwise the URL loaded in the iframe

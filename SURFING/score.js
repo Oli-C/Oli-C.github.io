@@ -1,7 +1,11 @@
-/* Scoring engine, units, Open-Meteo field mapping and tide helpers — shared by index.html (live cams) and week.html (7-day outlook).
+/* Scoring engine, units, Open-Meteo field mapping and tide helpers — shared by index.html (live cams) and week.html (16-day outlook).
    Plain script, no modules, so file:// and GitHub Pages both work. */
 
 const LEVELS = ['Flat', 'Poor', 'Fair', 'Good', 'Epic'];
+// Shared by every page: a spot by id, and day and month names.
+const byId = (id) => CAMS.find((c) => c.id === id);
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // The Cloudflare worker (tools/worker/): feedback in, hourly forecast out.
 const SURF_WORKER = 'https://surf-feedback.odj-clarke.workers.dev';
 // The day in four blocks, dawn → evening (local hours, [from, to)).
@@ -583,7 +587,7 @@ function spotClock(at = Date.now()) {
   try {
     spotClockFmt = spotClockFmt || new Intl.DateTimeFormat('en-GB', { timeZone: SPOT_TZ, hour: '2-digit', minute: '2-digit', weekday: 'short', hourCycle: 'h23' });
     const p = Object.fromEntries(spotClockFmt.formatToParts(new Date(at)).map((x) => [x.type, x.value]));
-    return { h: +p.hour % 24, m: +p.minute, dow: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(p.weekday) };
+    return { h: +p.hour % 24, m: +p.minute, dow: DAY_NAMES.indexOf(p.weekday) };
   } catch {
     const d = new Date(at);
     return { h: d.getHours(), m: d.getMinutes(), dow: d.getDay() };
@@ -774,7 +778,7 @@ function sourcesOf(bh, windW, counts = {}) {
    hour, each model weighted for how far ahead the hour is; a fresh
    station reading folded into the hours around it; then grouped into
    days, each with its tide range, highs and lows, light and confidence.
-   The worker's hourly build, the live page and the 7-day page all use it.
+   The worker's hourly build, the live page and the 16-day page all use it.
      opts.obs    { ob, at }  a station reading and its spot-local time
      opts.extra  (utcHour, lead) => [{ model, row, w }]  wave rows from
                  elsewhere (the worker's Copernicus IBI)

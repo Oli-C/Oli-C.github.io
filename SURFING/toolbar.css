@@ -1,7 +1,7 @@
-/* The surf toolbar, shared by every surfing page (cams, map, 7-day), so
+/* The surf toolbar, shared by every surfing page (cams, map, 16-day, trends, account), so
    they can't drift apart. One sticky bar:
 
-     brand (back to allfield) · search · Cams / Split / Map / 7-day · options
+     brand (back to allfield) · search · Cams / Split / Map / 16-day / Trends · options
      area chips
      a slim info line (the page fills it)
 
