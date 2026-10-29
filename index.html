@@ -18,7 +18,7 @@
      first paint no longer waits on the fonts.googleapis.com CSS round trip.
      crossorigin is required on font preloads even same-origin. -->
 <link rel="preload" href="assets/fonts/anek-kannada-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=105">
+<link rel="stylesheet" href="style.css?v=106">
 <script>
   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
     "theme": "charcoal",
@@ -93,6 +93,17 @@
       </a>
     </div>
   </header>
+
+  <!-- Featured set — muted autoplay from halfway in (start = half of the 7398 s video) -->
+  <section class="feature" aria-label="Now playing: allfield at Collect Radio">
+    <div class="yr yr-up"><span class="yr-num">now playing · collect radio</span><span class="yr-line"></span></div>
+    <div class="feature-frame">
+      <iframe src="https://www.youtube-nocookie.com/embed/uzVVx4DA_os?autoplay=1&amp;mute=1&amp;start=3699&amp;playsinline=1&amp;rel=0"
+        title="allfield at Collect Radio, Cais do Sodré, 27.10.2026"
+        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+        referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+    </div>
+  </section>
 
   <!-- Mix list — content injected by JS from the MIXES array -->
   <div class="mixes" id="mixes"></div>
