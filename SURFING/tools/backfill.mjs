@@ -24,6 +24,10 @@ import fs from 'node:fs';
 import { loadSite } from './site.mjs';
 
 const site = loadSite();
+// The models' record, as the live forecast uses it: IBI's measured size bias
+// comes out of its heights here too (and the scores get what's been learned).
+site.sharedSkill = JSON.parse(fs.readFileSync(new URL('../data/skill.json', import.meta.url), 'utf8'));
+const IBI_BIAS = site.waveBias(site.IBI_MODEL);
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
 const has = (n) => process.argv.includes(n);
 const WAVES = JSON.parse(fs.readFileSync(arg('--waves'), 'utf8'));
@@ -73,6 +77,7 @@ function spotDays(c, w) {
     if (wi == null) return;
     const m = {};
     for (const v of Object.keys(rec)) if (Array.isArray(rec[v])) m[v] = rec[v][wi];
+    site.debias(m, IBI_BIAS);
     site.splitSwell([m]);
     const wr = { wind_speed_10m: H.wind_speed_10m[j], wind_direction_10m: H.wind_direction_10m[j], wind_gusts_10m: H.wind_gusts_10m[j], temperature_2m: H.temperature_2m[j], is_day: H.is_day[j] };
     const k = site.toK(m, wr);
@@ -129,6 +134,7 @@ async function post(body) {
   }
 }
 
+console.log(`IBI heights x${IBI_BIAS.toFixed(3)} (its measured bias, as the live forecast takes it out)`);
 let filed = 0, sent = 0;
 for (const c of site.CAMS) {
   if (!WAVES.spots[c.id]) { console.log(`${c.id}: no waves, skipped`); continue; }
@@ -136,7 +142,8 @@ for (const c of site.CAMS) {
   // A quick look: the days' scores as the worker will see them.
   const tops = days.map((d) => (site.dayDigest(c, d) || {}).top).filter((x) => x != null);
   const good = tops.filter((x) => x > 6.5).length;
-  console.log(`${c.id}: ${days.length} days, mean ${(tops.reduce((a, x) => a + x, 0) / tops.length).toFixed(1)}, Good or better ${good} (${Math.round((100 * good) / tops.length)}%), gauge ${gaugeFor(c) ? gaugeFor(c).id : '-'}`);
+  const bestGood = days.map((d) => site.dayDigest(c, d)).filter((g) => g && g.best && g.best.score > 6.5).length;
+  console.log(`${c.id}: ${days.length} days, mean ${(tops.reduce((a, x) => a + x, 0) / tops.length).toFixed(1)}, Good or better ${good} (${Math.round((100 * good) / tops.length)}%), best window Good or better ${bestGood} (${Math.round((100 * bestGood) / tops.length)}%), gauge ${gaugeFor(c) ? gaugeFor(c).id : '-'}`);
   if (has('--why')) why(c, days);
   if (!has('--post')) continue;
   for (let i = 0; i < days.length; i += 31) {
