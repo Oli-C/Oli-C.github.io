@@ -13,8 +13,21 @@ is how much of the swell gets there: sheltering, refraction, focusing.
   python SURFING/tools/swan.py prep AREA        bathymetry + the spots' points -> work/AREA
   python SURFING/tools/swan.py run AREA [--quick] [--jobs N]
                                                 SWAN for every case -> work/AREA/result.json
-  python SURFING/tools/swan.py merge            every area's result -> SURFING/swan.js
+  python SURFING/tools/swan.py fine NAME [--quick] [--jobs N]
+                                                a fine grid nested in its area (below)
+                                                -> work/fine-NAME/result.json
+  python SURFING/tools/swan.py merge            every result -> SURFING/swan.js (keeps
+                                                what's there for anything not rerun)
   python SURFING/tools/swan.py report           the table against score.js's hand-set rule
+
+Fine grids, for the spots that matter most: ~30-45 m, the same EMODnet
+depths interpolated (no finer survey is published for this coast), driven
+by the spectra their area's run writes along their edges (SWAN nesting),
+for offshore heights of 1, 2 and 4 m (the edge spectra scaled), so that
+breaking on big days shows. At each spot SWAN's breaking height is the
+highest Hs along a line out from the beach (before it breaks it only
+grows; after, it falls), over the offshore height. Diffraction is on where
+headlands shelter the spots (the Cascais line, Peniche).
 
 Run by .github/workflows/surf-swan.yml (by hand; SWAN's Linux build, an
 area a job). Needs numpy and tifffile; `run` needs swan.exe on PATH or in
@@ -61,6 +74,23 @@ AREAS = {
     'nazare':   {'box': (-9.50, 39.45, -9.03, 39.80), 'res': 0.00125, 'spots': ['nazare-norte']},
     'arrifana': {'box': (-9.15, 37.15, -8.84, 37.45), 'res': 0.00125, 'spots': ['arrifana']},
 }
+# Fine grids, nested in an area: (W, S, E, N), resolution in degrees.
+FINE = {
+    'caparica': {'parent': 'lisbon', 'box': (-9.32, 38.55, -9.17, 38.68), 'res': 0.0004, 'diffrac': False,
+                 'spots': ['caparica-sao-joao', 'caparica-cds', 'caparica-praia-nova', 'caparica-riviera', 'fonte-da-telha']},
+    'cascais':  {'parent': 'lisbon', 'box': (-9.42, 38.655, -9.30, 38.72), 'res': 0.0003, 'diffrac': True,
+                 'spots': ['sao-pedro-estoril', 'carcavelos']},
+    'nazare':   {'parent': 'nazare', 'box': (-9.17, 39.55, -9.06, 39.66), 'res': 0.0003, 'diffrac': False,
+                 'spots': ['nazare-norte']},
+    'peniche':  {'parent': 'peniche', 'box': (-9.43, 39.32, -9.30, 39.40), 'res': 0.0003, 'diffrac': True,
+                 'spots': ['peniche-supertubos', 'peniche-lagide']},
+}
+HEIGHTS = [1, 2, 4]          # m, offshore
+NATIVE = 1 / 960             # EMODnet's DTM: 1/16 arc-minute
+TRANSECT_STEP = 20           # m between points on a spot's line out to sea
+TRANSECT_DEPTH = 15.0        # m: the line runs out to this depth
+NEST_STEP = 0.002            # degrees between the edge spectra an area writes for a fine grid
+
 WCS = ('https://ows.emodnet-bathymetry.eu/wcs?service=WCS&version=1.0.0&request=GetCoverage&coverage=emodnet:mean'
        '&crs=EPSG:4326&bbox={w},{s},{e},{n}&resx={r}&resy={r}&format=image/tiff')
 
@@ -191,7 +221,18 @@ def near_point(c, depth, lats, lngs, res):
 
 
 # ---------- run ----------
-def swan_input(meta, period, dirn):
+def nest_cmds(nests):
+    """An area run's lines writing the edge spectra for fine grids."""
+    out = []
+    for name in nests:
+        w, s, e, n = FINE[name]['box']
+        mx, my = max(2, round((e - w) / NEST_STEP)), max(2, round((n - s) / NEST_STEP))
+        out.append(f"NGRID '{name}' {w:.6f} {s:.6f} 0. {e - w:.6f} {n - s:.6f} {mx} {my}")
+        out.append(f"NESTOUT '{name}' 'nest-{name}.dat'")
+    return '\n'.join(out)
+
+
+def swan_input(meta, period, dirn, nests=()):
     w, s, e, n = meta['box']
     res, nx, ny = meta['res'], meta['nx'], meta['ny']
     x0, y0 = w + res / 2, s + res / 2
@@ -214,27 +255,33 @@ TRIAD
 NUM STOPC 0.005 0.01 0.005 99.5 STAT 40
 POINTS 'P' FILE '../../points.loc'
 TABLE 'P' NOHEADER 'points.tab' HSIGN TPS DIR DEPTH
+{nest_cmds(nests)}
 COMPUTE
 STOP
 """
 
 
-def run_case(area, meta, period, dirn, exe):
-    d = os.path.join(WORK, area, 'cases', f'T{period:02d}D{dirn:03d}')
+def swan(d, text, exe, label, need=('points.tab',)):
+    """Run SWAN in directory d on INPUT `text`; seconds taken (0 if already done)."""
     os.makedirs(d, exist_ok=True)
-    tab = os.path.join(d, 'points.tab')
-    if os.path.exists(tab) and os.path.getsize(tab) > 0:
-        return period, dirn, read_tab(tab), 0.0
+    if all(os.path.exists(os.path.join(d, f)) and os.path.getsize(os.path.join(d, f)) > 0 for f in need):
+        return 0.0
     with open(os.path.join(d, 'INPUT'), 'w') as f:
-        f.write(swan_input(meta, period, dirn))
+        f.write(text)
     t0 = time.time()
-    env = dict(os.environ, OMP_NUM_THREADS='1')
-    p = subprocess.run([exe], cwd=d, env=env, capture_output=True, text=True)
-    if p.returncode != 0 or not os.path.exists(tab):
+    p = subprocess.run([exe], cwd=d, env=dict(os.environ, OMP_NUM_THREADS='1'), capture_output=True, text=True)
+    if p.returncode != 0 or not all(os.path.exists(os.path.join(d, f)) for f in need):
         prt = os.path.join(d, 'PRINT')
         tail = open(prt).read()[-3000:] if os.path.exists(prt) else p.stdout[-2000:] + p.stderr[-2000:]
-        raise RuntimeError(f'SWAN failed for T{period} D{dirn}:\n{tail}')
-    return period, dirn, read_tab(tab), time.time() - t0
+        raise RuntimeError(f'SWAN failed for {label}:\n{tail}')
+    return time.time() - t0
+
+
+def run_case(area, meta, period, dirn, exe, nests=()):
+    d = os.path.join(WORK, area, 'cases', f'T{period:02d}D{dirn:03d}')
+    secs = swan(d, swan_input(meta, period, dirn, nests), exe, f'{area} T{period} D{dirn}',
+                ['points.tab'] + [f'nest-{x}.dat' for x in nests])
+    return period, dirn, read_tab(os.path.join(d, 'points.tab')), secs
 
 
 def read_tab(path):
@@ -263,6 +310,183 @@ def run(area, quick=False, jobs=None):
     json.dump({'meta': meta, 'hs': HS, 'cases': out}, open(os.path.join(d, 'result.json'), 'w'))
 
 
+# ---------- fine grids ----------
+def depth_fine(box, res):
+    """EMODnet depths (native) bilinearly onto a fine grid, the land cut to the
+    OSM coastline. The DTM's land cells count as just awash for the
+    interpolation, so the coast comes from the coastline, not the DTM."""
+    w, s, e, n = box
+    pad = 4 * NATIVE
+    elev = fetch_bathy((w - pad, s - pad, e + pad, n + pad), NATIVE)
+    elev = np.minimum(elev, -0.3)
+    ny0, nx0 = elev.shape
+    lat0 = (n + pad) - (np.arange(ny0) + 0.5) * NATIVE
+    lng0 = (w - pad) + (np.arange(nx0) + 0.5) * NATIVE
+    ny, nx = round((n - s) / res), round((e - w) / res)
+    lats = n - (np.arange(ny) + 0.5) * res
+    lngs = w + (np.arange(nx) + 0.5) * res
+    fi = np.clip((lat0[0] - lats) / NATIVE, 0, ny0 - 1.001)
+    fj = np.clip((lngs - lng0[0]) / NATIVE, 0, nx0 - 1.001)
+    i0, j0 = fi.astype(int), fj.astype(int)
+    ti, tj = (fi - i0)[:, None], (fj - j0)[None, :]
+    a = elev[np.ix_(i0, j0)]
+    b = elev[np.ix_(i0, j0 + 1)]
+    c = elev[np.ix_(i0 + 1, j0)]
+    d = elev[np.ix_(i0 + 1, j0 + 1)]
+    z = a * (1 - ti) * (1 - tj) + b * (1 - ti) * tj + c * ti * (1 - tj) + d * ti * tj
+    LAT, LNG = np.meshgrid(lats, lngs, indexing='ij')
+    land = np.zeros(z.shape, bool)
+    for ring in land_rings():
+        if ring[:, 0].max() < s or ring[:, 0].min() > n or ring[:, 1].max() < w or ring[:, 1].min() > e:
+            continue
+        land |= inside(LAT, LNG, ring)
+    depth = -z
+    depth[land] = -5.0
+    depth[(~land) & (depth < 0.3)] = 0.3
+    return depth, lats, lngs
+
+
+def transect(c, depth, lats, lngs, res):
+    """Points out from the beach, every TRANSECT_STEP m, from the first water
+    to TRANSECT_DEPTH deep (or 3 km over a shallow shelf): the way the beach
+    faces, unless land blocks it (a beach in a bay); then the nearest bearing,
+    up to 60° either side, that's clear."""
+    def line(bearing):
+        b = math.radians(bearing)
+        pts, wet, blocked = [], False, False
+        for dist in range(0, 3000, TRANSECT_STEP):
+            lat = c['lat'] + dist * math.cos(b) / 110540
+            lng = c['lng'] + dist * math.sin(b) / (111320 * math.cos(math.radians(c['lat'])))
+            dd = depth_at(depth, lats, lngs, res, lat, lng)
+            if dd is None:
+                break
+            if dd > 0:
+                wet = True
+                pts.append({'lat': lat, 'lng': lng, 'depth': float(dd), 'dist': dist, 'bearing': bearing % 360})
+                if dd >= TRANSECT_DEPTH:
+                    break
+            elif wet:
+                blocked = True
+                break
+        return pts, blocked
+    best = []
+    for off in (0, -15, 15, -30, 30, -45, 45, -60, 60):
+        pts, blocked = line(c['faces'] + off)
+        if len(pts) >= 5 and not blocked:
+            return pts
+        if pts and (not best or pts[-1]['depth'] > best[-1]['depth']):
+            best = pts
+    if len(best) < 5:
+        raise SystemExit(f"{c['id']}: too little water on its line out to sea")
+    return best
+
+
+def prep_fine(name):
+    f = FINE[name]
+    d = os.path.join(WORK, f'fine-{name}')
+    os.makedirs(d, exist_ok=True)
+    print(f'fine {name}: bathymetry...')
+    depth, lats, lngs = depth_fine(f['box'], f['res'])
+    np.savetxt(os.path.join(d, 'bottom.dat'), depth, fmt='%.2f')
+    sp = spots()
+    lines, spots_meta = [], []
+    for sid in f['spots']:
+        pts = transect(sp[sid], depth, lats, lngs, f['res'])
+        spots_meta.append({'id': sid, 'first': len(lines), 'n': len(pts), 'points': pts})
+        lines += [f"{p['lng']:.6f} {p['lat']:.6f}" for p in pts]
+        print(f"  {sid}: {len(pts)} points bearing {pts[0]['bearing']}°, {pts[0]['depth']:.1f} to {pts[-1]['depth']:.1f} m over {pts[-1]['dist']} m")
+    open(os.path.join(d, 'points.loc'), 'w').write('\n'.join(lines) + '\n')
+    ny, nx = depth.shape
+    meta = {'fine': name, 'box': f['box'], 'res': f['res'], 'nx': nx, 'ny': ny, 'spots': spots_meta, 'wet': float((depth > 0).mean())}
+    json.dump(meta, open(os.path.join(d, 'meta.json'), 'w'), indent=1)
+    print(f'  grid {nx}x{ny}, {meta["wet"] * 100:.0f}% sea')
+
+
+def fine_input(meta, tag, diffrac):
+    w, s, e, n = meta['box']
+    res, nx, ny = meta['res'], meta['nx'], meta['ny']
+    x0, y0 = w + res / 2, s + res / 2
+    xl, yl = (nx - 1) * res, (ny - 1) * res
+    diff = 'DIFFRAC 1 0.2 5' if diffrac else ''
+    return f"""PROJECT '{meta['fine'][:16]}' '{tag}'
+SET LEVEL=0. NAUTICAL
+MODE STATIONARY TWODIMENSIONAL
+COORDINATES SPHERICAL
+CGRID REGULAR {x0:.6f} {y0:.6f} 0. {xl:.6f} {yl:.6f} {nx - 1} {ny - 1} CIRCLE 36 0.04 1.0 31
+INPGRID BOTTOM REGULAR {x0:.6f} {y0:.6f} 0. {nx - 1} {ny - 1} {res} {res}
+READINP BOTTOM 1. '../../bottom.dat' 1 0 FREE
+BOUNDNEST1 NEST 'nest.dat' CLOSED
+OFF WCAPPING
+OFF QUADRUPL
+BREAKING CONSTANT 1.0 0.73
+FRICTION JONSWAP CONSTANT 0.038
+TRIAD
+{diff}
+NUM STOPC 0.005 0.01 0.005 99.5 STAT 40
+POINTS 'P' FILE '../../points.loc'
+TABLE 'P' NOHEADER 'points.tab' HSIGN DEPTH
+COMPUTE
+STOP
+"""
+
+
+def scale_nest(src, dst, f):
+    """Copy an edge-spectra file with every spectrum's energy times f."""
+    lines = open(src).read().splitlines()
+    out, i = [], 0
+    while i < len(lines):
+        out.append(lines[i])
+        if lines[i].strip().upper() == 'FACTOR' and i + 1 < len(lines):
+            out.append(f'  {float(lines[i + 1]) * f:.6E}')
+            i += 2
+            continue
+        i += 1
+    open(dst, 'w').write('\n'.join(out) + '\n')
+
+
+def breaking(rows, sm):
+    """SWAN's breaking height on a spot's line: the highest Hs in the water."""
+    seg = rows[sm['first']:sm['first'] + sm['n']]
+    return max([r[0] for r in seg if r[1] > 0.3 and r[0] > 0] or [0])
+
+
+def run_fine(name, quick=False, jobs=None):
+    f = FINE[name]
+    area = f['parent']
+    exe = os.environ.get('SWAN_EXE', 'swan.exe')
+    jobs = jobs or os.cpu_count() or 2
+    ameta = json.load(open(os.path.join(WORK, area, 'meta.json')))
+    fd = os.path.join(WORK, f'fine-{name}')
+    meta = json.load(open(os.path.join(fd, 'meta.json')))
+    cases = [(p, dd) for p in ([12] if quick else PERIODS) for dd in ([285] if quick else DIRS)]
+    t0 = time.time()
+    print(f'fine {name}: {len(cases)} area runs for its edges, then {len(cases) * len(HEIGHTS)} fine runs, {jobs} at a time')
+    with ThreadPoolExecutor(jobs) as pool:
+        for period, dirn, _, secs in pool.map(lambda c: run_case(area, ameta, c[0], c[1], exe, [name]), cases):
+            print(f'  edges T{period} D{dirn} ({secs:.0f} s)', flush=True)
+
+    def one(c):
+        h, period, dirn = c
+        cd = os.path.join(fd, 'cases', f'H{h}T{period:02d}D{dirn:03d}')
+        os.makedirs(cd, exist_ok=True)
+        nest = os.path.join(WORK, area, 'cases', f'T{period:02d}D{dirn:03d}', f'nest-{name}.dat')
+        if not os.path.exists(os.path.join(cd, 'nest.dat')):
+            scale_nest(nest, os.path.join(cd, 'nest.dat'), (h / HS) ** 2)
+        tag = f'{h}{period:02d}{DIRS.index(dirn):x}'
+        secs = swan(cd, fine_input(meta, tag, f['diffrac']), exe, f'{name} H{h} T{period} D{dirn}')
+        rows = [[float(x) for x in line.split()[:2]] for line in open(os.path.join(cd, 'points.tab')) if len(line.split()) >= 2]
+        return h, period, dirn, rows, secs
+
+    out = {}
+    with ThreadPoolExecutor(jobs) as pool:
+        for h, period, dirn, rows, secs in pool.map(one, [(h, p, dd) for h in HEIGHTS for p, dd in cases]):
+            out[f'{h}/{period}/{dirn}'] = rows
+            hb = [breaking(rows, sm) for sm in meta['spots']]
+            print(f'  H{h} T{period} D{dirn}: breaking ' + ' '.join(f'{x:.2f}' for x in hb) + f'  ({secs:.0f} s)', flush=True)
+    print(f'fine {name}: done in {(time.time() - t0) / 60:.1f} min')
+    json.dump({'meta': meta, 'cases': out}, open(os.path.join(fd, 'result.json'), 'w'))
+
+
 # ---------- merge ----------
 def shoaling(period, depth):
     """Linear-theory shoaling coefficient from deep water to `depth`."""
@@ -276,8 +500,36 @@ def shoaling(period, depth):
     return math.sqrt(cg0 / cg)
 
 
+def load_existing():
+    if not os.path.exists(OUT):
+        return {}
+    try:
+        return json.loads(open(OUT).read().split('const SWAN = ', 1)[1].rstrip().rstrip(';'))
+    except (IndexError, ValueError):
+        return {}
+
+
 def merge():
-    out = {'periods': PERIODS, 'dirs': DIRS, 'nearDepth': NEAR_DEPTH, 'spots': {}}
+    old = load_existing()
+    out = {'periods': PERIODS, 'dirs': DIRS, 'nearDepth': NEAR_DEPTH, 'heights': HEIGHTS,
+           'spots': dict(old.get('spots', {})), 'fine': dict(old.get('fine', {}))}
+    for name in FINE:
+        path = os.path.join(WORK, f'fine-{name}', 'result.json')
+        if not os.path.exists(path):
+            continue
+        r = json.load(open(path))
+        for sm in r['meta']['spots']:
+            k = []
+            for h in HEIGHTS:
+                kp = []
+                for period in PERIODS:
+                    row = []
+                    for dirn in DIRS:
+                        rows = r['cases'].get(f'{h}/{period}/{dirn}')
+                        row.append(round(breaking(rows, sm) / h, 3) if rows else 0.0)
+                    kp.append(row)
+                k.append(kp)
+            out['fine'][sm['id']] = {'grid': name, 'res': r['meta']['res'], 'k': k}
     for area in AREAS:
         path = os.path.join(WORK, area, 'result.json')
         if not os.path.exists(path):
@@ -300,10 +552,13 @@ def merge():
    k[period][direction] is the swell's height at the spot's nearshore point
    ({NEAR_DEPTH:g} m deep, seaward of the beach) over its offshore height, less
    plain shoaling (score.js's breaking factor carries that): the sheltering,
-   refraction and focusing. Regenerate rather than edit. */
+   refraction and focusing. fine[spot].k[height][period][direction], for
+   the spots with a fine grid: SWAN's breaking height (the highest Hs on a
+   line out from the beach) over the offshore height, for offshore heights
+   of {', '.join(map(str, HEIGHTS))} m. Regenerate rather than edit. */
 const SWAN = {json.dumps(out, separators=(',', ':'))};
 """)
-    print('wrote', OUT, len(out['spots']), 'spots')
+    print('wrote', OUT, len(out['spots']), 'spots,', len(out['fine']), 'with fine grids')
 
 
 # ---------- report ----------
@@ -326,6 +581,14 @@ if __name__ == '__main__':
     elif cmd == 'run':
         jobs = int(sys.argv[sys.argv.index('--jobs') + 1]) if '--jobs' in sys.argv else None
         run(sys.argv[2], quick='--quick' in sys.argv, jobs=jobs)
+    elif cmd == 'fine':
+        name = sys.argv[2]
+        jobs = int(sys.argv[sys.argv.index('--jobs') + 1]) if '--jobs' in sys.argv else None
+        if not os.path.exists(os.path.join(WORK, FINE[name]['parent'], 'meta.json')):
+            prep(FINE[name]['parent'])
+        if not os.path.exists(os.path.join(WORK, f'fine-{name}', 'meta.json')):
+            prep_fine(name)
+        run_fine(name, quick='--quick' in sys.argv, jobs=jobs)
     elif cmd == 'merge':
         merge()
     elif cmd == 'report':
