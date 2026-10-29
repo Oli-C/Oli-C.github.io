@@ -1,7 +1,8 @@
 /* The account page (account.html): signing in or out, your spots in your
    order (they lead the 16-day page and the cams page's My spots; kept on
    this device, and on the account when signed in), and the sessions you've
-   logged (GET /s/mine). account.js does the forms and the favourites. */
+   logged (GET /s/mine), and spots to suggest (POST / GET /a/suggest).
+   account.js does the forms and the favourites. */
 const $ = (id) => document.getElementById(id);
 const byId = (id) => CAMS.find((x) => x.id === id);
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -50,6 +51,54 @@ $('spots-list').addEventListener('click', (e) => {
   Account.favs.save(l);
 });
 
+/* ---------- Suggest a spot ---------- */
+let suggested = null;   // my suggestions: null loading, or a list
+function renderSuggest() {
+  const box = $('suggest-box');
+  if (!Account.get()) { box.innerHTML = '<p class="none">Sign in to suggest a spot.</p>'; return; }
+  // The form is drawn once, so a re-render doesn't lose what's typed.
+  if (!box.querySelector('form')) {
+    const f = (name, label, type, extra = '') => `<label class="acct-f"><span>${label}</span><input class="acct-in" name="${name}" type="${type}" ${extra}></label>`;
+    box.innerHTML = `<form class="sg-form" novalidate>
+      <div class="acct-fields">
+        ${f('spot', 'Spot', 'text', 'maxlength="60" required placeholder="e.g. Praia Grande"')}
+        ${f('where', 'Where', 'text', 'maxlength="80" placeholder="Town or area"')}
+        ${f('cam', 'Cam link (if there is one)', 'url', 'maxlength="300" placeholder="https://…"')}
+        <label class="acct-f"><span>Anything else</span><textarea class="acct-in" name="note" rows="3" maxlength="500" placeholder="When it works, what it likes…"></textarea></label>
+      </div>
+      <div class="acct-row"><button class="acct-btn" type="submit">Send to Oli</button><span class="sg-msg" aria-live="polite"></span></div>
+    </form>
+    <div class="sg-list"></div>`;
+    box.querySelector('form').addEventListener('submit', sendSuggestion);
+  }
+  const list = box.querySelector('.sg-list');
+  list.innerHTML = suggested && suggested.length ? `<h3 class="sg-h">Your suggestions</h3><ol class="sess-list">${suggested.map((s) => `<li>
+      <span class="rt sg-rt">Sent</span>
+      <span class="spot">${esc(s.spot)}</span>
+      <span class="when">${esc(new Date(s.t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }))}</span>
+      <span class="what">${esc([s.where, s.cam ? 'has a cam' : '', s.note].filter(Boolean).join(' · '))}</span>
+    </li>`).join('')}</ol>` : '';
+}
+async function sendSuggestion(e) {
+  e.preventDefault();
+  const form = e.target, msg = form.querySelector('.sg-msg'), btn = form.querySelector('button');
+  const v = (n) => form.elements[n].value.trim();
+  if (v('spot').length < 2) { msg.textContent = 'Give the spot a name.'; return; }
+  btn.disabled = true; msg.textContent = '';
+  const j = await Account.post('/a/suggest', { spot: v('spot'), where: v('where'), cam: v('cam'), note: v('note') });
+  btn.disabled = false;
+  if (j.error) { msg.textContent = j.error; return; }
+  form.reset();
+  msg.textContent = 'Thanks, it’s with Oli.';
+  await loadSuggested();
+  renderSuggest();
+}
+async function loadSuggested() {
+  if (!Account.get()) { suggested = []; return; }
+  const j = await Account.call('GET', '/a/suggest');
+  suggested = j.error ? [] : j.suggestions;
+}
+
 /* ---------- My sessions ---------- */
 const lengthOf = (m) => (m < 60 ? `${m} min` : `${m / 60} h`.replace('.5 h', '½ h'));
 function renderSessions() {
@@ -79,11 +128,11 @@ async function loadMine() {
   mine = s.error ? { error: s.error } : s.sessions;
   me = m.error ? null : m;
 }
-function render() { renderAccount(); renderSpots(); renderSessions(); }
-async function refresh() { mine = null; render(); await loadMine(); render(); }
+function render() { renderAccount(); renderSpots(); renderSuggest(); renderSessions(); }
+async function refresh() { mine = null; suggested = null; if (!Account.get()) $('suggest-box').innerHTML = ''; render(); await Promise.all([loadMine(), loadSuggested()]); render(); }
 
 Account.favs.onChange(() => { renderSpots(); renderAccount(); });
 render();
 Account.favs.sync().then(render);
-loadMine().then(render);
+Promise.all([loadMine(), loadSuggested()]).then(render);
 if (location.hash) requestAnimationFrame(() => { const t = document.querySelector(location.hash); if (t) t.scrollIntoView(); });

@@ -74,7 +74,7 @@ export default {
       || (await handleHistory(req, env, url, json))
       || (await handleAccounts(req, env, url, json, ipTag))
       || (await handleFeedback(req, env, url, json, ipTag))
-      || json({ routes: ['GET /forecast', 'GET /forecast/day?d=', 'GET /health', 'POST /a/signup', 'POST /a/login', 'POST /a/recover', 'POST /a/password', 'POST /a/logout', 'GET /a/me', 'POST /s', 'GET /s/mine', 'GET /skill/waves?days=', 'GET /obs?src=&since=', 'GET /history/status', 'GET /history/spot?id=&from=&to=', 'GET /history/spot/hours?id=&date=', 'GET /skill', 'POST /skill', 'GET /grid', 'POST /grid/swell', 'POST /ibi'] }, 404);
+      || json({ routes: ['GET /forecast', 'GET /forecast/day?d=', 'GET /health', 'POST /a/signup', 'POST /a/login', 'POST /a/recover', 'POST /a/password', 'POST /a/logout', 'GET /a/me', 'POST /a/suggest', 'GET /a/suggest', 'POST /s', 'GET /s/mine', 'GET /skill/waves?days=', 'GET /obs?src=&since=', 'GET /history/status', 'GET /history/spot?id=&from=&to=', 'GET /history/spot/hours?id=&date=', 'GET /skill', 'POST /skill', 'GET /grid', 'POST /grid/swell', 'POST /ibi'] }, 404);
   },
 
   async scheduled(event, env, ctx) {

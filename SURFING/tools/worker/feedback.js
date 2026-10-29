@@ -174,7 +174,7 @@ async function listReports(kv, prefix, since) {
   return out;
 }
 
-// Routes: POST /v (retired), POST /s, GET /s/mine, GET /stats?key=, GET /export?key=,
+// Routes: POST /v (retired), POST /s, GET /s/mine, GET /suggestions?key=, GET /stats?key=, GET /export?key=,
 // GET /people?key=. Returns a Response, or null when the path isn't one.
 async function handleFeedback(req, env, url, json, ipTag) {
   if (req.method === 'POST' && url.pathname === '/v') return json({ error: 'retired; log a session instead' }, 410);
@@ -206,8 +206,13 @@ async function handleFeedback(req, env, url, json, ipTag) {
       .sort((a, b) => (a.local < b.local ? 1 : -1)).slice(0, 200);
     return json({ sessions: mine });
   }
-  if (url.pathname === '/export' || url.pathname === '/people' || url.pathname === '/stats') {
+  if (url.pathname === '/export' || url.pathname === '/people' || url.pathname === '/stats' || url.pathname === '/suggestions') {
     if (!(await isAdmin(req, env))) return json({ error: 'no' }, 403);
+  }
+  // Spots people have suggested, newest first.
+  if (url.pathname === '/suggestions') {
+    const all = (await listReports(env.FEEDBACK, 'sg:', '')).map(({ uid, ...rest }) => rest).sort((a, b) => (a.t < b.t ? 1 : -1));
+    return json({ count: all.length, suggestions: all });
   }
   if (url.pathname === '/export') {
     const since = url.searchParams.get('since') || '';

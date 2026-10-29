@@ -61,3 +61,9 @@
 .sess-list .spot:hover { color: var(--accent-ink, var(--accent)); }
 .sess-list .when { font-size: 12px; color: var(--fg-muted); text-align: right; white-space: nowrap; }
 .sess-list .what { grid-column: 2 / 4; font-size: 12px; color: var(--fg-muted); }
+/* Suggest a spot. */
+.sg-form { max-width: 420px; }
+.sg-form textarea.acct-in { resize: vertical; min-height: 64px; font-size: 15px; line-height: 1.4; }
+.sg-msg { font-size: 13px; color: var(--fg-muted); margin-left: 6px; }
+.sg-h { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); margin: 14px 0 6px; }
+.sess-list .sg-rt { --pin: var(--bg-2); --ink: var(--fg); }

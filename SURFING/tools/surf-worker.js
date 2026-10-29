@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build d729c1c9f0. */
-const WORKER_BUILD = 'd729c1c9f0';
+   Build 3c73bf5718. */
+const WORKER_BUILD = '3c73bf5718';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (7-day outlook).
@@ -1410,6 +1410,15 @@ const seaward = (c, km) => {
    in on. Up to 40, known spots only. */
 const FAVS_MAX = 40;
 
+// A suggested spot, tidied; or what's wrong with it.
+function cleanSuggestion(b) {
+  const text = (v, max) => (typeof v === 'string' ? v.normalize('NFC').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max) : '');
+  const spot = text(b.spot, 60), where = text(b.where, 80), cam = text(b.cam, 300), note = text(b.note, 500);
+  if (spot.length < 2) return 'give the spot a name';
+  if (cam && !/^https?:\/\/[^\s]+\.[^\s]+/i.test(cam)) return 'the cam link should start http:// or https://';
+  return { spot, where, cam, note };
+}
+
 const enc = new TextEncoder();
 const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
@@ -1512,6 +1521,14 @@ async function handleAccounts(req, env, url, json, ipTag) {
     const u = await account(env, req);
     return u ? json({ favs: u.favs || [] }) : json({ error: 'signed out' }, 401);
   }
+  // The person's own suggested spots, newest first (the account page).
+  if (req.method === 'GET' && path === 'suggest') {
+    const u = await account(env, req);
+    if (!u) return json({ error: 'signed out' }, 401);
+    const mine = (await listReports(env.FEEDBACK, 'sg:', '')).filter((e) => e.uid === u.id)
+      .map(({ t, spot, where, cam, note }) => ({ t, spot, where, cam, note })).sort((a, b) => (a.t < b.t ? 1 : -1));
+    return json({ suggestions: mine });
+  }
   if (req.method === 'GET' && path === 'me') {
     const u = await account(env, req);
     return u ? json({ name: u.name, created: u.created, sessions: u.sessions || 0 }) : json({ error: 'signed out' }, 401);
@@ -1568,6 +1585,15 @@ async function handleAccounts(req, env, url, json, ipTag) {
     u.favs = [...new Set(b.favs.filter((id) => typeof id === 'string' && known.has(id)))];
     await saveUser(env, u);
     return json({ ok: true, favs: u.favs });
+  }
+  // A spot to add: its name, where it is, a cam if there is one, a note.
+  // Private (only Oli sees them, at GET /suggestions); 5 a day an account.
+  if (path === 'suggest') {
+    const s = cleanSuggestion(b);
+    if (typeof s === 'string') return json({ error: s }, 400);
+    if (!(await allow(env.FEEDBACK, 'sg', u.id, 5)) || !(await allow(env.FEEDBACK, 'sg', 'all', 100))) return json({ error: 'too many today' }, 429);
+    await env.FEEDBACK.put(`sg:${stamp()}`, JSON.stringify({ t: new Date().toISOString(), uid: u.id, name: u.name, ...s }));
+    return json({ ok: true });
   }
   if (path === 'logout') {
     await env.FEEDBACK.delete(`tk:${await sha256((req.headers.get('Authorization') || '').slice(7))}`);
@@ -1775,7 +1801,7 @@ async function listReports(kv, prefix, since) {
   return out;
 }
 
-// Routes: POST /v (retired), POST /s, GET /s/mine, GET /stats?key=, GET /export?key=,
+// Routes: POST /v (retired), POST /s, GET /s/mine, GET /suggestions?key=, GET /stats?key=, GET /export?key=,
 // GET /people?key=. Returns a Response, or null when the path isn't one.
 async function handleFeedback(req, env, url, json, ipTag) {
   if (req.method === 'POST' && url.pathname === '/v') return json({ error: 'retired; log a session instead' }, 410);
@@ -1807,8 +1833,13 @@ async function handleFeedback(req, env, url, json, ipTag) {
       .sort((a, b) => (a.local < b.local ? 1 : -1)).slice(0, 200);
     return json({ sessions: mine });
   }
-  if (url.pathname === '/export' || url.pathname === '/people' || url.pathname === '/stats') {
+  if (url.pathname === '/export' || url.pathname === '/people' || url.pathname === '/stats' || url.pathname === '/suggestions') {
     if (!(await isAdmin(req, env))) return json({ error: 'no' }, 403);
+  }
+  // Spots people have suggested, newest first.
+  if (url.pathname === '/suggestions') {
+    const all = (await listReports(env.FEEDBACK, 'sg:', '')).map(({ uid, ...rest }) => rest).sort((a, b) => (a.t < b.t ? 1 : -1));
+    return json({ count: all.length, suggestions: all });
   }
   if (url.pathname === '/export') {
     const since = url.searchParams.get('since') || '';
@@ -2483,7 +2514,7 @@ export default {
       || (await handleHistory(req, env, url, json))
       || (await handleAccounts(req, env, url, json, ipTag))
       || (await handleFeedback(req, env, url, json, ipTag))
-      || json({ routes: ['GET /forecast', 'GET /forecast/day?d=', 'GET /health', 'POST /a/signup', 'POST /a/login', 'POST /a/recover', 'POST /a/password', 'POST /a/logout', 'GET /a/me', 'POST /s', 'GET /s/mine', 'GET /skill/waves?days=', 'GET /obs?src=&since=', 'GET /history/status', 'GET /history/spot?id=&from=&to=', 'GET /history/spot/hours?id=&date=', 'GET /skill', 'POST /skill', 'GET /grid', 'POST /grid/swell', 'POST /ibi'] }, 404);
+      || json({ routes: ['GET /forecast', 'GET /forecast/day?d=', 'GET /health', 'POST /a/signup', 'POST /a/login', 'POST /a/recover', 'POST /a/password', 'POST /a/logout', 'GET /a/me', 'POST /a/suggest', 'GET /a/suggest', 'POST /s', 'GET /s/mine', 'GET /skill/waves?days=', 'GET /obs?src=&since=', 'GET /history/status', 'GET /history/spot?id=&from=&to=', 'GET /history/spot/hours?id=&date=', 'GET /skill', 'POST /skill', 'GET /grid', 'POST /grid/swell', 'POST /ibi'] }, 404);
   },
 
   async scheduled(event, env, ctx) {

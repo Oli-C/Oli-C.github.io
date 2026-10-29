@@ -35,7 +35,7 @@ whoever builds it.
 | `coast.js` | land polygons the map's swell layers stop at, from the OSM coastline (`tools/coast.mjs`; run by hand if the grids' area changes) |
 | `toolbar.js` / `.css` | the bar on every surf page |
 | `account.js` / `.css` | accounts, favourites, the toolbar's account link |
-| `account.html`, `account-page.js` | the account page: sign in, my spots (in order), my sessions (`GET /s/mine`) |
+| `account.html`, `account-page.js` | the account page: sign in, my spots (in order), suggest a spot (`/a/suggest`; Oli reads them at `GET /suggestions`), my sessions (`GET /s/mine`) |
 | `cams.css`, `cams-*.js` | the cams page, in load order: `core` (state, conditions), `grid`, `map`, `viewer`, `sessions`, `tune`, `main` (wiring, last) |
 | `week.css`, `week.js` | the 16-day page: day cards, or a compact table of day scores |
 | `insights.html` / `.css` / `.js` | a spot's history beside its logged sessions: trends, what it likes, what the forecast has learned |

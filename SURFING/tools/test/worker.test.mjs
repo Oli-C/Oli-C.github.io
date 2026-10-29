@@ -80,6 +80,25 @@ test('favourites follow the account', async () => {
   assert.equal((await call('GET', '/a/favs')).status, 401);
 });
 
+test('suggesting a spot', async () => {
+  const { call } = await loadWorker();
+  const { body: { token } } = await call('POST', '/a/signup', { name: 'Scout', password: 'longenough1', dt: 5000, dev });
+  assert.equal((await call('POST', '/a/suggest', { spot: 'Praia Grande', dev })).status, 401, 'needs an account');
+  assert.equal((await call('POST', '/a/suggest', { spot: 'x', dev }, { token })).status, 400, 'needs a name');
+  assert.equal((await call('POST', '/a/suggest', { spot: 'Praia Grande', cam: 'not a link', dev }, { token })).status, 400, 'a link or nothing');
+  assert.equal((await call('POST', '/a/suggest', { spot: ' Praia  Grande ', where: 'Sintra', cam: 'https://example.com/cam', note: 'Good on a big NW swell', dev }, { token })).status, 200);
+  const mine = (await call('GET', '/a/suggest', null, { token })).body.suggestions;
+  assert.equal(mine.length, 1);
+  assert.equal(mine[0].spot, 'Praia Grande', 'tidied');
+  assert.equal((await call('GET', '/suggestions')).status, 403, 'only Oli');
+  const all = (await call('GET', '/suggestions', null, { key: 'test-key' })).body;
+  assert.equal(all.count, 1);
+  assert.equal(all.suggestions[0].name, 'Scout');
+  assert.equal(all.suggestions[0].uid, undefined);
+  for (let i = 0; i < 4; i++) await call('POST', '/a/suggest', { spot: 'Spot ' + i, dev }, { token });
+  assert.equal((await call('POST', '/a/suggest', { spot: 'One too many', dev }, { token })).status, 429, 'five a day');
+});
+
 test('rate limits per IP', async () => {
   const { call } = await loadWorker();
   const auth = [];
