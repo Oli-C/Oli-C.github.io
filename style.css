@@ -504,14 +504,15 @@ body.pills-away .pill { animation-play-state: running, paused; }
   height: 100%;
   border: 0;
 }
-/* Covers the player until YouTube's title overlay has faded (.is-playing). */
+/* Covers the player until YouTube's title overlay has faded (.is-playing),
+   and again whenever it's paused, so YouTube's pause screen never shows. */
 .feature-poster {
   object-fit: cover;
   pointer-events: none;
   transition: opacity 700ms var(--ease);
 }
-.feature-frame.is-playing .feature-poster,
-.feature-frame.is-open .feature-poster { opacity: 0; }
+.feature-frame.is-playing .feature-poster { opacity: 0; }
+.feature-frame.is-paused .feature-poster { opacity: 1; transition-duration: 150ms; }
 /* Sits over the iframe so hovering never wakes YouTube's chrome. */
 .feature-tap {
   display: flex;
@@ -522,7 +523,9 @@ body.pills-away .pill { animation-play-state: running, paused; }
   color: var(--fg);
 }
 .feature-tap:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: -2px; }
-.feature-frame.is-open .feature-tap { display: none; }
+.feature-frame.is-open:not(.bar-on) .feature-tap { cursor: none; }
+/* iOS can refuse to start sound from outside the iframe; let taps reach it. */
+.feature-frame.is-direct .feature-tap { pointer-events: none; }
 .feature-hint {
   display: inline-flex;
   align-items: center;
@@ -536,15 +539,112 @@ body.pills-away .pill { animation-play-state: running, paused; }
   border-radius: 3px;
   background: color-mix(in srgb, var(--bg) 70%, transparent);
   border: 1px solid color-mix(in srgb, var(--fg) 20%, transparent);
-  transition: border-color 200ms var(--ease), color 200ms var(--ease);
+  transition: opacity 250ms var(--ease), border-color 200ms var(--ease), color 200ms var(--ease);
 }
 .feature-hint svg { margin-top: -2px; }
+.feature-frame.is-open .feature-hint { opacity: 0; }
 @media (hover: hover) {
   .feature-tap:hover .feature-hint {
     color: var(--accent-ink);
     border-color: color-mix(in srgb, var(--accent-ink) 45%, transparent);
   }
 }
+
+/* Own controls — always over video, so fixed night ink in both themes. */
+.feature-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 22px 8px 6px;
+  color: #d6d2c4;
+  background: linear-gradient(to top, rgba(16, 24, 32, 0.85), rgba(16, 24, 32, 0));
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 250ms var(--ease), visibility 0s 250ms;
+}
+.feature-frame.is-open.bar-on .feature-bar,
+.feature-frame.is-open.is-paused .feature-bar {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 250ms var(--ease);
+}
+.fb-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  transition: color 150ms var(--ease);
+}
+.fb-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (hover: hover) {
+  .fb-btn:hover { color: var(--accent); }
+}
+.fb-play .i-play,
+.feature-frame.is-paused .fb-play .i-pause,
+.fb-mute .i-muted,
+.feature-frame.is-muted .fb-mute .i-sound { display: none; }
+.feature-frame.is-paused .fb-play .i-play,
+.feature-frame.is-muted .fb-mute .i-muted { display: block; }
+.fb-time {
+  flex: none;
+  font-family: 'Anek Kannada', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  padding-top: 2px;
+}
+.fb-seek {
+  --p: 0%;
+  flex: 1;
+  min-width: 0;
+  height: 20px;
+  margin: 0 4px;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+          appearance: none;
+}
+.fb-seek::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--accent) var(--p), rgba(214, 210, 196, 0.3) var(--p));
+}
+.fb-seek::-moz-range-track {
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--accent) var(--p), rgba(214, 210, 196, 0.3) var(--p));
+}
+.fb-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px;
+  height: 11px;
+  margin-top: -4px;
+  border: 0;
+  border-radius: 50%;
+  background: #d6d2c4;
+}
+.fb-seek::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border: 0;
+  border-radius: 50%;
+  background: #d6d2c4;
+}
+.fb-seek:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* =============================================================================
    Mixes — cards view

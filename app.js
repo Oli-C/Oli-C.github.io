@@ -1082,40 +1082,128 @@
   })();
 
   // ============================================================================
-  //  Featured set — the embed plays muted with controls=0 under a poster and a
-  //  tap layer, so it reads as a tile. The poster lifts once playback has run
-  //  long enough for YouTube's title overlay to fade. The first tap reloads
-  //  the embed with controls and sound from wherever it had got to.
+  //  Featured set — plays muted with controls=0 under a poster and a tap
+  //  layer, so it reads as a tile. The poster lifts once playback has run long
+  //  enough for YouTube's title overlay to fade, and returns while paused. The
+  //  first tap unmutes in place (no reload) and hands over to the own control
+  //  bar. The player loads after the intro cascade so it can't stutter it.
   // ============================================================================
   (function initFeature() {
     const frame = document.getElementById('feature');
     if (!frame) return;
-    const iframe = frame.querySelector('iframe');
+    const VIDEO = 'uzVVx4DA_os';
     const START = 2715; // 45:15
-    const loadedAt = Date.now();
-    let player = null;
+    const tap = frame.querySelector('.feature-tap');
+    const playBtn = frame.querySelector('.fb-play');
+    const muteBtn = frame.querySelector('.fb-mute');
+    const seek = frame.querySelector('.fb-seek');
+    const [timeEl, durEl] = frame.querySelectorAll('.fb-time');
+    const ytLink = frame.querySelector('.fb-yt');
+    let player = null, ready = false, loading = false, wantOpen = false, dragging = false, hideTimer = 0;
 
-    window.onYouTubeIframeAPIReady = () => {
-      player = new YT.Player(iframe, {
-        events: {
-          onStateChange: e => {
-            if (e.data === YT.PlayerState.PLAYING) setTimeout(() => frame.classList.add('is-playing'), 3500);
-          },
-        },
-      });
+    const fmt = s => {
+      s = Math.max(0, Math.floor(s));
+      const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, pad = n => String(n).padStart(2, '0');
+      return (h ? h + ':' + pad(m) : m) + ':' + pad(s % 60);
     };
-    const api = document.createElement('script');
-    api.src = 'https://www.youtube.com/iframe_api';
-    document.head.appendChild(api);
+    const showTime = t => {
+      timeEl.textContent = fmt(t);
+      seek.style.setProperty('--p', (t / seek.max) * 100 + '%');
+    };
+    function sync() {
+      const t = player.getCurrentTime() || START; // 0 until playback starts
+      if (!dragging) { seek.value = t; showTime(t); }
+      ytLink.href = `https://youtu.be/${VIDEO}?t=${Math.floor(t)}`;
+    }
 
-    frame.querySelector('.feature-tap').addEventListener('click', () => {
-      const t = player && typeof player.getCurrentTime === 'function' && player.getCurrentTime();
-      const at = Math.floor(t || START + (Date.now() - loadedAt) / 1000);
-      player = null;
-      iframe.src = iframe.src.split('?')[0] + `?autoplay=1&start=${at}&playsinline=1&rel=0`;
-      iframe.removeAttribute('tabindex');
+    function showBar() {
+      frame.classList.add('bar-on');
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => {
+        if (!dragging && player.getPlayerState() === YT.PlayerState.PLAYING) frame.classList.remove('bar-on');
+      }, 3000);
+    }
+
+    function open() {
       frame.classList.add('is-open');
-    }, { once: true });
+      tap.setAttribute('aria-label', 'Play or pause');
+      player.unMute();
+      player.setVolume(100);
+      player.playVideo();
+      setTimeout(() => {
+        if (player.getPlayerState() !== YT.PlayerState.PLAYING) frame.classList.add('is-direct');
+      }, 1500);
+      setInterval(sync, 250);
+      sync();
+      showBar();
+    }
+
+    function load() {
+      if (loading) return;
+      loading = true;
+      window.onYouTubeIframeAPIReady = () => {
+        player = new YT.Player(frame.querySelector('.feature-player'), {
+          host: 'https://www.youtube-nocookie.com',
+          videoId: VIDEO,
+          playerVars: { autoplay: 1, mute: 1, start: START, controls: 0, disablekb: 1, iv_load_policy: 3, playsinline: 1, rel: 0, origin: location.origin },
+          events: {
+            onReady: () => {
+              ready = true;
+              player.getIframe().tabIndex = -1;
+              const d = player.getDuration();
+              if (d) { seek.max = d; durEl.textContent = fmt(d); }
+              if (wantOpen) open();
+            },
+            onStateChange: e => {
+              const playing = e.data === YT.PlayerState.PLAYING;
+              frame.classList.toggle('is-paused', !playing && e.data !== YT.PlayerState.BUFFERING);
+              playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+              if (playing) {
+                frame.classList.remove('is-direct');
+                if (!frame.classList.contains('is-playing')) setTimeout(() => frame.classList.add('is-playing'), 3500);
+              }
+            },
+          },
+        });
+      };
+      const api = document.createElement('script');
+      api.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(api);
+    }
+    setTimeout(load, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 2600);
+
+    const togglePlay = () => {
+      if (player.getPlayerState() === YT.PlayerState.PLAYING) player.pauseVideo();
+      else player.playVideo();
+    };
+
+    tap.addEventListener('click', () => {
+      if (!ready) { wantOpen = true; load(); return; }
+      if (!frame.classList.contains('is-open')) { open(); return; }
+      // On touch the bar hides itself, so a tap first brings it back.
+      if (!frame.classList.contains('bar-on')) { showBar(); return; }
+      togglePlay();
+      showBar();
+    });
+    frame.addEventListener('pointermove', e => {
+      if (e.pointerType === 'mouse' && frame.classList.contains('is-open')) showBar();
+    });
+    frame.addEventListener('mouseleave', () => {
+      if (player && player.getPlayerState() === YT.PlayerState.PLAYING) frame.classList.remove('bar-on');
+    });
+    playBtn.addEventListener('click', () => { togglePlay(); showBar(); });
+    muteBtn.addEventListener('click', () => {
+      // isMuted() lags the iframe by a tick, so the icon follows the click.
+      const muted = frame.classList.toggle('is-muted');
+      if (muted) player.mute(); else player.unMute();
+      showBar();
+    });
+    seek.addEventListener('input', () => { dragging = true; showTime(+seek.value); showBar(); });
+    seek.addEventListener('change', () => {
+      dragging = false;
+      player.seekTo(+seek.value, true);
+      showBar();
+    });
   })();
 
   // ============================================================================
