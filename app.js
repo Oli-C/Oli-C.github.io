@@ -922,15 +922,13 @@
     { code: 'COL-001', title: 'allfield at Collect Radio', series: 'col', tag: 'COLLECT RADIO', date: '27.10.2026',
       when: '19:00 – 21:00', tz: 'Lisbon / London', start: '2026-10-27T19:00:00+00:00', until: '2026-10-27T21:00:00+00:00',
       img: 'assets/mix-col-001.jpeg', url: 'https://www.youtube.com/c/collectradio' },
-    { code: 'LUS-059', title: 'October Radio', series: 'lus', tag: 'LUSOPHONICA', date: '29.10.2026',
-      when: '12:00 – 14:00', tz: 'Lisbon / London', start: '2026-10-29T12:00:00+00:00', until: '2026-10-29T14:00:00+00:00',
-      img: 'assets/mix-lus-059.jpeg', url: 'https://www.lusophonica.com/' },
   ];
 
   // ============================================================================
   //  Mix data — pulled from the real Linktree export
   // ============================================================================
   const MIXES = [
+    { code: 'LUS-059', title: 'October Radio', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '29.10.2026', y: 2026, sub: 'Residency solo', img: 'assets/mix-lus-059.jpeg', url: 'https://youtu.be/FT0M7NHGLGk' },
     { code: 'LUS-058', title: 'September Radio w/ Owari', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '20.09.2026', y: 2026, sub: 'Residency w/ Owari', img: 'assets/mix-lus-058.jpeg', url: 'https://youtu.be/AwsD1EYgqv8' },
     { code: 'LUS-057', title: 'Prata Da Casa w/ Prokta', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '05.09.2026', y: 2026, sub: 'Prolongamento guest w/ Prokta', img: 'assets/mix-lus-057.jpeg', url: 'https://youtu.be/Y2x3akfcnjI' },
     { code: 'LUS-056', title: 'August Radio', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '22.08.2026', y: 2026, sub: 'Residency solo', img: 'assets/mix-lus-056.jpeg', url: 'https://youtu.be/sUSVFPTJj1w' },
