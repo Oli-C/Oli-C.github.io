@@ -96,7 +96,7 @@ jobs:
         with:
           name: fine-${{ matrix.fine }}
           path: |
-            SURFING/tools/swan-work/fine-${{ matrix.fine }}/result.json
+            SURFING/tools/swan-work/fine-${{ matrix.fine }}/result*.json
             SURFING/tools/swan-work/fine-${{ matrix.fine }}/meta.json
           if-no-files-found: warn
 
@@ -119,7 +119,7 @@ jobs:
         run: |
           pip install numpy
           for d in artifacts/swan-*; do [ -d "$d" ] || continue; a="${d#artifacts/swan-}"; mkdir -p "SURFING/tools/swan-work/$a"; cp "$d"/result.json "$d"/meta.json "SURFING/tools/swan-work/$a/" 2>/dev/null || true; done
-          for d in artifacts/fine-*; do [ -d "$d" ] || continue; a="${d#artifacts/}"; mkdir -p "SURFING/tools/swan-work/$a"; cp "$d"/result.json "$d"/meta.json "SURFING/tools/swan-work/$a/" 2>/dev/null || true; done
+          for d in artifacts/fine-*; do [ -d "$d" ] || continue; a="${d#artifacts/}"; mkdir -p "SURFING/tools/swan-work/$a"; cp "$d"/result*.json "$d"/meta.json "SURFING/tools/swan-work/$a/" 2>/dev/null || true; done
           python SURFING/tools/swan.py merge
       - name: Commit
         run: |

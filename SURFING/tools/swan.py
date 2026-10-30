@@ -13,7 +13,7 @@ is how much of the swell gets there: sheltering, refraction, focusing.
   python SURFING/tools/swan.py prep AREA        bathymetry + the spots' points -> work/AREA
   python SURFING/tools/swan.py run AREA [--quick] [--jobs N]
                                                 SWAN for every case -> work/AREA/result.json
-  python SURFING/tools/swan.py fine NAME [--quick] [--jobs N]
+  python SURFING/tools/swan.py fine NAME [--quick] [--jobs N] [--heights 1,2]
                                                 a fine grid nested in its area (below)
                                                 -> work/fine-NAME/result.json
   python SURFING/tools/swan.py merge            every result -> SURFING/swan.js (keeps
@@ -450,7 +450,7 @@ def breaking(rows, sm):
     return max([r[0] for r in seg if r[1] > 0.3 and r[0] > 0] or [0])
 
 
-def run_fine(name, quick=False, jobs=None):
+def run_fine(name, quick=False, jobs=None, heights=None):
     f = FINE[name]
     area = f['parent']
     exe = os.environ.get('SWAN_EXE', 'swan.exe')
@@ -459,8 +459,12 @@ def run_fine(name, quick=False, jobs=None):
     fd = os.path.join(WORK, f'fine-{name}')
     meta = json.load(open(os.path.join(fd, 'meta.json')))
     cases = [(p, dd) for p in ([12] if quick else PERIODS) for dd in ([285] if quick else DIRS)]
+    heights = heights or HEIGHTS
+    # One results file per set of heights, written as each case finishes, so
+    # a job that runs out of time keeps what it got (merge reads them all).
+    res_path = os.path.join(fd, 'result' + ('' if heights == HEIGHTS else '-H' + '-'.join(map(str, heights))) + '.json')
     t0 = time.time()
-    print(f'fine {name}: {len(cases)} area runs for its edges, then {len(cases) * len(HEIGHTS)} fine runs, {jobs} at a time')
+    print(f'fine {name}: {len(cases)} area runs for its edges, then {len(cases) * len(heights)} fine runs, {jobs} at a time')
     with ThreadPoolExecutor(jobs) as pool:
         for period, dirn, _, secs in pool.map(lambda c: run_case(area, ameta, c[0], c[1], exe, [name]), cases):
             print(f'  edges T{period} D{dirn} ({secs:.0f} s)', flush=True)
@@ -479,12 +483,13 @@ def run_fine(name, quick=False, jobs=None):
 
     out = {}
     with ThreadPoolExecutor(jobs) as pool:
-        for h, period, dirn, rows, secs in pool.map(one, [(h, p, dd) for h in HEIGHTS for p, dd in cases]):
+        for h, period, dirn, rows, secs in pool.map(one, [(h, p, dd) for h in heights for p, dd in cases]):
             out[f'{h}/{period}/{dirn}'] = rows
             hb = [breaking(rows, sm) for sm in meta['spots']]
             print(f'  H{h} T{period} D{dirn}: breaking ' + ' '.join(f'{x:.2f}' for x in hb) + f'  ({secs:.0f} s)', flush=True)
+            json.dump({'meta': meta, 'cases': out}, open(res_path, 'w'))
     print(f'fine {name}: done in {(time.time() - t0) / 60:.1f} min')
-    json.dump({'meta': meta, 'cases': out}, open(os.path.join(fd, 'result.json'), 'w'))
+    json.dump({'meta': meta, 'cases': out}, open(res_path, 'w'))
 
 
 # ---------- merge ----------
@@ -514,22 +519,23 @@ def merge():
     out = {'periods': PERIODS, 'dirs': DIRS, 'nearDepth': NEAR_DEPTH, 'heights': HEIGHTS,
            'spots': dict(old.get('spots', {})), 'fine': dict(old.get('fine', {}))}
     for name in FINE:
-        path = os.path.join(WORK, f'fine-{name}', 'result.json')
-        if not os.path.exists(path):
+        fd = os.path.join(WORK, f'fine-{name}')
+        paths = [os.path.join(fd, f) for f in (os.listdir(fd) if os.path.isdir(fd) else []) if f.startswith('result') and f.endswith('.json')]
+        if not paths:
             continue
-        r = json.load(open(path))
-        for sm in r['meta']['spots']:
-            k = []
-            for h in HEIGHTS:
-                kp = []
-                for period in PERIODS:
-                    row = []
-                    for dirn in DIRS:
-                        rows = r['cases'].get(f'{h}/{period}/{dirn}')
-                        row.append(round(breaking(rows, sm) / h, 3) if rows else 0.0)
-                    kp.append(row)
-                k.append(kp)
-            out['fine'][sm['id']] = {'grid': name, 'res': r['meta']['res'], 'k': k}
+        meta, cases = None, {}
+        for path in paths:                       # one file per job (by heights), maybe partial
+            r = json.load(open(path))
+            meta = meta or r['meta']
+            cases.update(r['cases'])
+        need = [f'{h}/{p}/{d}' for h in HEIGHTS for p in PERIODS for d in DIRS]
+        missing = [x for x in need if x not in cases]
+        if missing:
+            print(f'fine {name}: {len(missing)} of {len(need)} cases missing (e.g. {missing[0]}); not used')
+            continue
+        for sm in meta['spots']:
+            k = [[[round(breaking(cases[f'{h}/{p}/{d}'], sm) / h, 3) for d in DIRS] for p in PERIODS] for h in HEIGHTS]
+            out['fine'][sm['id']] = {'grid': name, 'res': meta['res'], 'k': k}
     for area in AREAS:
         path = os.path.join(WORK, area, 'result.json')
         if not os.path.exists(path):
@@ -588,7 +594,8 @@ if __name__ == '__main__':
             prep(FINE[name]['parent'])
         if not os.path.exists(os.path.join(WORK, f'fine-{name}', 'meta.json')):
             prep_fine(name)
-        run_fine(name, quick='--quick' in sys.argv, jobs=jobs)
+        heights = [float(x) if '.' in x else int(x) for x in sys.argv[sys.argv.index('--heights') + 1].split(',')] if '--heights' in sys.argv else None
+        run_fine(name, quick='--quick' in sys.argv, jobs=jobs, heights=heights)
     elif cmd == 'merge':
         merge()
     elif cmd == 'report':
