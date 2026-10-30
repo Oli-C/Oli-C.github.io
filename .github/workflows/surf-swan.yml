@@ -16,6 +16,9 @@ on:
       fine:
         description: 'Fine grids (JSON list; [] for none)'
         default: '["caparica","cascais","nazare","peniche"]'
+      heights:
+        description: 'Offshore heights, a job each (JSON list)'
+        default: '["1","2","4"]'
       quick:
         description: 'One case each, to test (commits nothing)'
         type: boolean
@@ -75,6 +78,7 @@ jobs:
       fail-fast: false
       matrix:
         fine: ${{ fromJSON(inputs.fine) }}
+        height: ${{ fromJSON(inputs.heights) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -89,12 +93,12 @@ jobs:
           sudo apt-get install -y -qq libgfortran5 libgomp1 > /dev/null
           curl -sL "$SWAN_URL" | tar xz -C "$RUNNER_TEMP"
           echo "SWAN_EXE=$RUNNER_TEMP/SWAN-41.51-Linux/bin/swan.exe" >> "$GITHUB_ENV"
-      - name: Run SWAN (its area for the edges, then the fine grid)
-        run: python SURFING/tools/swan.py fine ${{ matrix.fine }} ${{ inputs.quick && '--quick' || '' }} --jobs $(nproc)
+      - name: Run SWAN (its area for the edges, then the fine grid at one height)
+        run: python SURFING/tools/swan.py fine ${{ matrix.fine }} --heights ${{ matrix.height }} ${{ inputs.quick && '--quick' || '' }} --jobs $(nproc)
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: fine-${{ matrix.fine }}
+          name: fine-${{ matrix.fine }}-H${{ matrix.height }}
           path: |
             SURFING/tools/swan-work/fine-${{ matrix.fine }}/result*.json
             SURFING/tools/swan-work/fine-${{ matrix.fine }}/meta.json
@@ -119,7 +123,7 @@ jobs:
         run: |
           pip install numpy
           for d in artifacts/swan-*; do [ -d "$d" ] || continue; a="${d#artifacts/swan-}"; mkdir -p "SURFING/tools/swan-work/$a"; cp "$d"/result.json "$d"/meta.json "SURFING/tools/swan-work/$a/" 2>/dev/null || true; done
-          for d in artifacts/fine-*; do [ -d "$d" ] || continue; a="${d#artifacts/}"; mkdir -p "SURFING/tools/swan-work/$a"; cp "$d"/result*.json "$d"/meta.json "SURFING/tools/swan-work/$a/" 2>/dev/null || true; done
+          for d in artifacts/fine-*; do [ -d "$d" ] || continue; a="${d#artifacts/}"; a="${a%-H*}"; mkdir -p "SURFING/tools/swan-work/$a"; cp "$d"/result*.json "$d"/meta.json "SURFING/tools/swan-work/$a/" 2>/dev/null || true; done
           python SURFING/tools/swan.py merge
       - name: Commit
         run: |
