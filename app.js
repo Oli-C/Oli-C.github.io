@@ -1082,7 +1082,7 @@
   })();
 
   // ============================================================================
-  //  Featured set — a silent self-hosted clip from 45:15 plays from first
+  //  Featured set — a silent self-hosted clip from 49:45 plays from first
   //  paint while the YouTube player (muted, controls=0, chrome cropped by
   //  style.css) loads underneath. Once YouTube plays it's seeked into step
   //  with the clip, and the clip crossfades out once YouTube's own pause mark
@@ -1095,7 +1095,7 @@
     const frame = document.getElementById('feature');
     if (!frame) return;
     const VIDEO = 'uzVVx4DA_os';
-    const START = 2715; // 45:15
+    const START = 2985; // 49:45
     const MARK = 4300;  // ms YouTube shows its pause mark after a start
     const SEEK_LAG = 0.1; // seconds a seek takes to land
     const tap = frame.querySelector('.feature-tap');
