@@ -519,27 +519,6 @@ body.pills-away .pill { animation-play-state: running, paused; }
   transition: opacity 600ms var(--ease);
 }
 .feature-frame.is-playing .feature-loop { opacity: 0; }
-/* Paused: the real frame stays up, dimmed, with an own play mark over the
-   middle where YouTube would draw its own. */
-.feature-veil {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(16, 24, 32, 0.35);
-  color: #d6d2c4;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 200ms var(--ease);
-}
-.feature-veil svg {
-  box-sizing: content-box;
-  padding: 24px 22px 24px 26px; /* nudged right so the triangle reads centred */
-  border-radius: 46% 54% 50% 50% / 56% 46% 54% 44%;
-  background: rgba(16, 24, 32, 0.92);
-}
-.feature-frame.is-paused .feature-veil { opacity: 1; }
 /* Own buffering spinner, sized to sit over YouTube's. */
 .feature-spin {
   position: absolute;

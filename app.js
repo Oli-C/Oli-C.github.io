@@ -1087,8 +1087,9 @@
   //  style.css) loads underneath. Once YouTube plays it's seeked into step
   //  with the clip, and the clip crossfades out once YouTube's own pause mark
   //  (up for ~4 s after every start) has gone, so the handover neither jumps
-  //  nor shows it. Pausing leaves the real frame up under a veil. The first tap unmutes in place and hands over to
-  //  the own control bar. If YouTube fails, the clip stays and a tap opens
+  //  nor shows it. After that YouTube draws its own marks. The first tap
+  //  unmutes in place and hands over to the own control bar. If YouTube
+  //  fails, the clip stays and a tap opens
   //  the set on YouTube instead.
   // ============================================================================
   (function initFeature() {
