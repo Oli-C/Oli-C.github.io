@@ -3,9 +3,11 @@ name: surf swan
 # How much of an offshore swell reaches each spot, from SWAN over the real
 # seabed (SURFING/tools/swan.py): an area a job, every period and direction;
 # and fine grids nested in their areas for the spots that matter most, at
-# three offshore heights. Then merged into SURFING/swan.js (anything not
-# rerun is kept), which score.js reads. By hand only; the seabed doesn't
-# change. `quick` runs one case each and commits nothing.
+# three offshore heights. Fine grids run in two stages: their areas' runs
+# write the edge spectra once (split by period), then a job per fine grid
+# and height. Then merged into SURFING/swan.js (anything not rerun is
+# kept), which score.js reads. By hand only; the seabed doesn't change.
+# `quick` runs one case each and commits nothing.
 
 on:
   workflow_dispatch:
@@ -38,7 +40,7 @@ jobs:
   area:
     if: ${{ inputs.areas != '[]' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 340
     strategy:
       fail-fast: false
       matrix:
@@ -70,10 +72,50 @@ jobs:
             SURFING/tools/swan-work/${{ matrix.area }}/meta.json
           if-no-files-found: warn
 
-  fine:
-    if: ${{ inputs.fine != '[]' }}
+  # Stage 1 for the fine grids: each parent area's runs, writing the edge
+  # spectra for all its fine grids, split three ways by period.
+  edges:
+    if: ${{ inputs.fine != '[]' && !inputs.quick }}
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix:
+        area: [lisbon, nazare, peniche]
+        periods: ['6,8,10', '12,14', '16,18']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install
+        run: |
+          pip install numpy tifffile
+          sudo apt-get install -y -qq libgfortran5 libgomp1 > /dev/null
+          curl -sL "$SWAN_URL" | tar xz -C "$RUNNER_TEMP"
+          echo "SWAN_EXE=$RUNNER_TEMP/SWAN-41.51-Linux/bin/swan.exe" >> "$GITHUB_ENV"
+      - name: Run SWAN (the area, writing its fine grids' edges)
+        run: python SURFING/tools/swan.py edges ${{ matrix.area }} --periods ${{ matrix.periods }} --jobs $(nproc)
+      - name: Name the artifact
+        run: echo "TAG=$(echo '${{ matrix.periods }}' | tr ',' '-')" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: edges-${{ matrix.area }}-${{ env.TAG }}
+          path: |
+            SURFING/tools/swan-work/${{ matrix.area }}/meta.json
+            SURFING/tools/swan-work/${{ matrix.area }}/cases/*/points.tab
+            SURFING/tools/swan-work/${{ matrix.area }}/cases/*/nest-*.dat
+          compression-level: 9
+
+  # Stage 2: a job per fine grid and offshore height, on stage 1's edges.
+  fine:
+    if: ${{ always() && inputs.fine != '[]' && (needs.edges.result == 'success' || inputs.quick) }}
+    needs: edges
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
     strategy:
       fail-fast: false
       matrix:
@@ -93,7 +135,17 @@ jobs:
           sudo apt-get install -y -qq libgfortran5 libgomp1 > /dev/null
           curl -sL "$SWAN_URL" | tar xz -C "$RUNNER_TEMP"
           echo "SWAN_EXE=$RUNNER_TEMP/SWAN-41.51-Linux/bin/swan.exe" >> "$GITHUB_ENV"
-      - name: Run SWAN (its area for the edges, then the fine grid at one height)
+      - uses: actions/download-artifact@v4
+        if: ${{ !inputs.quick }}
+        with:
+          pattern: edges-*
+          path: edges
+      - name: Put the edges in place
+        if: ${{ !inputs.quick }}
+        run: |
+          for d in edges/edges-*; do a="${d#edges/edges-}"; a="${a%%-*}"; mkdir -p "SURFING/tools/swan-work/$a"; cp -r "$d"/. "SURFING/tools/swan-work/$a/"; done
+          ls SURFING/tools/swan-work
+      - name: Run SWAN (the fine grid at one height)
         run: python SURFING/tools/swan.py fine ${{ matrix.fine }} --heights ${{ matrix.height }} ${{ inputs.quick && '--quick' || '' }} --jobs $(nproc)
       - uses: actions/upload-artifact@v4
         if: always()
@@ -118,6 +170,7 @@ jobs:
           node-version: 20
       - uses: actions/download-artifact@v4
         with:
+          pattern: '{swan,fine}-*'
           path: artifacts
       - name: Merge
         run: |

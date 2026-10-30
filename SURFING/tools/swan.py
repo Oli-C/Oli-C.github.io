@@ -13,6 +13,9 @@ is how much of the swell gets there: sheltering, refraction, focusing.
   python SURFING/tools/swan.py prep AREA        bathymetry + the spots' points -> work/AREA
   python SURFING/tools/swan.py run AREA [--quick] [--jobs N]
                                                 SWAN for every case -> work/AREA/result.json
+  python SURFING/tools/swan.py edges AREA [--periods 6,8] [--jobs N]
+                                                the area's runs writing the edge spectra for
+                                                all its fine grids (a first stage, shared)
   python SURFING/tools/swan.py fine NAME [--quick] [--jobs N] [--heights 1,2]
                                                 a fine grid nested in its area (below)
                                                 -> work/fine-NAME/result.json
@@ -450,6 +453,21 @@ def breaking(rows, sm):
     return max([r[0] for r in seg if r[1] > 0.3 and r[0] > 0] or [0])
 
 
+def run_edges(area, periods=None, jobs=None):
+    """The area's runs that write the edge spectra for every fine grid in it."""
+    nests = [n for n, f in FINE.items() if f['parent'] == area]
+    exe = os.environ.get('SWAN_EXE', 'swan.exe')
+    jobs = jobs or os.cpu_count() or 2
+    meta = json.load(open(os.path.join(WORK, area, 'meta.json')))
+    cases = [(p, d) for p in (periods or PERIODS) for d in DIRS]
+    t0 = time.time()
+    print(f'edges {area} for {", ".join(nests)}: {len(cases)} runs, {jobs} at a time')
+    with ThreadPoolExecutor(jobs) as pool:
+        for period, dirn, _, secs in pool.map(lambda c: run_case(area, meta, c[0], c[1], exe, nests), cases):
+            print(f'  T{period} D{dirn} ({secs:.0f} s)', flush=True)
+    print(f'edges {area}: done in {(time.time() - t0) / 60:.1f} min')
+
+
 def run_fine(name, quick=False, jobs=None, heights=None):
     f = FINE[name]
     area = f['parent']
@@ -587,6 +605,12 @@ if __name__ == '__main__':
     elif cmd == 'run':
         jobs = int(sys.argv[sys.argv.index('--jobs') + 1]) if '--jobs' in sys.argv else None
         run(sys.argv[2], quick='--quick' in sys.argv, jobs=jobs)
+    elif cmd == 'edges':
+        jobs = int(sys.argv[sys.argv.index('--jobs') + 1]) if '--jobs' in sys.argv else None
+        periods = [int(x) for x in sys.argv[sys.argv.index('--periods') + 1].split(',')] if '--periods' in sys.argv else None
+        if not os.path.exists(os.path.join(WORK, sys.argv[2], 'meta.json')):
+            prep(sys.argv[2])
+        run_edges(sys.argv[2], periods=periods, jobs=jobs)
     elif cmd == 'fine':
         name = sys.argv[2]
         jobs = int(sys.argv[sys.argv.index('--jobs') + 1]) if '--jobs' in sys.argv else None
