@@ -1108,7 +1108,7 @@
     let player = null, ready = false, wantOpen = false, failed = false, dragging = false, hideTimer = 0, directTimer = 0;
     // Handover: 'wait' (clip only) → 'matching' (YouTube playing in step under
     // the clip) → 'done' (crossfaded to the player).
-    let handover = 'wait', matchTimer = 0, lastPlay = 0, markTimer = 0;
+    let handover = 'wait', matchTimer = 0, lastPlay = 0;
 
     const fmt = s => {
       s = Math.max(0, Math.floor(s));
@@ -1215,9 +1215,6 @@
             frame.classList.toggle('is-buffering', buffering);
             playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
             if (playing) frame.classList.remove('is-direct');
-            frame.classList.toggle('is-resumed', playing);
-            clearTimeout(markTimer);
-            if (playing) markTimer = setTimeout(() => frame.classList.remove('is-resumed'), MARK);
           },
           onError: fail,
         },
