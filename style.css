@@ -511,7 +511,7 @@ body.pills-away .pill { animation-play-state: running, paused; }
   top: -120px;
   height: calc(100% + 240px);
 }
-/* Silent clip from 49:45 — moves from first paint, then crossfades into the
+/* Silent clip from 24:00 — moves from first paint, then crossfades into the
    player once it has caught up with it (.is-playing). */
 .feature-loop {
   object-fit: cover;
