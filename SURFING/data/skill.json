@@ -1,6 +1,6 @@
 {
  "v": 2,
- "updated": "2026-10-30T00:57:40.372Z",
+ "updated": "2026-10-30T09:57:34.208Z",
  "wind": {
   "icon_seamless": {
    "lead": [
@@ -630,7 +630,7 @@
      "hBias": -0.131,
      "p": 0.736,
      "dir": 12.68,
-     "at": "2026-10-30T00:57:40.372Z"
+     "at": "2026-10-30T09:57:34.208Z"
     }
    ],
    "n": 111,
@@ -640,7 +640,7 @@
    "dir": 12.68
   }
  },
- "lastWindObs": "2026-10-30T00:00",
+ "lastWindObs": "2026-10-30T09:00",
  "lastBuoyWind": {
   "nazare": "2026-10-29T11:00:00Z",
   "silleiro": "2026-10-29T11:00:00Z",
@@ -654,7 +654,7 @@
   "silleiro": "2026-10-29T11:00:00Z",
   "cadiz": "2026-10-29T11:00:00Z"
  },
- "runs": 18,
+ "runs": 19,
  "stations": [
   "Alcobaça",
   "Cabo Carvoeiro",
@@ -716,7 +716,7 @@
   }
  ],
  "learned": {
-  "updated": "2026-10-30T00:58:59.168Z",
+  "updated": "2026-10-30T09:58:09.223Z",
   "sessions": 2,
   "used": 2,
   "setAside": 0,
@@ -728,7 +728,7 @@
      "bias": 0.071,
      "tide:low": 0.071,
      "wind:light": 0.071,
-     "size:in": 0.071,
+     "size:big": 0.071,
      "period:long": 0.071,
      "dir:in": 0.071
     }
@@ -740,7 +740,7 @@
       "bias": 0.052,
       "tide:low": 0.052,
       "wind:light": 0.052,
-      "size:in": 0.052,
+      "size:big": 0.052,
       "period:long": 0.052,
       "dir:in": 0.052
      },
@@ -751,22 +751,23 @@
   "coast": {
    "n": 2,
    "w": {
-    "bias": -0.143,
-    "tide:low": -0.275,
-    "tide:mid": 0.132,
-    "wind:light": -0.143,
-    "size:in": -0.143,
-    "period:mid": 0.132,
-    "period:long": -0.275,
-    "dir:in": -0.143
+    "bias": -0.083,
+    "tide:low": -0.174,
+    "tide:mid": 0.091,
+    "wind:light": -0.083,
+    "size:in": 0.091,
+    "size:big": -0.174,
+    "period:mid": 0.091,
+    "period:long": -0.174,
+    "dir:in": -0.083
    },
    "size": {
     "n": 2,
-    "gain": 1.076
+    "gain": 1.061
    },
    "rmse": {
-    "before": 2.42,
-    "after": 2.42,
+    "before": 1.62,
+    "after": 1.62,
     "loo": null
    }
   },
@@ -774,32 +775,32 @@
    "caparica-praia-nova": {
     "n": 1,
     "w": {
-     "bias": -0.201,
-     "tide:low": -0.201,
-     "wind:light": -0.201,
-     "size:in": -0.201,
-     "period:long": -0.201,
-     "dir:in": -0.201
+     "bias": -0.127,
+     "tide:low": -0.127,
+     "wind:light": -0.127,
+     "size:big": -0.127,
+     "period:long": -0.127,
+     "dir:in": -0.127
     },
-    "bias": -3.33,
+    "bias": -2.17,
     "rmse": {
-     "before": 3.33,
-     "after": 3.33
+     "before": 2.17,
+     "after": 2.17
     },
     "size": {
      "n": 1,
-     "gain": 1.145
+     "gain": 1.101
     }
    },
    "guincho-sul": {
     "n": 1,
     "w": {
-     "bias": 0.096,
-     "tide:mid": 0.096,
-     "wind:light": 0.096,
-     "size:in": 0.096,
-     "period:mid": 0.096,
-     "dir:in": 0.096
+     "bias": 0.066,
+     "tide:mid": 0.066,
+     "wind:light": 0.066,
+     "size:in": 0.066,
+     "period:mid": 0.066,
+     "dir:in": 0.066
     },
     "bias": 0.75,
     "rmse": {
@@ -808,7 +809,7 @@
     },
     "size": {
      "n": 1,
-     "gain": 1.141
+     "gain": 1.128
     }
    }
   }
