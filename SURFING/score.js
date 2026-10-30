@@ -171,11 +171,18 @@ function faceRange(c, k, raw) {
 // size peaks across 45–85% of the spot's range and eases to 3.3 at its top
 // before falling away; direction peaks at the middle of the swell window
 // and eases to 2.6 at its edges.
+// Small is small anywhere: below 1.5 m breaking, size is also held to the
+// same plain scale at every spot (none at 0.3 m, full at 1.5 m), so a
+// spot with a low range doesn't make knee-high look good. And period and
+// direction are only worth as much as there is swell to carry them: 40%
+// of their points with no size, all of them from 1.5 m (a swell too big for
+// the spot loses its size points, not these).
 function swellPts(c, t) {
   const b = c.best, [lo, hi] = b.size, P = b.period, h = t.hb;
   const s1 = lo + 0.45 * (hi - lo), s2 = lo + 0.85 * (hi - lo);
-  const size = h <= s1 ? lerp(h, lo * 0.5, 0, s1, 4) : h <= s2 ? 4 : h <= hi ? lerp(h, s2, 4, hi, 3.3) : lerp(h, hi, 3.3, hi * 1.4, 0);
-  const per = lerp(t.p, P - 2, 0, P + 5, 3);
+  const fit = h <= s1 ? lerp(h, lo * 0.5, 0, s1, 4) : h <= s2 ? 4 : h <= hi ? lerp(h, s2, 4, hi, 3.3) : lerp(h, hi, 3.3, hi * 1.4, 0);
+  const small = lerp(h, 0.3, 0, 1.5, 4), size = Math.min(fit, small), carry = 0.4 + 0.6 * small / 4;
+  const per = lerp(t.p, P - 2, 0, P + 5, 3) * carry;
   let dir = 2;
   if (t.d != null) {
     const out = distToWindow(t.d, b.swell);
@@ -185,6 +192,7 @@ function swellPts(c, t) {
       dir = 3 - 0.4 * Math.min(1, (angleDiff(t.d, mid) / Math.max(half, 1)) ** 2);
     }
   }
+  dir *= carry;
   return { size, per, dir, total: size + per + dir };
 }
 
@@ -279,10 +287,10 @@ function score(c, k) {
   else if (m.windsea) hNow += `, wind swell from the ${dirName(m.d)}`;
   if (m.geo) hNow += ' · by geometry';
 
-  const size = sw.merged ? swellPts(c, { ...m, hb: h }).size : m.pts.size;
+  const pts = sw.merged ? swellPts(c, { ...m, hb: h }) : m.pts, size = pts.size;
   f.push({ label: 'Size', pts: size, max: 4, now: hNow, likes: rng(lo, hi) });
 
-  const per = m.pts.per;
+  const per = pts.per;
   // Short-period swell is lumpy however clean the wind is, so it also
   // scales the whole score, not just its own 3 points.
   const clean = p < 8 ? 0.6 : p < 10 ? 0.8 : p < 12 ? 0.9 : 1;
@@ -290,7 +298,7 @@ function score(c, k) {
 
   // Angle still matters once the swell is in: straight into the window
   // lines up the banks; well outside it tends to bend in as closeouts.
-  const dir = m.pts.dir;
+  const dir = pts.dir;
   f.push({ label: 'Direction', pts: dir, max: 3, now: m.d != null ? `from ${dirName(m.d)}` : 'unknown', likes: windowText(b.swell) });
 
   // Speeds are km/h. Under ~4 kt it's glassy whatever the direction; a
