@@ -1234,7 +1234,7 @@
     tap.addEventListener('click', () => {
       if (failed) { window.open(ytLink.href, '_blank', 'noopener'); return; }
       if (!ready) { wantOpen = true; return; }
-      if (!frame.classList.contains('is-open')) { open(); return; }
+      if (!frame.classList.contains('is-open')) { if (window.tally) tally('play', 'Featured set'); open(); return; }
       // On touch the bar hides itself, so a tap first brings it back.
       if (!frame.classList.contains('bar-on')) { showBar(); return; }
       togglePlay();

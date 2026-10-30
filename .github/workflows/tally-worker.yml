@@ -1,0 +1,42 @@
+name: tally worker
+
+# Deploys tools/tally/tally-worker.js (the site's own page counter, read by
+# stats.html) to the allfield-tally Cloudflare worker when it changes.
+# Code only (PUT …/content), so its bindings (DB: the allfield-stats D1
+# database, KEY: the admin key) are left untouched.
+# Needs repo secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'tools/tally/**'
+      - '.github/workflows/tally-worker.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to Cloudflare
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WORKER_URL: https://allfield-tally.odj-clarke.workers.dev
+        run: |
+          if [ -z "$CF_TOKEN" ] || [ -z "$CF_ACCT" ]; then
+            echo "::notice::No Cloudflare secrets set; skipping deploy"; exit 0
+          fi
+          want=$(sed -n "s/^const BUILD = '\(.*\)';/\1/p" tools/tally/tally-worker.js)
+          res=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$CF_ACCT/workers/scripts/allfield-tally/content" \
+            -H "Authorization: Bearer $CF_TOKEN" \
+            -F 'metadata={"main_module":"tally-worker.js"};type=application/json' \
+            -F "tally-worker.js=@tools/tally/tally-worker.js;filename=tally-worker.js;type=application/javascript+module")
+          echo "$res" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);if(!j.success){console.error(JSON.stringify(j.errors));process.exit(1)}console.log('deployed',j.result.modified_on)})"
+          for i in 1 2 3 4 5 6; do
+            live=$(curl -s "$WORKER_URL/health" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{console.log(JSON.parse(s).build||'')}catch{console.log('')}})")
+            [ "$live" = "$want" ] && { echo "live on $live"; exit 0; }
+            sleep 5
+          done
+          echo "::error::deployed but /health still reports ${live:-nothing}"; exit 1
