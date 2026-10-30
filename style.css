@@ -520,26 +520,32 @@ body.pills-away .pill { animation-play-state: running, paused; }
 }
 .feature-frame.is-playing .feature-loop { opacity: 0; }
 /* Paused: the real frame stays up, dimmed, with an own play mark over the
-   middle where YouTube would draw its own. */
+   middle where YouTube would draw its own. For a few seconds after every
+   start (.is-resumed) YouTube puts up its pause mark there; an own one
+   covers it. */
 .feature-veil {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(16, 24, 32, 0.35);
   color: #d6d2c4;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 200ms var(--ease);
+  transition: opacity 200ms var(--ease), background-color 200ms var(--ease);
 }
 .feature-veil svg {
   box-sizing: content-box;
-  padding: 24px 22px 24px 26px; /* nudged right so the triangle reads centred */
+  padding: 24px;
   border-radius: 46% 54% 50% 50% / 56% 46% 54% 44%;
   background: rgba(16, 24, 32, 0.92);
 }
-.feature-frame.is-paused .feature-veil { opacity: 1; }
+.feature-veil .i-play { padding: 24px 22px 24px 26px; } /* nudged right so the triangle reads centred */
+.feature-veil .i-play,
+.feature-frame.is-paused .feature-veil .i-pause { display: none; }
+.feature-frame.is-paused .feature-veil .i-play { display: block; }
+.feature-frame.is-paused .feature-veil { opacity: 1; background-color: rgba(16, 24, 32, 0.35); }
+.feature-frame.is-resumed .feature-veil { opacity: 1; transition-duration: 0ms, 200ms; }
 /* Own buffering spinner, sized to sit over YouTube's. */
 .feature-spin {
   position: absolute;

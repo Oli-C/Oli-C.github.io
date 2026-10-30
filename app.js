@@ -1084,10 +1084,10 @@
   // ============================================================================
   //  Featured set — a silent self-hosted clip from 45:15 plays from first
   //  paint while the YouTube player (muted, controls=0, chrome cropped by
-  //  style.css) loads underneath. Once YouTube can play it's parked a little
-  //  ahead of the clip, released as the clip reaches that point, and the clip
-  //  crossfades out, so the handover doesn't jump. Pausing leaves the real
-  //  frame up under a veil. The first tap unmutes in place and hands over to
+  //  style.css) loads underneath. Once YouTube plays it's seeked into step
+  //  with the clip, and the clip crossfades out once YouTube's own pause mark
+  //  (up for ~4 s after every start) has gone, so the handover neither jumps
+  //  nor shows it. Pausing leaves the real frame up under a veil. The first tap unmutes in place and hands over to
   //  the own control bar. If YouTube fails, the clip stays and a tap opens
   //  the set on YouTube instead.
   // ============================================================================
@@ -1096,7 +1096,8 @@
     if (!frame) return;
     const VIDEO = 'uzVVx4DA_os';
     const START = 2715; // 45:15
-    const LEAD = 1.5;   // clip seconds YouTube gets to seek and buffer
+    const MARK = 4300;  // ms YouTube shows its pause mark after a start
+    const SEEK_LAG = 0.1; // seconds a seek takes to land
     const tap = frame.querySelector('.feature-tap');
     const playBtn = frame.querySelector('.fb-play');
     const muteBtn = frame.querySelector('.fb-mute');
@@ -1104,10 +1105,10 @@
     const [timeEl, durEl] = frame.querySelectorAll('.fb-time');
     const ytLink = frame.querySelector('.fb-yt');
     const loop = frame.querySelector('.feature-loop');
-    let player = null, ready = false, wantOpen = false, failed = false, dragging = false, hideTimer = 0;
-    // Handover: 'wait' (clip only) → 'parked' (paused ahead of the clip) →
-    // 'released' (play sent) → 'done' (crossfaded to the player).
-    let handover = 'wait', pollTimer = 0;
+    let player = null, ready = false, wantOpen = false, failed = false, dragging = false, hideTimer = 0, directTimer = 0;
+    // Handover: 'wait' (clip only) → 'matching' (YouTube playing in step under
+    // the clip) → 'done' (crossfaded to the player).
+    let handover = 'wait', matchTimer = 0, lastPlay = 0, markTimer = 0;
 
     const fmt = s => {
       s = Math.max(0, Math.floor(s));
@@ -1135,43 +1136,38 @@
     function reveal() {
       if (handover === 'done') return;
       handover = 'done';
-      clearInterval(pollTimer);
+      clearInterval(matchTimer);
       frame.classList.remove('is-direct');
-      // A beat for the first frame to paint, then crossfade and park the clip.
-      setTimeout(() => {
-        frame.classList.add('is-playing');
-        setTimeout(() => loop.pause(), 700);
-      }, 150);
+      frame.classList.add('is-playing');
+      setTimeout(() => loop.pause(), 700);
     }
-    function release() {
-      clearInterval(pollTimer);
-      handover = 'released';
-      player.playVideo();
-      // Covers a PLAYING event that never comes (already playing when released).
-      setTimeout(() => {
-        const st = player.getPlayerState();
-        if (st === YT.PlayerState.PLAYING || st === YT.PlayerState.BUFFERING) reveal();
-      }, 4000);
-    }
-    function park() {
-      const at = loop.currentTime + LEAD;
-      // Clip blocked or about to wrap: nothing to match, just go.
-      if (loop.paused || !loop.duration || at > loop.duration - 0.3) { release(); return; }
-      handover = 'parked';
-      player.pauseVideo();
-      player.seekTo(START + at, true);
-      let last = loop.currentTime;
-      pollTimer = setInterval(() => {
+    // Seeks only: pausing YouTube to line it up would bring its mark back. The
+    // first seek lands late while the video loads, so it's measured and redone.
+    function match() {
+      handover = 'matching';
+      let lag = SEEK_LAG, seeks = 0;
+      matchTimer = setInterval(() => {
+        const now = performance.now();
+        if (player.getPlayerState() !== YT.PlayerState.PLAYING || now - lastPlay < 400) return;
         const c = loop.currentTime;
-        // Release a hair early for the postMessage round trip; bail if the clip wrapped.
-        if (c >= at - 0.12 || c < last) release();
-        last = c;
-      }, 30);
+        const free = loop.paused || !loop.duration || seeks > 4; // nothing (more) to line up with
+        const drift = player.getCurrentTime() - START - c; // + when YouTube is ahead
+        if (!free && Math.abs(drift) > 0.2) {
+          // Only with room left in the clip to sit out YouTube's mark; else after it wraps.
+          if (loop.duration - c < MARK / 1000 + 1) return;
+          // Seeks after the first land on loaded video, so what they miss by is the lag.
+          if (seeks++ > 1 && Math.abs(drift) < 1) lag = Math.min(1, Math.max(0, lag - drift));
+          player.seekTo(START + c + lag, true);
+          lastPlay = now;
+        } else if (now - lastPlay > MARK) {
+          reveal();
+        }
+      }, 100);
     }
 
     function fail() {
       failed = true;
-      clearInterval(pollTimer);
+      clearInterval(matchTimer);
       tap.setAttribute('aria-label', 'Watch on YouTube');
       frame.querySelector('.feature-hint').lastChild.textContent = 'watch on youtube';
     }
@@ -1181,10 +1177,9 @@
       tap.setAttribute('aria-label', 'Play or pause');
       player.unMute();
       player.setVolume(100);
-      // Mid-handover, sound beats a perfect match.
-      if (handover === 'done') player.playVideo();
-      else if (handover !== 'released') release();
-      setTimeout(() => {
+      // Mid-handover it keeps playing in step under the clip, now with sound.
+      if (player.getPlayerState() !== YT.PlayerState.PLAYING) player.playVideo();
+      directTimer = setTimeout(() => {
         const s = player.getPlayerState();
         if (s !== YT.PlayerState.PLAYING && s !== YT.PlayerState.BUFFERING) frame.classList.add('is-direct');
       }, 1500);
@@ -1209,16 +1204,20 @@
           onStateChange: e => {
             const playing = e.data === YT.PlayerState.PLAYING;
             const buffering = e.data === YT.PlayerState.BUFFERING;
-            // The clip covers everything until the handover; only playback matters.
+            if (playing) lastPlay = performance.now();
+            // The clip covers everything until the handover, unless it's paused mid-way.
             if (handover !== 'done') {
-              if (playing && handover === 'wait') park();
-              else if (playing && handover === 'released') reveal();
-              return;
+              if (playing && handover === 'wait') match();
+              if (e.data !== YT.PlayerState.PAUSED || !frame.classList.contains('is-open')) return;
+              reveal();
             }
             frame.classList.toggle('is-paused', !playing && !buffering);
             frame.classList.toggle('is-buffering', buffering);
             playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
             if (playing) frame.classList.remove('is-direct');
+            frame.classList.toggle('is-resumed', playing);
+            clearTimeout(markTimer);
+            if (playing) markTimer = setTimeout(() => frame.classList.remove('is-resumed'), MARK);
           },
           onError: fail,
         },
@@ -1230,6 +1229,7 @@
     document.head.appendChild(api);
 
     const togglePlay = () => {
+      clearTimeout(directTimer); // a pause here isn't a blocked start
       if (player.getPlayerState() === YT.PlayerState.PLAYING) player.pauseVideo();
       else player.playVideo();
     };
