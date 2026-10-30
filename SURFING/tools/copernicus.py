@@ -171,19 +171,22 @@ def history(pts, start, end, out_path):
     import copernicusmarine as cm
     t0 = dt.datetime.fromisoformat(start).replace(tzinfo=dt.timezone.utc)
     t1 = dt.datetime.fromisoformat(end).replace(tzinfo=dt.timezone.utc) + dt.timedelta(hours=23)
-    # Where the reanalysis ends.
-    ds_r, _ = open_dataset(t0, t1, REANALYSIS)
-    last_r = dt.datetime.fromisoformat(str(ds_r['time'].values[-1])[:19]).replace(tzinfo=dt.timezone.utc) if ds_r['time'].size else t0 - dt.timedelta(hours=1)
-    parts = []
-    if last_r >= t0:
-        parts.append((REANALYSIS, t0, min(t1, last_r)))
-    if last_r < t1:
-        parts.append((DATASET, max(t0, last_r + dt.timedelta(hours=1)), t1))
     out = {'v': 1, 'from': start, 'to': end, 'times': [], 'parts': [], 'spots': {}}
-    for dataset, a, b in parts:
-        ds, source = open_dataset(a, b, dataset)
-        times = [str(t)[:16] for t in ds['time'].values]
-        rec = sample(ds, pts['spots'])
+    # The reanalysis while it reaches. While Copernicus extends it, its
+    # newest days are on the time axis but still empty, so it ends at the
+    # last hour with any heights; the analysis-forecast's archive from there.
+    ds_r, src_r = open_dataset(t0, t1, REANALYSIS)
+    times_r = [str(t)[:16] for t in ds_r['time'].values]
+    rec_r = sample(ds_r, pts['spots']) if times_r else {}
+    h = VARS['VHM0'][0]
+    filled = [i for i in range(len(times_r)) if any(r[h][i] is not None for r in rec_r.values())]
+    n_r = filled[-1] + 1 if filled else 0
+    parts = [(REANALYSIS, times_r[:n_r], {sid: {k: (v[:n_r] if isinstance(v, list) else v) for k, v in r.items()} for sid, r in rec_r.items()}, src_r)] if n_r else []
+    last_r = dt.datetime.fromisoformat(times_r[n_r - 1]).replace(tzinfo=dt.timezone.utc) if n_r else t0 - dt.timedelta(hours=1)
+    if last_r < t1:
+        ds, source = open_dataset(last_r + dt.timedelta(hours=1), t1, DATASET)
+        parts.append((DATASET, [str(t)[:16] for t in ds['time'].values], sample(ds, pts['spots']), source))
+    for dataset, times, rec, source in parts:
         n0 = len(out['times'])
         out['times'] += times
         out['parts'].append({'dataset': dataset, 'from': times[0] if times else None, 'to': times[-1] if times else None, 'source': source})
