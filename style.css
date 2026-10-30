@@ -519,31 +519,6 @@ body.pills-away .pill { animation-play-state: running, paused; }
   transition: opacity 600ms var(--ease);
 }
 .feature-frame.is-playing .feature-loop { opacity: 0; }
-/* Own buffering spinner, sized to sit over YouTube's. */
-.feature-spin {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 76px;
-  height: 76px;
-  margin: -38px 0 0 -38px;
-  border-radius: 50%;
-  background: rgba(16, 24, 32, 0.92);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 150ms var(--ease);
-}
-.feature-spin::after {
-  content: '';
-  position: absolute;
-  inset: 24px;
-  border-radius: 50%;
-  border: 2px solid rgba(214, 210, 196, 0.25);
-  border-top-color: var(--accent);
-  animation: feature-spin 900ms linear infinite;
-}
-.feature-frame.is-playing.is-buffering .feature-spin { opacity: 1; transition-delay: 120ms; }
-@keyframes feature-spin { to { transform: rotate(360deg); } }
 /* Sits over the iframe so hovering never wakes YouTube's chrome. */
 .feature-tap {
   display: flex;

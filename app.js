@@ -1213,7 +1213,6 @@
               reveal();
             }
             frame.classList.toggle('is-paused', !playing && !buffering);
-            frame.classList.toggle('is-buffering', buffering);
             playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
             if (playing) frame.classList.remove('is-direct');
           },
