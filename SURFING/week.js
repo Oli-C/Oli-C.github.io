@@ -207,7 +207,11 @@ function renderList() {
   if (shownFavs.length) html += `<section class="sec"><div class="sec-head"><h2>My spots</h2></div>${gridHtml(shownFavs)}</section>`;
   else if (!favs.length) html += `<p class="hint"><b>Make this your list:</b> star the spots you surf (★ in a spot’s viewer, or <a href="account.html#spots">pick them on your account page</a>). They’ll lead this page in your order, and follow your account onto every device.</p>`;
   if (showRest) html += AREAS.map((a) => { const l = rest.filter((c) => c.area === a); return l.length ? `<section class="sec"><div class="sec-head"><h2>${esc(a)}</h2></div>${gridHtml(l)}</section>` : ''; }).join('');
+  // Redrawn rows keep the days where they were, not back at today.
+  const was = list.querySelector('.strip, .ctab-wrap'), left = was ? was.scrollLeft : 0;
   list.innerHTML = html;
+  lastLeft = left;
+  for (const st of list.querySelectorAll('.strip, .ctab-wrap')) st.scrollLeft = left;
   renderBets(showRest ? [...shownFavs, ...rest] : shownFavs);
   empty.classList.toggle('show', !shownFavs.length && !(showRest && rest.length) && !!(q.value.trim() || area !== 'All'));
 }
@@ -222,22 +226,30 @@ function render() { renderChips(); renderList(); }
 function openTile(id, i) {
   sel = sel && sel.id === id && sel.i === i ? null : { id, i };
   renderList();
-  const t = list.querySelector(`[data-id="${CSS.escape(id)}"][data-i="${i}"]`);
-  if (t && sel) t.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+  // Only if the day is out of sight (a best bet, say): slide its row to it,
+  // and the rest follow.
+  const t = sel && list.querySelector(`.dcard[data-id="${CSS.escape(id)}"][data-i="${i}"], .cc[data-id="${CSS.escape(id)}"][data-i="${i}"]`);
+  const st = t && t.closest('.strip, .ctab-wrap');
+  if (!st) return;
+  const r = st.getBoundingClientRect(), q = t.getBoundingClientRect();
+  if (q.left < r.left) st.scrollBy({ left: q.left - r.left - 8, behavior: 'smooth' });
+  else if (q.right > r.right) st.scrollBy({ left: q.right - r.right + 8, behavior: 'smooth' });
+  if (q.top < 0 || q.bottom > innerHeight) t.scrollIntoView({ block: 'nearest' });
 }
 list.addEventListener('click', (e) => {
   const t = e.target.closest('.dcard, .cc');
   if (t) openTile(t.dataset.id, +t.dataset.i);
 });
 // Swiping one spot's days swipes them all, so the days stay in columns.
-let syncing = false;
+// The rows it moves fire scroll events of their own, at the same place:
+// those are echoes and are ignored, so they never fight a smooth scroll.
+let lastLeft = 0;
 list.addEventListener('scroll', (e) => {
   const src = e.target;
   const kind = src.classList && ['strip', 'ctab-wrap'].find((k) => src.classList.contains(k));
-  if (syncing || !kind) return;
-  syncing = true;
-  for (const st of list.querySelectorAll('.' + kind)) if (st !== src) st.scrollLeft = src.scrollLeft;
-  requestAnimationFrame(() => { syncing = false; });
+  if (!kind || Math.abs(src.scrollLeft - lastLeft) < 1) return;
+  lastLeft = src.scrollLeft;
+  for (const st of list.querySelectorAll('.' + kind)) if (st !== src) st.scrollLeft = lastLeft;
 }, true);
 bets.addEventListener('click', (e) => { const b = e.target.closest('.bet'); if (b) openTile(b.dataset.id, +b.dataset.i); });
 tools.addEventListener('click', (e) => {
