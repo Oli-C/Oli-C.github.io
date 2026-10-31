@@ -1,0 +1,25 @@
+name: surf watch
+
+# Every 3 hours: has every moving part of the surf forecast done its job
+# recently? (SURFING/tools/watch.mjs: the worker's forecast build and history
+# runs, the IBI and model-record jobs, the buoy and gauge feeds, the page
+# counter.) Fails, so GitHub emails, naming whatever has gone stale.
+
+on:
+  schedule:
+    - cron: '25 */3 * * *'
+  workflow_dispatch:
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: SURFING/tools/watch.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check
+        run: node SURFING/tools/watch.mjs

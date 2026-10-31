@@ -1,7 +1,7 @@
 name: worker bundle
 
 # Keeps SURFING/tools/surf-worker.js in step with its sources: spots.js,
-# stations.js, score.js and tools/worker/*. Rebuilds on any change to them,
+# stations.js, swan.js, score.js and tools/worker/*. Rebuilds on any change to them,
 # runs the tests (SURFING/tools/test: the scoring and the worker against a
 # faked network), commits the bundle if it moved, then deploys it to the
 # surf-feedback Cloudflare worker when the live build (GET /health) differs
@@ -21,6 +21,7 @@ on:
       - 'SURFING/tools/site.mjs'
       - 'SURFING/tools/test/**'
       - 'SURFING/score.js'
+      - 'SURFING/swan.js'
       - 'SURFING/tools/worker/**'
       - 'SURFING/tools/build-worker.mjs'
       - '.github/workflows/worker-bundle.yml'
@@ -54,7 +55,7 @@ jobs:
             echo "bundle current"
           else
             git commit -m "worker: rebuild surf-worker.js [skip ci]"
-            git push
+            git pull --rebase && git push
           fi
       - name: Deploy to Cloudflare
         env:

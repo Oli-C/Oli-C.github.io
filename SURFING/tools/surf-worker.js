@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build 7a0f788549. */
-const WORKER_BUILD = '7a0f788549';
+   Build 665a72b881. */
+const WORKER_BUILD = '665a72b881';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (16-day outlook).
@@ -414,7 +414,7 @@ const GAUGES = [
   { id: 'lagos', name: 'Lagos tide gauge', ds: 'TS_70_LagosTG_TG_UND', lat: 37.1, lng: -8.6667 },
   { id: 'leixoes', name: 'Leixões tide gauge', ds: 'TS_70_LeixoesTG_TG_UND', lat: 41.1867, lng: -8.7045 },
 ];
-const ERDDAP = 'https://platform-erddap.emodnet-physics.eu/erddap/tabledap/';
+const ERDDAP = 'https://er3webapps.emodnet-physics.eu/platforms3/erddap/tabledap/';   // moved here Oct 2026 (the old host redirects)
 // What to ask a buoy for (see `wind` above).
 const buoyVars = (b) => (b.wind ? ['VHM0', 'VTPK', 'VPED', 'VMDR', 'WSPD', 'WDIR', 'TEMP'] : ['VHM0', 'VTPK', 'VPED', 'TEMP']);
 // Buoy anemometers sit ~3–4 m up; a log profile over sea puts 10 m ~9% higher.
@@ -2292,9 +2292,18 @@ async function archiveIpma(db) {
 }
 
 // One EMODnet dataset since `since`, folded to one row per hour.
-async function erddapHours(ds, vars, since) {
+// ERDDAP refuses a query that starts after the dataset's recorded time
+// range ("no matching results … outside of the variable's actual_range"),
+// and that range can lag the data by days. So on that refusal, ask again
+// from an hour before its recorded end: anything newer comes back with it
+// (rows already stored are ignored on insert).
+async function erddapHours(ds, vars, since, retried) {
   const r = await fetch(`${ERDDAP}${ds}.json?time,${vars.join(',')}&time%3E${since}Z&orderBy(%22time%22)`, { headers: HIST_UA });
-  if (r.status === 404) return [];   // nothing newer
+  if (r.status === 404) {
+    const end = (await r.text()).match(/actual_range: \S+ to (\d{4}-\d\d-\d\dT\d\d:\d\d)/);
+    if (!retried && end && end[1] < since) return erddapHours(ds, vars, new Date(Date.parse(end[1] + 'Z') - 36e5).toISOString().slice(0, 16), true);
+    return [];   // nothing newer
+  }
   if (!r.ok) throw new Error(`${ds} ${r.status}`);
   const byHour = {};
   for (const row of (await r.json()).table.rows) {

@@ -127,12 +127,21 @@ function scoreWind(a, fcAt, obsWs, obsWd) {
     });
   }
 }
-async function erddap(ds, vars, since) {
+// ERDDAP refuses a query starting after the dataset's recorded time range,
+// which can lag the data by days; on that refusal, ask again from an hour
+// before the recorded end (see history.js erddapHours), keeping only the
+// rows after `since`.
+async function erddap(ds, vars, since, after) {
   const r = await fetch(`${ERDDAP}${ds}.json?time,${vars.join(',')}&time%3E${since}&orderBy(%22time%22)`, { headers: { 'User-Agent': UA } });
-  if (r.status === 404) return {};
+  if (r.status === 404) {
+    const end = (await r.text()).match(/actual_range: \S+ to (\d{4}-\d\d-\d\dT\d\d:\d\d)/);
+    if (!after && end && Date.parse(end[1] + 'Z') < Date.parse(since)) return erddap(ds, vars, new Date(Date.parse(end[1] + 'Z') - 36e5).toISOString().slice(0, 19) + 'Z', since);
+    return {};
+  }
   if (!r.ok) throw new Error(String(r.status));
   const byHour = {};
   for (const row of (await r.json()).table.rows) {
+    if (after && Date.parse(row[0]) <= Date.parse(after)) continue;
     const o = byHour[hourKey(row[0])] = byHour[hourKey(row[0])] || { t: row[0] };
     vars.forEach((v, i) => { const x = row[i + 1]; if (typeof x === 'number' && Number.isFinite(x)) o[v] = x; });
   }

@@ -23,7 +23,7 @@ const GAUGES = [
   { id: 'lagos', name: 'Lagos tide gauge', ds: 'TS_70_LagosTG_TG_UND', lat: 37.1, lng: -8.6667 },
   { id: 'leixoes', name: 'Leixões tide gauge', ds: 'TS_70_LeixoesTG_TG_UND', lat: 41.1867, lng: -8.7045 },
 ];
-const ERDDAP = 'https://platform-erddap.emodnet-physics.eu/erddap/tabledap/';
+const ERDDAP = 'https://er3webapps.emodnet-physics.eu/platforms3/erddap/tabledap/';   // moved here Oct 2026 (the old host redirects)
 // What to ask a buoy for (see `wind` above).
 const buoyVars = (b) => (b.wind ? ['VHM0', 'VTPK', 'VPED', 'VMDR', 'WSPD', 'WDIR', 'TEMP'] : ['VHM0', 'VTPK', 'VPED', 'TEMP']);
 // Buoy anemometers sit ~3–4 m up; a log profile over sea puts 10 m ~9% higher.
