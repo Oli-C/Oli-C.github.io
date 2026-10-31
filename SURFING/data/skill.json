@@ -1,6 +1,6 @@
 {
  "v": 2,
- "updated": "2026-10-31T12:22:37.815Z",
+ "updated": "2026-10-31T19:16:34.817Z",
  "wind": {
   "icon_seamless": {
    "lead": [
@@ -630,7 +630,7 @@
      "hBias": -0.131,
      "p": 0.736,
      "dir": 12.68,
-     "at": "2026-10-31T12:22:37.815Z"
+     "at": "2026-10-31T19:16:34.817Z"
     }
    ],
    "n": 111,
@@ -640,7 +640,7 @@
    "dir": 12.68
   }
  },
- "lastWindObs": "2026-10-31T04:00",
+ "lastWindObs": "2026-10-31T18:00",
  "lastBuoyWind": {
   "nazare": "2026-10-29T11:00:00Z",
   "silleiro": "2026-10-29T11:00:00Z",
@@ -654,8 +654,17 @@
   "silleiro": "2026-10-29T11:00:00Z",
   "cadiz": "2026-10-29T11:00:00Z"
  },
- "runs": 23,
- "stations": [],
+ "runs": 24,
+ "stations": [
+  "Alcobaça",
+  "Cabo Carvoeiro",
+  "Sintra, Colares",
+  "Cabo Raso",
+  "Oeiras / Vila Fria",
+  "Almada, P.Rainha",
+  "Aljezur",
+  "Santa Cruz"
+ ],
  "buoys": [
   {
    "id": "nazare",
@@ -707,7 +716,7 @@
   }
  ],
  "learned": {
-  "updated": "2026-10-31T12:23:12.019Z",
+  "updated": "2026-10-31T19:17:03.460Z",
   "sessions": 2,
   "used": 2,
   "setAside": 0,
@@ -743,13 +752,13 @@
    "n": 2,
    "w": {
     "bias": -0.083,
-    "tide:low": -0.174,
+    "tide:low": -0.173,
     "tide:mid": 0.091,
     "wind:light": -0.083,
     "size:in": 0.091,
-    "size:big": -0.174,
+    "size:big": -0.173,
     "period:mid": 0.091,
-    "period:long": -0.174,
+    "period:long": -0.173,
     "dir:in": -0.083
    },
    "size": {
