@@ -15,7 +15,7 @@
 
    Bindings: DB (D1 allfield-stats, table hit), KEY (secret). Deployed by
    .github/workflows/tally-worker.yml (code only; bindings stay). */
-const BUILD = '2026-10-30a';
+const BUILD = '2026-10-31a';
 const SITES = /^https:\/\/(www\.)?allfield\.online$/;
 const BOTS = /bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|embedly|monitor|curl|wget|python|node-fetch/i;
 const KINDS = new Set(['view', 'click', 'play']);
@@ -45,7 +45,7 @@ async function record(req, env) {
   const now = new Date().toISOString(), day = now.slice(0, 10);
   const ref = clip(b.r, 80).toLowerCase().replace(/^www\./, '');
   await env.DB.prepare('INSERT INTO hit (t, kind, page, label, ref, dev, country, visitor) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(now.slice(0, 16), b.k, clip(b.p, 120), clip(b.l, 80) || null, ref && !/allfield\.online$/.test(ref) ? ref : null,
+    .bind(now.slice(0, 16), b.k, clip(b.p, 120), clip(typeof b.l === 'string' ? b.l.replace(/\s+/g, ' ').trim() : '', 80) || null, ref && !/allfield\.online$/.test(ref) ? ref : null,
       deviceOf(ua, +b.w || 0), (req.cf && req.cf.country) || null, await visitorOf(req, env, day))
     .run();
   return new Response(null, { status: 204, headers: { 'Access-Control-Allow-Origin': origin } });

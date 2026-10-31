@@ -17,7 +17,7 @@
   window.tally = send;
   send('view');
   // Link pills carry their name in aria-label ("Surf cams — live cams…" → "Surf cams").
-  const name = (a, u) => (a.getAttribute('aria-label') || '').split(' — ')[0] || a.textContent.trim().slice(0, 60) || u.hostname;
+  const name = (a, u) => (a.getAttribute('aria-label') || '').split(' — ')[0] || a.textContent.replace(/\s+/g, ' ').trim().slice(0, 60) || u.hostname;
   document.addEventListener('click', (e) => {
     const a = e.target.closest && e.target.closest('a[href]');
     if (!a) return;
