@@ -1,6 +1,6 @@
 {
  "v": 2,
- "updated": "2026-10-31T05:36:48.375Z",
+ "updated": "2026-10-31T12:22:37.815Z",
  "wind": {
   "icon_seamless": {
    "lead": [
@@ -630,7 +630,7 @@
      "hBias": -0.131,
      "p": 0.736,
      "dir": 12.68,
-     "at": "2026-10-31T05:36:48.375Z"
+     "at": "2026-10-31T12:22:37.815Z"
     }
    ],
    "n": 111,
@@ -654,17 +654,8 @@
   "silleiro": "2026-10-29T11:00:00Z",
   "cadiz": "2026-10-29T11:00:00Z"
  },
- "runs": 22,
- "stations": [
-  "Alcobaça",
-  "Cabo Carvoeiro",
-  "Sintra, Colares",
-  "Cabo Raso",
-  "Oeiras / Vila Fria",
-  "Almada, P.Rainha",
-  "Aljezur",
-  "Santa Cruz"
- ],
+ "runs": 23,
+ "stations": [],
  "buoys": [
   {
    "id": "nazare",
@@ -716,7 +707,7 @@
   }
  ],
  "learned": {
-  "updated": "2026-10-31T05:37:15.525Z",
+  "updated": "2026-10-31T12:23:12.019Z",
   "sessions": 2,
   "used": 2,
   "setAside": 0,
