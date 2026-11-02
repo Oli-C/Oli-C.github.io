@@ -3,7 +3,7 @@
 
 const LEVELS = ['Flat', 'Poor', 'Fair', 'Good', 'Epic'];
 // Shared by every page: a spot by id, and day and month names.
-const byId = (id) => CAMS.find((c) => c.id === id);
+const byId = (id) => CAMS.find((c) => c.id === id) || (typeof CAM_VIEWS !== 'undefined' && CAM_VIEWS.find((c) => c.id === id)) || undefined;
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // The Cloudflare worker (tools/worker/): feedback in, hourly forecast out.

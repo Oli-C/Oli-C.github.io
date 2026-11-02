@@ -538,8 +538,10 @@ async function renderBanks(c) {
 
 function open(id, push = true) {
   const [sid, day] = String(id).split('@');
-  const c = byId(sid);
-  if (!c) return;
+  // An extra view (spots.js views) opens its spot, playing that view.
+  const picked = byId(sid);
+  if (!picked) return;
+  const c = picked.of ? byId(picked.of) : picked, cam = picked;
   viewDay = /^\d{4}-\d\d-\d\d$/.test(day || '') ? day : null;
   if (viewDay) loadSpotDays(c).then(() => { if ($('v-go').dataset.go === c.id) renderToday(c); });
   lastFocus = document.activeElement;
@@ -551,6 +553,7 @@ function open(id, push = true) {
   syncFav(c);
   $('v-foot').innerHTML = noCam(c) ? (c.link ? `Cam on <a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">${esc(c.source || 'its own site')}</a>; forecast and local knowledge here.` : 'No camera at this spot yet: forecast and local knowledge only.')
     : `Stream by ${esc(c.source)} · <a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">open original</a>`;
+  renderViews(c, cam);
   renderScore(c);
   renderFb(c);
   renderBanks(c);
@@ -562,20 +565,34 @@ function open(id, push = true) {
   stopPlayback();
   // Don't stream the same cam twice: the tile rests while the viewer plays.
   for (const t of Object.values(tiles)) t.hold = false;
-  if (tiles[c.id]) tiles[c.id].hold = true;
+  if (tiles[cam.id]) tiles[cam.id].hold = true;
   syncTiles();
-  frame.className = 'frame ' + (c.type === 'page' ? 'page' : noCam(c) ? 'video nocam' : 'video');
-  if (noCam(c)) frame.innerHTML = noCamHtml(c);
-  else if (offline.get(c.id) === 'blocked') frameMsg(`This cam only plays on ${sourceName(c)} for now.`, c);
-  else if (c.type === 'hls') playHls(c);
-  else frame.innerHTML = iframeHtml(c.embed, c);
+  frame.className = 'frame ' + (cam.type === 'page' ? 'page' : noCam(cam) ? 'video nocam' : 'video');
+  if (noCam(cam)) frame.innerHTML = noCamHtml(cam);
+  else if (offline.get(cam.id) === 'blocked') frameMsg(`This cam only plays on ${sourceName(cam)} for now.`, cam);
+  else if (cam.type === 'hls') playHls(cam);
+  else frame.innerHTML = iframeHtml(cam.embed, cam);
   viewer.hidden = false;
   viewer.querySelector('.sheet').scrollTop = 0;
   requestAnimationFrame(() => viewer.classList.add('open'));
   document.body.classList.add('locked');
   $('v-close').focus();
-  if (push) history.pushState(null, '', '#' + c.id);
+  if (push) history.pushState(null, '', '#' + cam.id);
 }
+
+// A spot with more than one cam: a switch under the picture between them.
+function renderViews(c, cam) {
+  const el = $('v-views'), all = [c, ...CAM_VIEWS.filter((v) => v.of === c.id)];
+  if (all.length < 2) { el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+  el.innerHTML = `<span class="k">Cams</span>${all.map((v) => `<button class="fb-btn${v.id === cam.id ? ' sel' : ''}" type="button" data-view="${esc(v.id)}" aria-pressed="${v.id === cam.id}">${esc(v.of ? v.label : (c.viewLabel || 'main'))}</button>`).join('')}`;
+}
+$('v-views').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-view]');
+  if (!b || b.getAttribute('aria-pressed') === 'true') return;
+  open(b.dataset.view, false);
+  history.replaceState(null, '', '#' + b.dataset.view);
+});
 
 // Where a spot has no camera, the frame shows a quiet swell line and
 // offers the nearest cams.
@@ -598,7 +615,7 @@ function syncFav(c) {
   b.setAttribute('aria-pressed', on);
   b.title = b.ariaLabel = on ? 'In my spots: tap to remove' : 'Add to my spots (leads the 16-day page)';
 }
-$('v-fav').addEventListener('click', () => { const c = byId(location.hash.slice(1)) || byId($('v-go').dataset.go); if (c) { Account.favs.toggle(c.id); syncFav(c); } });
+$('v-fav').addEventListener('click', () => { const c = byId($('v-go').dataset.go); if (c) { Account.favs.toggle(c.id); syncFav(c); } });
 Account.favs.onChange(() => { const c = byId($('v-go').dataset.go); if (c && !viewer.hidden) syncFav(c); });
 Account.favs.sync();
 

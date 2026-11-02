@@ -1122,6 +1122,10 @@ header { display: none; }
 .fb-btn.sel { background: var(--accent); color: #101820; border-color: var(--accent); }
 .fb-note { font-size: 12px; color: var(--fg-muted); }
 .sess-open { margin-top: 0; }
+/* A spot with more than one cam: the switch under the picture. */
+.views-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px 18px; border-top: 1px solid var(--border); }
+.views-row[hidden] { display: none; }
+.views-row .k { margin-right: 4px; }
 /* Favourite: the star in the viewer's header. */
 #v-fav[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
 #v-fav[aria-pressed="true"] svg { fill: currentColor; }

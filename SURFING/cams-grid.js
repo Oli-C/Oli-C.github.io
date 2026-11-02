@@ -69,7 +69,7 @@ function renderGrid() {
       </div>
       <div class="cards"></div>
     </section>` + AREAS.map((a) => {
-    const list = CAMS.filter((c) => c.area === a && !noCam(c));
+    const list = CAMS.filter((c) => c.area === a && !noCam(c)).flatMap((c) => [c, ...CAM_VIEWS.filter((v) => v.of === c.id)]);
     if (!list.length) return '';
     return `
     <section class="area" data-area="${esc(a)}">
@@ -285,6 +285,8 @@ const offline = new Map();   // id -> 'probe' | 'play' | 'blocked'
    moving a playing video stops it. */
 let order = (() => { try { return localStorage.getItem('surf-order') || ''; } catch { return ''; } })() || (Account.favs.list().length ? 'mine' : 'area');
 function spotRank(c) {
+  // A spot's extra view sits just after its spot (unless only it is down).
+  if (c.of) return spotRank(byId(c.of)) + 0.5 + (offline.has(c.id) && !offline.has(c.of) ? 1e6 : 0);
   const dead = offline.has(c.id) ? 1e6 : 0;
   if (order === 'near' && here) return dead + kmFrom(c);
   if (order === 'best') { const r = scoreOf(c); return dead - (r ? (r.dark ? r.lit || 0 : r.total) : -1); }

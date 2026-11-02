@@ -47,6 +47,12 @@
      link    the cam's own page, for the "open on source" button
      source  who runs / hosts the cam
      thumb   optional preview image (also the tile's backdrop until it plays)
+     viewLabel  what the cam above looks at, when the spot has more views
+     views   more cams at the same spot: [{ key, label, type, embed, alt?,
+             thumb?, poster? }]. Each gets its own tile on the Cams page
+             (id '<spot>~<key>', named '<spot> · <label>'), sharing the spot's
+             forecast; the viewer switches between them. Nowhere else (map,
+             16-day, sessions) sees them: they're CAM_VIEWS, not CAMS.
      banks   true: read how its banks are breaking from the cam, hourly by day
              (tools/banks.py: time-averaged frames, no AI)
 
@@ -276,10 +282,19 @@ const CAMS = [
     name:    'Praia Nova',
     town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
     country: 'Portugal',
-    tags:    ['beach break', 'west facing', 'caparica', 'almada', 'no cam'],
+    tags:    ['beach break', 'west facing', 'caparica', 'almada'],
     lat: 38.6376, lng: -9.2354, faces: 250,   // OSM: Praia Nova, between CDS and Riviera on the same jetty-lined front
-    best: { ...CAPARICA, notes: 'Between the jetties just south of CDS, so it works much like it. No camera here: CDS and Riviera, either side, give the best look. ' + CAPARICA.notes },
-    type:    'none',
+    best: { ...CAPARICA, notes: 'Between the jetties just south of CDS, so it works much like it. ' + CAPARICA.notes },
+    type:    'hls',
+    // MEO's partner feeds (their partners' embedded player), not published
+    // ones: straight out past the groyne, and the wide look south from
+    // Barracuda. If they stop, set type back to 'none' and drop the view.
+    embed:   'https://video-auth1.iol.pt/beachcam/bccaparicanovapraia/playlist.m3u8',
+    viewLabel: 'Out past the groyne',
+    views:   [{ key: 'south', label: 'south', type: 'hls', embed: 'https://video-auth1.iol.pt/beachcam/bcbarracuda/playlist.m3u8' }],
+    fallback: 'https://beachcam.meo.pt/livecams/costa-da-caparica-praia-nova/',
+    link:    'https://beachcam.meo.pt/livecams/costa-da-caparica-praia-nova/',
+    source:  'MEO Beachcam',
   },
   {
     id:      'caparica-saude',
@@ -440,6 +455,12 @@ const CAMS = [
 
 // Home areas first; anything else follows in the order it appears in CAMS.
 const AREA_ORDER = ['Cascais', 'Caparica'];
+// A spot's extra cams (views), each a cam of its own for the Cams page and
+// the viewer, pointing back at its spot (of) for the forecast.
+const CAM_VIEWS = CAMS.flatMap((c) => (c.views || []).map((v) => ({
+  ...c, alt: undefined, thumb: undefined, poster: undefined, ...v, views: undefined,
+  id: `${c.id}~${v.key}`, of: c.id, name: `${c.name} · ${v.label}`,
+})));
 const AREAS = [...new Set(CAMS.map((c) => c.area))]
   .sort((a, b) => (AREA_ORDER.includes(a) ? AREA_ORDER.indexOf(a) : 99) - (AREA_ORDER.includes(b) ? AREA_ORDER.indexOf(b) : 99));
 

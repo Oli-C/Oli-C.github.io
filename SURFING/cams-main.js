@@ -49,7 +49,7 @@ function setUnits(u) {
   patchConditions();
   if (map) { map.closePopup(); hideMapCard(); }
   if (!viewer.hidden && location.hash) {
-    const c = byId(location.hash.slice(1));
+    const c = spotOf(byId(location.hash.slice(1)));
     if (c) { renderScore(c); renderSrc(c); renderToday(c); renderLocal(c); }
   }
 }
@@ -112,7 +112,7 @@ if (location.hash) open(location.hash.slice(1), false);
 (nativeHls ? Promise.resolve() : loadScript(LIBS.hls)).then(setupTiles, setupTiles);
 
 // Which cams are actually up; down ones are re-checked every 5 minutes.
-CAMS.forEach(checkCam);
+[...CAMS, ...CAM_VIEWS].forEach(checkCam);
 setInterval(() => { for (const [id, why] of offline) if (why === 'probe') checkCam(byId(id)); }, 5 * 60 * 1000);
 
 // Shared model skill first (so the blend is weighted), then conditions;
@@ -125,7 +125,7 @@ function refreshConditions() {
     patchConditions();
     refreshPins();
     if (!viewer.hidden && location.hash) {
-      const c = byId(location.hash.slice(1).split('@')[0]);
+      const c = spotOf(byId(location.hash.slice(1).split('@')[0]));
       if (c) { renderScore(c); renderFb(c); renderSrc(c); renderToday(c); renderLocal(c); renderTune(c); }
     }
   });

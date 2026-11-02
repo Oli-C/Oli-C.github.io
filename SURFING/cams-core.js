@@ -67,7 +67,10 @@ const loadScript = (url) => loaded[url] || (loaded[url] = new Promise((resolve, 
 const stamp = Math.floor(Date.now() / 60000);
 const thumbUrl = (u) => u + (u.includes('?') ? '&' : '?') + 't=' + stamp;
 
-const scoreOf = (c) => score(c, conditions[c.id] && conditions[c.id].now);
+// A spot's extra view (spots.js views) reads its spot's conditions.
+const condOf = (c) => conditions[c.of || c.id];
+const spotOf = (c) => (c && c.of ? byId(c.of) : c);
+const scoreOf = (c) => score(c, condOf(c) && condOf(c).now);
 const MOON = '<svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
 const badge = (c, lg, r = scoreOf(c)) => {
   if (r && r.dark) return `<span class="score lvl-dark${lg ? ' lg' : ''}" title="After dark: ${r.lit ? `${fmt(r.lit)} with light to see by` : 'flat anyway'}">${MOON}${r.lit ? `<b>${fmt(r.lit)}</b>` : ''}<small>Dark</small></span>`;
@@ -76,7 +79,7 @@ const badge = (c, lg, r = scoreOf(c)) => {
     ? `<span class="score lvl-${r.level}${lg ? ' lg' : ''}"><b>${fmt(r.total)}</b><small>${r.label}</small></span>`
     : `<span class="score lvl-x${lg ? ' lg' : ''}"><b>–</b><small>no data</small></span>`;
 };
-const condText = (c, k = conditions[c.id] && conditions[c.id].now) => {
+const condText = (c, k = condOf(c) && condOf(c).now) => {
   const r = score(c, k);
   if (!r) return '';
   // Wind and how clean it leaves the surface, e.g. "9 kts cross, bumpy".
@@ -88,7 +91,7 @@ const condText = (c, k = conditions[c.id] && conditions[c.id].now) => {
 
 // Average score per block of the day, daylight hours only.
 // `hs`: the day's hours (today's by default); only today has a past.
-function dayBars(c, hs = conditions[c.id] && conditions[c.id].hours, isToday = true) {
+function dayBars(c, hs = condOf(c) && condOf(c).hours, isToday = true) {
   if (!hs || !hs.length) return null;
   const nowH = isToday ? spotClock().h : -1;
   return BUCKETS.map((b) => {
@@ -109,7 +112,7 @@ const miniBars = (c, hs, at) => {
 };
 
 // A sentence or two on how the day goes: size trend, wind, best window.
-function daySummary(c, hs = conditions[c.id] && conditions[c.id].hours, isToday = true) {
+function daySummary(c, hs = condOf(c) && condOf(c).hours, isToday = true) {
   if (!hs) return '';
   const day = hs.filter((k) => !isDark(c, k) && hourOf(k.t) >= 6 && hourOf(k.t) < 19);
   if (day.length < 2) return 'No daylight hours left to call.';
