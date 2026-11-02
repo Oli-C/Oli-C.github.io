@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build 18c7ad2ef5. */
-const WORKER_BUILD = '18c7ad2ef5';
+   Build fe42c5a4ff. */
+const WORKER_BUILD = 'fe42c5a4ff';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (16-day outlook).
@@ -209,7 +209,6 @@ const CAMS = [
     embed:   'https://video-auth1.iol.pt/beachcam/bcadraga/playlist.m3u8',   // MEO's partner feed (see Bicas)
     link:    'https://beachcam.meo.pt/livecams/',
     source:  'MEO Beachcam',
-    swanLike: 'praia-grande-sul',   // its SWAN table until a SWAN run includes it
   },
   {
     id:      'guincho-norte',
@@ -266,7 +265,6 @@ const CAMS = [
     embed:   'https://video-auth1.iol.pt/beachcam/crismina/playlist.m3u8',   // MEO's partner feed (see Bicas)
     link:    'https://beachcam.meo.pt/livecams/',
     source:  'MEO Beachcam',
-    swanLike: 'guincho-sul',   // its SWAN table until a SWAN run includes it
   },
   {
     id:      'sao-pedro-estoril',
@@ -302,7 +300,6 @@ const CAMS = [
     embed:   'https://video-auth1.iol.pt/beachcam/parede/playlist.m3u8',   // MEO's partner feed (see Bicas)
     link:    'https://beachcam.meo.pt/livecams/',
     source:  'MEO Beachcam',
-    swanLike: 'sao-pedro-estoril',   // its SWAN table until a SWAN run includes it
   },
   {
     id:      'carcavelos',
@@ -340,7 +337,6 @@ const CAMS = [
     embed:   'https://video-auth1.iol.pt/beachcam/santoamaro/playlist.m3u8',   // MEO's partner feed (see Bicas)
     link:    'https://beachcam.meo.pt/livecams/',
     source:  'MEO Beachcam',
-    swanLike: 'carcavelos',   // its SWAN table until a SWAN run includes it
   },
   {
     id:      'caparica-sao-joao',
@@ -457,7 +453,6 @@ const CAMS = [
     link:    'https://www.youtube.com/watch?v=9K9f_tgRDXI',
     source:  'Playocean (YouTube)',
     thumb:   'https://i.ytimg.com/vi/9K9f_tgRDXI/hqdefault_live.jpg',
-    swanLike: 'caparica-riviera',   // its SWAN table until the Caparica fine grid is rerun with it
     viewLabel: 'Infante',
     views:   [{ key: 'sereia', label: 'Sereia', type: 'hls', embed: 'https://video-auth1.iol.pt/beachcam/bcwaikiki/playlist.m3u8' }],   // MEO's partner feeds
   },
