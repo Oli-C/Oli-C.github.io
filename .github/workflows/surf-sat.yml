@@ -1,0 +1,55 @@
+name: surf sat
+
+# Daily: the banks from space at each Caparica and Sesimbra beach, from every
+# clear Sentinel-2 pass of the last few days (SURFING/tools/sat_banks.py:
+# whitewater in near-infrared, per beach; no AI, no keys, Element 84's
+# public catalogue). Sends the readings and each beach's latest strip to
+# the worker (POST /banks/sat). Passes already filed are filed again
+# harmlessly. Every strip is kept a week as an artifact, for checking.
+#
+# Secrets: FEEDBACK_URL, FEEDBACK_KEY.
+
+on:
+  schedule:
+    - cron: '40 19 * * *'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Days back to look for passes'
+        default: '5'
+
+concurrency:
+  group: surf-sat
+  cancel-in-progress: false
+
+jobs:
+  sat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            SURFING/spots.js
+            SURFING/tools/sat_banks.py
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install
+        run: pip install numpy pillow rasterio
+      - name: Read the passes
+        env:
+          FEEDBACK_URL: ${{ secrets.FEEDBACK_URL }}
+          FEEDBACK_KEY: ${{ secrets.FEEDBACK_KEY }}
+        run: python SURFING/tools/sat_banks.py --days ${{ inputs.days || '5' }} --img strips --out strips/readings.json --post
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sat-strips
+          path: strips
+          retention-days: 7
+          if-no-files-found: ignore

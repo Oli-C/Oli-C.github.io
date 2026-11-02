@@ -489,31 +489,51 @@ function renderLocal(c) {
     <div class="tags">${(c.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div>`;
 }
 
-// How the banks have been breaking, read from a cam (tools/banks.py, hourly
-// by day): this spot's own, else the nearest cam that reads them within
-// 2.5 km. The latest reading, the last 3 days' tally, and the cam's latest
-// averaged view with the sea band and breaking marked.
+// How the banks have been breaking: from a cam (tools/banks.py, hourly by
+// day; this spot's own, else the nearest cam that reads them within 2.5 km),
+// and from space (tools/sat_banks.py, every clear Sentinel-2 pass, each
+// Caparica and Sesimbra beach its own). Each: the latest reading, a tally of
+// recent ones, and the image it came from.
 const BANK_WORDS = { flat: 'Hardly breaking', shorebreak: 'Shorebreak only', 'closing out': 'Closing out', peaky: 'Peaky, with channels', mixed: 'Mixed' };
+// From space a big day is white right across, so the satellite says where the bar is and whether channels cut it, not closeouts.
+const SAT_WORDS = { flat: 'Little breaking', 'inside only': 'Breaking inside only', continuous: 'One unbroken line', channels: 'Bars cut by channels', patchy: 'Patchy' };
 function bankCam(c) {
   if (c.banks) return { cam: c, km: 0 };
   return CAMS.filter((o) => o.banks).map((o) => ({ cam: o, km: km(c.lat, c.lng, o.lat, o.lng) })).filter((x) => x.km <= 2.5).sort((a, b) => a.km - b.km)[0] || null;
 }
 async function renderBanks(c) {
-  const el = $('v-banks'), src = bankCam(c);
-  if (!src) { el.hidden = true; el.innerHTML = ''; return; }
-  let j;
-  try { j = await (await fetch(`${FEEDBACK_URL.replace(/\/$/, '')}/banks?id=${encodeURIComponent(src.cam.id)}&days=3`)).json(); } catch { j = null; }
+  const el = $('v-banks'), src = bankCam(c), api = FEEDBACK_URL.replace(/\/$/, '');
+  const get = (u) => fetch(api + u).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const [cam, sat] = await Promise.all([
+    src ? get(`/banks?id=${encodeURIComponent(src.cam.id)}&days=3`) : null,
+    ['Caparica', 'Sesimbra'].includes(c.area) ? get(`/banks/sat?id=${encodeURIComponent(c.id)}&days=30`) : null,
+  ]);
   if ($('v-go').dataset.go !== c.id) return;
-  const list = (j && j.readings) || [];
-  if (!list.length) { el.hidden = true; el.innerHTML = ''; return; }
-  const last = list[0], ago = Math.max(0, Math.round((Date.now() - Date.parse(last.t + 'Z')) / 36e5));
-  const tally = Object.entries(list.reduce((m, r) => ((m[r.label] = (m[r.label] || 0) + 1), m), {})).sort((a, b) => b[1] - a[1]);
-  const from = src.km ? `the ${esc(src.cam.name)} cam, ${src.km.toFixed(1)} km away` : 'its cam';
+  const camList = (cam && cam.readings) || [], satList = (sat && sat.readings) || [];
+  if (!camList.length && !satList.length) { el.hidden = true; el.innerHTML = ''; return; }
+  const tally = (list, words) => Object.entries(list.reduce((m, r) => ((m[r.label] = (m[r.label] || 0) + 1), m), {})).sort((a, b) => b[1] - a[1])
+    .map(([l, n]) => `${esc((words[l] || l).toLowerCase())} ${n}`).join(' · ');
+  let html = '';
+  if (camList.length) {
+    const last = camList[0], ago = Math.max(0, Math.round((Date.now() - Date.parse(last.t + 'Z')) / 36e5));
+    const from = src.km ? `the ${esc(src.cam.name)} cam, ${src.km.toFixed(1)} km away` : 'its cam';
+    const img = `${api}/banks/img?id=${encodeURIComponent(src.cam.id)}&t=${encodeURIComponent(last.t)}`;
+    html += `<div class="today-head"><span class="k">Banks</span><small>from ${from} · averaged frames, no AI</small></div>
+      <p class="banks-now"><b class="bank-${last.label.replace(' ', '-')}">${esc(BANK_WORDS[last.label] || last.label)}</b> ${ago ? `${ago} h ago` : 'this hour'} · breaking along ${Math.round(last.cover * 100)}% of the beach, longest unbroken ${Math.round(last.longest * 100)}%${last.gaps ? `, ${last.gaps} channel${last.gaps > 1 ? 's' : ''}` : ''}</p>
+      <p class="banks-tally">Last 3 days: ${tally(camList, BANK_WORDS)}</p>
+      <a class="banks-img" href="${img}" target="_blank" rel="noopener"><img alt="The ${esc(src.cam.name)} cam averaged over a minute: white where waves keep breaking; red marks along the bottom where it counted breaking" loading="lazy" src="${img}"></a>`;
+  }
+  if (satList.length) {
+    const last = satList[0], d = new Date(last.t + 'Z');
+    const days = Math.round((Date.now() - d) / 864e5), when = days === 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
+    const img = `${api}/banks/sat/img?id=${encodeURIComponent(c.id)}&t=${encodeURIComponent(last.t)}`;
+    html += `<div class="today-head${camList.length ? ' banks-sub' : ''}"><span class="k">${camList.length ? 'From space' : 'Banks from space'}</span><small>Sentinel-2, 10 m · every clear pass</small></div>
+      <p class="banks-now"><b class="sat-${last.label.replace(' ', '-')}">${esc(SAT_WORDS[last.label] || last.label)}</b> ${when} (${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}, ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')} UTC)${last.bar_m != null && last.label !== 'flat' ? ` · outer breaking ~${last.bar_m} m out` : ''}${last.gaps ? ` · ${last.gaps} channel${last.gaps > 1 ? 's' : ''}` : ''}</p>
+      <p class="banks-tally">Last ${satList.length} clear pass${satList.length > 1 ? 'es' : ''}: ${tally(satList, SAT_WORDS)}</p>
+      <a class="banks-img" href="${img}" target="_blank" rel="noopener"><img alt="${esc(c.name)} from Sentinel-2, sea at the top, 1.4 km of beach: white is breaking waves; red marks along the top where it counted breaking" loading="lazy" src="${img}"></a>`;
+  }
   el.hidden = false;
-  el.innerHTML = `<div class="today-head"><span class="k">Banks</span><small>from ${from} · no AI, averaged frames</small></div>
-    <p class="banks-now"><b class="bank-${last.label.replace(' ', '-')}">${esc(BANK_WORDS[last.label] || last.label)}</b> ${ago ? `${ago} h ago` : 'this hour'} · breaking along ${Math.round(last.cover * 100)}% of the beach, longest unbroken ${Math.round(last.longest * 100)}%${last.gaps ? `, ${last.gaps} channel${last.gaps > 1 ? 's' : ''}` : ''}</p>
-    <p class="banks-tally">Last 3 days: ${tally.map(([l, n]) => `${esc((BANK_WORDS[l] || l).toLowerCase())} ${n}`).join(' · ')}</p>
-    <a class="banks-img" href="${FEEDBACK_URL.replace(/\/$/, '')}/banks/img?id=${encodeURIComponent(src.cam.id)}&t=${encodeURIComponent(last.t)}" target="_blank" rel="noopener"><img alt="The ${esc(src.cam.name)} cam averaged over a minute: white where waves keep breaking; red marks along the bottom where it counted breaking" loading="lazy" src="${FEEDBACK_URL.replace(/\/$/, '')}/banks/img?id=${encodeURIComponent(src.cam.id)}&t=${encodeURIComponent(last.t)}"></a>`;
+  el.innerHTML = html;
 }
 
 function open(id, push = true) {
