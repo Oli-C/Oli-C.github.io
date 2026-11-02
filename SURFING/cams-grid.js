@@ -257,7 +257,7 @@ function stopTile(id) {
 function syncTiles() {
   let budget = MAX_TILES;
   const listShown = effectiveView() !== 'map';
-  for (const c of CAMS) {
+  for (const c of cards().map((el) => byId(el.dataset.id))) {   // in page order, extra views included
     const t = tiles[c.id];
     if (!t) continue;
     const want = !dataSaver && listShown && t.visible && !t.hold && !document.hidden && matches(c) && budget > 0;
