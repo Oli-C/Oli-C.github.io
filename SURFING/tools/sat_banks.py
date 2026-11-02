@@ -31,7 +31,7 @@ window at a time from the cloud-optimised files.
 (POST /banks/sat; FEEDBACK_URL, FEEDBACK_KEY). Needs numpy, pillow,
 rasterio. surf-sat.yml runs it daily.
 """
-import base64, datetime as dt, io, json, math, os, subprocess, sys, urllib.request
+import base64, datetime as dt, io, json, math, os, subprocess, sys, time, urllib.error, urllib.request
 import numpy as np
 import rasterio
 from rasterio.windows import from_bounds
@@ -267,6 +267,17 @@ def area_readings(sp, days, img_dir):
     return results
 
 
+def send(req, tries=6):
+    """POST, waiting out the worker's rate guard (429, Retry-After) on a long backfill."""
+    for i in range(tries):
+        try:
+            return urllib.request.urlopen(req, timeout=60).read().decode()[:200]
+        except urllib.error.HTTPError as e:
+            if e.code != 429 or i == tries - 1:
+                raise
+            time.sleep(int(e.headers.get('Retry-After') or 60) + 2)
+
+
 def finish(results, args):
     """--out writes the readings, --post sends them (and the strips) to the worker."""
     if '--out' in args:
@@ -280,7 +291,7 @@ def finish(results, args):
             body = dict(r, img={k: base64.b64encode(v).decode() for k, v in r['img'].items()})
             req = urllib.request.Request(url + '/banks/sat', data=json.dumps(body).encode(), method='POST',
                                          headers={'Content-Type': 'application/json', 'X-Surf-Key': key, 'User-Agent': 'allfield-sat/1.0'})
-            print(r['t'], urllib.request.urlopen(req, timeout=60).read().decode()[:200])
+            print(r['t'], send(req))
 
 
 if __name__ == '__main__':
