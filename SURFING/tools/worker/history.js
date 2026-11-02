@@ -149,7 +149,7 @@ async function archiveWaveForecasts(db) {
 }
 
 // A spot's hour and its day, as spot_hour / spot_day rows.
-const HOUR_COLS = ['h', 'p', 'd', 'h2', 'p2', 'd2', 'wwh', 'th', 'ws', 'wd', 'wg', 'tide', 'tn', 'sst', 'air', 'wwp', 'wwd'];
+const HOUR_COLS = ['h', 'p', 'd', 'h2', 'p2', 'd2', 'wwh', 'th', 'ws', 'wd', 'wg', 'tide', 'tn', 'wwp', 'wwd'];   // (sst, air columns stay in the table, no longer filled)
 const DAY_COLS = ['spot', 'date', 'score', 'level', 'best', 'best_part', 'face_lo', 'face_hi', 'h', 'p', 'd', 'h2', 'd2', 'ws_lo', 'ws_hi', 'wd', 'rel', 'surface', 'tides', 'rise', 'sunset', 'build'];
 const hourRow = (c, k) => [sqlStr(c.id), sqlStr(k.t), ...HOUR_COLS.map((f) => sqlNum(k[f]))];
 function dayRow(c, day, build) {

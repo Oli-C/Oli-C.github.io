@@ -48,9 +48,6 @@ const lerp = (x, x0, y0, x1, y1) => y0 + (y1 - y0) * Math.min(1, Math.max(0, (x 
 const tideWord = (tn) => (tn < 0.33 ? 'low' : tn < 0.66 ? 'mid' : 'high');
 // Body-height words for a wave face (the swell height, roughly).
 const sizeWord = (h) => (h < 0.3 ? 'Flat' : h < 0.6 ? 'Knee to thigh' : h < 0.9 ? 'Thigh to waist' : h < 1.2 ? 'Waist to shoulder' : h < 1.6 ? 'Shoulder to head' : h < 2.2 ? 'Head high to overhead' : h < 3 ? 'Well overhead' : 'Double overhead and up');
-// Wetsuit by water temperature — a rule of thumb, not gospel.
-const suit = (t) => (t >= 22 ? 'boardies' : t >= 19 ? '2 mm spring' : t >= 16 ? '3/2 mm' : t >= 13 ? '4/3 mm' : '5/4 mm + boots');
-
 // Arrival factor from a spot's geometry table (geo.js): resp[dir] holds
 // [8 s, 11 s, 14 s] factors for deep-water swell FROM each 15° direction;
 // interpolate in direction and period.
@@ -552,8 +549,8 @@ const offshore = (c) => {
 
 // Secondary swell comes from Météo-France and NCEP; the DWD models don't
 // split it out.
-const MARINE = ['swell_wave_height', 'swell_wave_period', 'swell_wave_peak_period', 'swell_wave_direction', 'secondary_swell_wave_height', 'secondary_swell_wave_period', 'secondary_swell_wave_direction', 'wave_height', 'wave_period', 'wave_peak_period', 'wave_direction', 'wind_wave_height', 'wind_wave_period', 'wind_wave_direction', 'sea_level_height_msl', 'sea_surface_temperature'];
-const WIND = ['wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m', 'is_day', 'temperature_2m'];
+const MARINE = ['swell_wave_height', 'swell_wave_period', 'swell_wave_peak_period', 'swell_wave_direction', 'secondary_swell_wave_height', 'secondary_swell_wave_period', 'secondary_swell_wave_direction', 'wave_height', 'wave_period', 'wave_peak_period', 'wave_direction', 'wind_wave_height', 'wind_wave_period', 'wind_wave_direction', 'sea_level_height_msl'];
+const WIND = ['wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m', 'is_day'];
 
 // Several models per metric, so one model's quirk doesn't decide a score.
 // Open-Meteo suffixes each model's hourly series with its id; we blend
@@ -993,7 +990,7 @@ const toK = (m, w) => {
     // Secondary swell period is a mean period; a single swell's peak runs ~10% longer.
     h2: m.secondary_swell_wave_height, p2: m.secondary_swell_wave_period != null ? +(m.secondary_swell_wave_period * 1.1).toFixed(1) : null, d2: m.secondary_swell_wave_direction,
     ws: w.wind_speed_10m, wd: w.wind_direction_10m, wg: w.wind_gusts_10m, day: w.is_day == null ? 1 : w.is_day,
-    tide: m.sea_level_height_msl, sst: m.sea_surface_temperature, air: w.temperature_2m,
+    tide: m.sea_level_height_msl,
   };
 };
 // Tide state from the day's sea-level curve: tn is 0 at today's low water

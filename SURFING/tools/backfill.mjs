@@ -53,7 +53,7 @@ const gaugeFor = (c) => site.GAUGES.filter((g) => TIDES.gauges[g.id]).sort((a, b
 async function era5(c) {
   const [lat, lng] = site.offshore(c);
   const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}&start_date=${FROM}&end_date=${TO}`
-    + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,is_day&daily=sunrise,sunset&models=era5&timezone=' + encodeURIComponent(TZ);
+    + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day&daily=sunrise,sunset&models=era5&timezone=' + encodeURIComponent(TZ);
   for (let attempt = 0; ; attempt++) {
     let why;
     try {
@@ -79,7 +79,7 @@ function spotDays(c, w) {
     for (const v of Object.keys(rec)) if (Array.isArray(rec[v])) m[v] = rec[v][wi];
     site.debias(m, IBI_BIAS);
     site.splitSwell([m]);
-    const wr = { wind_speed_10m: H.wind_speed_10m[j], wind_direction_10m: H.wind_direction_10m[j], wind_gusts_10m: H.wind_gusts_10m[j], temperature_2m: H.temperature_2m[j], is_day: H.is_day[j] };
+    const wr = { wind_speed_10m: H.wind_speed_10m[j], wind_direction_10m: H.wind_direction_10m[j], wind_gusts_10m: H.wind_gusts_10m[j], is_day: H.is_day[j] };
     const k = site.toK(m, wr);
     if (!k) return;
     k.t = t;

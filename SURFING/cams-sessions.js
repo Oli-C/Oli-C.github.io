@@ -2,11 +2,6 @@
    its own page (log.html, log.js): area, then beach, then how it was. The
    viewer carries a link there with this spot picked. */
 
-// Verdicts this device sent before they were retired (Too high / About
-// right / Too low). Logged sessions replaced them; only the tune panel
-// still reads these, and the server keeps calibrating from the old ones.
-const FB_KEY = 'surf-feedback';
-const loadFb = () => { try { return JSON.parse(localStorage.getItem(FB_KEY) || '[]') || []; } catch { return []; } };
 const FEEDBACK_URL = SURF_WORKER;   // score.js
 const spotNow = (offset) => new Date(Date.now() + offset * 1000).toISOString().slice(0, 16);   // spot-local "YYYY-MM-DDTHH:MM"
 

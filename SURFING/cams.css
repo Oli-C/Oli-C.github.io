@@ -1148,7 +1148,6 @@ header { display: none; }
 .chip-now[class*="surf-"] b::before, .surf-word::before {
   content: ""; display: inline-block; width: 7px; height: 7px; margin: 0 4px 1px 0; border-radius: 50%; background: var(--surf); vertical-align: middle;
 }
-.sess-opts .fb-btn[class*="surf-"].sel { background: var(--surf); border-color: var(--surf); color: #101820; }
 
 /* "Log a session" form */
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -1160,8 +1159,6 @@ header { display: none; }
 .tune-f input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
 .tune-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .tune-json { width: 100%; min-height: 90px; margin-top: 10px; font: 11px/1.4 ui-monospace, Menlo, Consolas, monospace; color: var(--fg); background: var(--bg-3); border: 1px solid var(--border-2); border-radius: 8px; padding: 8px; resize: vertical; }
-.tune-sum { margin-top: 10px; font-size: 12px; color: var(--fg-muted); line-height: 1.5; }
-.tune-sum b { color: var(--fg); font-weight: 600; }
 .factors { display: grid; gap: 8px; }
 .factor {
   display: grid;

@@ -11,6 +11,8 @@
      IPMA station readings filed (hourly, worker cron)           3 h
      the full history run (6-hourly, worker cron)                8 h
      the newest buoy and tide gauge readings filed               48 h (EMODnet runs a day behind)
+     the cams' bank readings (surf-banks, hourly by day)          3 h, 09–18 UTC only
+     the satellite bank readings (surf-sat, every clear pass)     21 days (cloud can hide the coast for a fortnight)
      the page counter worker answering                           -
    Exits 1 with a line per problem; prints a line per check either way. */
 const SURF = 'https://surf-feedback.odj-clarke.workers.dev';
@@ -56,6 +58,19 @@ try {
     for (const [k, v] of Object.entries(note)) if (typeof v === 'string' && v.startsWith('error')) problems.push(`full history run, ${k}: ${v}`);
   }
 } catch (e) { problems.push(`history: ${e.message}`); console.log('FAIL  history:', e.message); }
+
+// Bank readings: the newest at any reading cam / any spot.
+try {
+  const hour = new Date().getUTCHours();
+  const cams = ['caparica-cds', 'caparica-sao-joao', 'caparica-riviera', 'fonte-da-telha'];
+  const cam = (await Promise.all(cams.map((id) => get(`${SURF}/banks?id=${id}&days=2`).catch(() => null))))
+    .flatMap((j) => (j && j.readings) || []).map((r) => r.t).sort().pop();
+  if (hour >= 9 && hour <= 18) check('cam bank readings', cam, 3);
+  else console.log(`ok    cam bank readings: ${cam || 'none'} (not checked at night)`);
+  const sat = (await Promise.all(['caparica-cds', 'guincho-norte', 'ribeira-d-ilhas'].map((id) => get(`${SURF}/banks/sat?id=${id}&days=60`).catch(() => null))))
+    .flatMap((j) => (j && j.readings) || []).map((r) => r.t).sort().pop();
+  check('satellite bank readings', sat, 21 * 24);
+} catch (e) { problems.push(`banks: ${e.message}`); console.log('FAIL  banks:', e.message); }
 
 try {
   const t = await get(`${TALLY}/health`);
