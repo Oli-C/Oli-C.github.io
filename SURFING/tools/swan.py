@@ -69,10 +69,10 @@ G = 9.81
 # boundaries (which get the full offshore swell) don't reach them.
 AREAS = {
     'lisbon':   {'box': (-9.75, 38.40, -9.10, 38.88), 'res': 0.00125,   # south to Cabo Espichel, for the Meco grid
-                 'spots': ['guincho-norte', 'guincho-sul', 'sao-pedro-estoril', 'carcavelos', 'caparica-sao-joao',
+                 'spots': ['guincho-norte', 'guincho-sul', 'cresmina', 'sao-pedro-estoril', 'parede', 'carcavelos', 'santo-amaro', 'caparica-sao-joao',
                            'caparica-cds', 'caparica-praia-nova', 'caparica-riviera', 'fonte-da-telha']},
-    'sintra':   {'box': (-9.75, 38.68, -9.40, 39.00), 'res': 0.00125, 'spots': ['praia-grande-norte', 'praia-grande-sul']},
-    'ericeira': {'box': (-9.70, 38.85, -9.36, 39.12), 'res': 0.00125, 'spots': ['ribeira-d-ilhas']},
+    'sintra':   {'box': (-9.75, 38.68, -9.40, 39.00), 'res': 0.00125, 'spots': ['praia-das-macas', 'praia-grande-norte', 'praia-grande-sul', 'adraga']},
+    'ericeira': {'box': (-9.70, 38.85, -9.36, 39.12), 'res': 0.00125, 'spots': ['ribeira-d-ilhas', 'matadouro', 'ericeira-sul', 'foz-do-lizandro', 'sao-juliao']},
     'peniche':  {'box': (-9.75, 39.20, -9.25, 39.55), 'res': 0.00125, 'spots': ['peniche-lagide', 'peniche-supertubos']},
     'nazare':   {'box': (-9.50, 39.45, -9.03, 39.80), 'res': 0.00125, 'spots': ['nazare-norte']},
     'arrifana': {'box': (-9.15, 37.15, -8.84, 37.45), 'res': 0.00125, 'spots': ['arrifana']},
@@ -83,7 +83,7 @@ FINE = {
                  'spots': ['caparica-sao-joao', 'caparica-cds', 'caparica-praia-nova', 'caparica-saude',
                            'caparica-riviera', 'caparica-casa-do-sol', 'caparica-infante', 'fonte-da-telha']},
     'cascais':  {'parent': 'lisbon', 'box': (-9.42, 38.655, -9.30, 38.72), 'res': 0.0003, 'diffrac': True,
-                 'spots': ['sao-pedro-estoril', 'carcavelos']},
+                 'spots': ['sao-pedro-estoril', 'parede', 'carcavelos', 'santo-amaro']},
     'meco':     {'parent': 'lisbon', 'box': (-9.27, 38.43, -9.15, 38.52), 'res': 0.0004, 'diffrac': False,
                  'spots': ['meco', 'bicas']},
     'nazare':   {'parent': 'nazare', 'box': (-9.17, 39.55, -9.06, 39.66), 'res': 0.0003, 'diffrac': False,

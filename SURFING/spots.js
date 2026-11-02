@@ -128,6 +128,22 @@ const CAMS = [
     thumb:   'https://films.viewsurf.com/BCsupertubos_1_1.stream/media.jpg',
   },
   {
+    id:      'praia-das-macas',
+    name:    'Praia das Maçãs',
+    town:    'Colares', area: 'Sintra', zone: 'Praia das Maçãs',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'sintra', 'colares'],
+    lat: 38.8262, lng: -9.469, faces: 285,   // OSM: Praia das Maçãs
+    best: {
+      swell: [260, 340], size: [0.6, 2.5], period: 9, wind: [40, 130], tide: { range: [0.3, 0.9], dir: null, text: 'mid' },
+      notes: 'Village beach break north of Praia Grande, with banks shaped by the stream at its mouth; picks up W–NW swell well, cleaned by an E wind and blown out early by the nortada. Mid tide is usually best.',
+    },
+    type:    'hls',
+    embed:   'https://video-auth1.iol.pt/beachcam/praiadasmacas/playlist.m3u8',   // MEO's partner feed (see Bicas)
+    link:    'https://beachcam.meo.pt/livecams/',
+    source:  'MEO Beachcam',
+  },
+  {
     id:      'praia-grande-norte',
     name:    'Praia Grande Norte',
     town:    'Sintra', area: 'Sintra', zone: 'Praia Grande',
@@ -145,6 +161,8 @@ const CAMS = [
     link:    'https://gosurf.fr/webcam/fr/113/Sintra-Praia-Grande-Norte',
     source:  'MEO Beachcam via viewsurf',
     thumb:   'https://films.viewsurf.com/BCpraiagrande_1_1.stream/media.jpg',
+    viewLabel: 'Praia Grande Norte',
+    views:   [{ key: 'pequena', label: 'Praia Pequena', type: 'hls', embed: 'https://video-auth1.iol.pt/beachcam/bcpraiapequena/playlist.m3u8' }],   // MEO's partner feeds
   },
   {
     id:      'praia-grande-sul',
@@ -164,6 +182,23 @@ const CAMS = [
     link:    'https://gosurf.fr/webcam/fr/114/Sintra-Praya-Grande-Sul',
     source:  'MEO Beachcam via viewsurf',
     thumb:   'https://films.viewsurf.com/BCpraiagrande2_1_1.stream/media.jpg',
+  },
+  {
+    id:      'adraga',
+    name:    'Adraga',
+    town:    'Almoçageme', area: 'Sintra', zone: 'Praia da Adraga',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'sintra', 'rocks'],
+    lat: 38.8037, lng: -9.4848, faces: 265,   // OSM: Praia da Adraga
+    best: {
+      swell: [250, 330], size: [0.6, 2.2], period: 9, wind: [40, 120], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
+      notes: 'Cliff-backed cove south of Praia Grande, peaks off sand between rocks; shelters a little from N wind under the cliffs. Low to mid tide; the rocks show at low, so watch them.',
+    },
+    type:    'hls',
+    embed:   'https://video-auth1.iol.pt/beachcam/bcadraga/playlist.m3u8',   // MEO's partner feed (see Bicas)
+    link:    'https://beachcam.meo.pt/livecams/',
+    source:  'MEO Beachcam',
+    swanLike: 'praia-grande-sul',   // its SWAN table until a SWAN run includes it
   },
   {
     id:      'guincho-norte',
@@ -206,6 +241,23 @@ const CAMS = [
     thumb:   'https://films.viewsurf.com/BCpraiaguinchonorte_1_1.stream/media.jpg',
   },
   {
+    id:      'cresmina',
+    name:    'Cresmina',
+    town:    'Cascais', area: 'Cascais', zone: 'Guincho',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'guincho', 'cascais'],
+    lat: 38.7252, lng: -9.4766, faces: 270,   // OSM: Praia da Cresmina
+    best: {
+      swell: [260, 340], size: [0.6, 2.4], period: 9, wind: [60, 130], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
+      notes: 'The smaller beach just south of Guincho, under the dunes, with rock at each end; same recipe as Guincho (NW swell, E wind, low to mid tide) and the same nortada problem, a little more tucked in at the south corner.',
+    },
+    type:    'hls',
+    embed:   'https://video-auth1.iol.pt/beachcam/crismina/playlist.m3u8',   // MEO's partner feed (see Bicas)
+    link:    'https://beachcam.meo.pt/livecams/',
+    source:  'MEO Beachcam',
+    swanLike: 'guincho-sul',   // its SWAN table until a SWAN run includes it
+  },
+  {
     id:      'sao-pedro-estoril',
     name:    'São Pedro do Estoril',
     town:    'Estoril', area: 'Cascais', zone: 'Linha de Cascais',
@@ -225,6 +277,23 @@ const CAMS = [
     thumb:   'https://films.viewsurf.com/BCsaopedroestoria_1_1.stream/media.jpg',
   },
   {
+    id:      'parede',
+    name:    'Parede',
+    town:    'Cascais', area: 'Cascais', zone: 'Linha de Cascais',
+    country: 'Portugal',
+    tags:    ['reef', 'south facing', 'cascais', 'linha'],
+    lat: 38.6856, lng: -9.3537, faces: 185,   // OSM: Praia da Parede
+    best: {
+      swell: [200, 290], size: [0.8, 2.5], period: 11, exposure: 0.45, wind: [330, 60], tide: { range: [0, 0.5], dir: null, text: 'low' },
+      notes: 'Rocky reef on the Linha with rights and lefts that need a proper SW–W swell, or a big long-period NW wrapping round Cabo Raso. A N wind is offshore, so it works when the west coast is blown out. Best at low tide; shallow, for experienced surfers.',
+    },
+    type:    'hls',
+    embed:   'https://video-auth1.iol.pt/beachcam/parede/playlist.m3u8',   // MEO's partner feed (see Bicas)
+    link:    'https://beachcam.meo.pt/livecams/',
+    source:  'MEO Beachcam',
+    swanLike: 'sao-pedro-estoril',   // its SWAN table until a SWAN run includes it
+  },
+  {
     id:      'carcavelos',
     name:    'Carcavelos',
     town:    'Carcavelos', area: 'Cascais', zone: 'Linha de Cascais',
@@ -242,6 +311,25 @@ const CAMS = [
     link:    'https://gosurf.fr/webcam/fr/118/Carcavelos-Praia-de-Carcavelos',
     source:  'MEO Beachcam via viewsurf',
     thumb:   'https://films.viewsurf.com/BCcarcavelos_1_1.stream/media.jpg',
+    viewLabel: 'Carcavelos',
+    views:   [{ key: 'calhau', label: 'Calhau', type: 'hls', embed: 'https://video-auth1.iol.pt/beachcam/carcavelos2/playlist.m3u8' }],   // MEO's partner feeds
+  },
+  {
+    id:      'santo-amaro',
+    name:    'Santo Amaro',
+    town:    'Oeiras', area: 'Cascais', zone: 'Linha de Cascais',
+    country: 'Portugal',
+    tags:    ['beach break', 'reef', 'south facing', 'oeiras', 'linha'],
+    lat: 38.6845, lng: -9.3123, faces: 190,   // OSM: Praia de Santo Amaro de Oeiras
+    best: {
+      swell: [200, 290], size: [0.8, 2.5], period: 10, exposure: 0.4, wind: [330, 60], tide: { range: [0.3, 0.9], dir: null, text: 'mid' },
+      notes: 'Sandy bay with reef at the ends at the Oeiras end of the Linha, east of Carcavelos and more sheltered still: it needs a big swell to break, then works in a N wind when the open coast is messy.',
+    },
+    type:    'hls',
+    embed:   'https://video-auth1.iol.pt/beachcam/santoamaro/playlist.m3u8',   // MEO's partner feed (see Bicas)
+    link:    'https://beachcam.meo.pt/livecams/',
+    source:  'MEO Beachcam',
+    swanLike: 'carcavelos',   // its SWAN table until a SWAN run includes it
   },
   {
     id:      'caparica-sao-joao',
@@ -259,6 +347,8 @@ const CAMS = [
     link:    'https://gosurf.fr/webcam/fr/124/Costa-Caparica-Praia-do-Sao-Joao',
     source:  'MEO Beachcam via viewsurf',
     thumb:   'https://films.viewsurf.com/BCcostacaparicasaojoao_1_1.stream/media.jpg',
+    viewLabel: 'São João',
+    views:   [{ key: 'norte', label: 'Praia do Norte', type: 'hls', embed: 'https://video-auth1.iol.pt/beachcam/costacaparicasaojoao/playlist.m3u8' }],   // MEO's partner feeds
   },
   {
     id:      'caparica-cds',
@@ -276,6 +366,8 @@ const CAMS = [
     link:    'https://gosurf.fr/webcam/fr/123/Costa-Caparica-Praia-do-CDS',
     source:  'MEO Beachcam via viewsurf',
     thumb:   'https://films.viewsurf.com/BCcostacaparicacds_1_1.stream/media.jpg',
+    viewLabel: 'CDS',
+    views:   [{ key: 'sul', label: 'Sul', type: 'hls', embed: 'https://video-auth1.iol.pt/beachcam/costacaparicabernard/playlist.m3u8' }, { key: 'tarquinio', label: 'Tarquínio', type: 'hls', embed: 'https://video-auth1.iol.pt/beachcam/bctarquinho/playlist.m3u8' }],   // MEO's partner feeds
   },
   {
     id:      'caparica-praia-nova',
@@ -357,6 +449,8 @@ const CAMS = [
     source:  'Playocean (YouTube)',
     thumb:   'https://i.ytimg.com/vi/9K9f_tgRDXI/hqdefault_live.jpg',
     swanLike: 'caparica-riviera',   // its SWAN table until the Caparica fine grid is rerun with it
+    viewLabel: 'Infante',
+    views:   [{ key: 'sereia', label: 'Sereia', type: 'hls', embed: 'https://video-auth1.iol.pt/beachcam/bcwaikiki/playlist.m3u8' }],   // MEO's partner feeds
   },
   {
     id:      'fonte-da-telha',
@@ -377,6 +471,8 @@ const CAMS = [
     link:    'https://gosurf.fr/webcam/fr/126/Fonte-da-Telha-Praia-da-Fonte-Telha',
     source:  'MEO Beachcam via viewsurf',
     thumb:   'https://films.viewsurf.com/BCfontedatelha_1_1.stream/media.jpg',
+    viewLabel: 'Norte',
+    views:   [{ key: 'sul', label: 'Sul', type: 'hls', embed: 'https://video-auth1.iol.pt/beachcam/bcbambu/playlist.m3u8' }],   // MEO's partner feeds
   },
   {
     id:      'meco',
@@ -394,6 +490,8 @@ const CAMS = [
     link:    'https://www.youtube.com/watch?v=EqnyST2s53I',
     source:  'Playocean (YouTube)',
     thumb:   'https://i.ytimg.com/vi/EqnyST2s53I/hqdefault_live.jpg',
+    viewLabel: 'Bar do Peixe',
+    views:   [{ key: 'meo', label: 'MEO cam', type: 'hls', embed: 'https://video-auth1.iol.pt/beachcam/bcmeco/playlist.m3u8' }],   // MEO's partner feeds
   },
   {
     id:      'bicas',
@@ -448,6 +546,70 @@ const CAMS = [
     type:    'hls',
     embed:   'https://video-auth1.iol.pt/beachcam/bcmafraribeira/playlist.m3u8',
     link:    'https://beachcam.meo.pt/livecams/ribeira-dilhas/',
+    source:  'MEO Beachcam',
+  },
+  {
+    id:      'matadouro',
+    name:    'Matadouro',
+    town:    'Ericeira', area: 'Ericeira', zone: 'Ericeira',
+    country: 'Portugal',
+    tags:    ['reef', 'right', 'west facing', 'ericeira', 'mafra'],
+    lat: 38.9755, lng: -9.4204, faces: 285,   // OSM: Praia do Matadouro
+    best: {
+      swell: [280, 340], size: [1.0, 3.0], period: 11, exposure: 0.75, wind: [60, 150], tide: { range: [0.3, 0.9], dir: null, text: 'mid to high' },
+      notes: 'Right-hand reef at the north end of Ericeira town, by the old slaughterhouse: a heavy wedge on a clean NW swell with an E wind. Shallow rock; for experienced surfers.',
+    },
+    type:    'hls',
+    embed:   'https://video-auth1.iol.pt/beachcam/matadouroskatepark/playlist.m3u8',   // MEO's partner feed (see Bicas)
+    link:    'https://beachcam.meo.pt/livecams/',
+    source:  'MEO Beachcam',
+  },
+  {
+    id:      'ericeira-sul',
+    name:    'Praia do Sul',
+    town:    'Ericeira', area: 'Ericeira', zone: 'Ericeira',
+    country: 'Portugal',
+    tags:    ['beach break', 'reef', 'south-west facing', 'ericeira', 'mafra'],
+    lat: 38.9576, lng: -9.4155, faces: 240,   // OSM: Praia do Sul, Ericeira
+    best: {
+      swell: [240, 320], size: [0.8, 2.5], period: 10, exposure: 0.6, wind: [20, 110], tide: { range: [0.3, 0.9], dir: null, text: 'mid' },
+      notes: 'Town beach south of the harbour, facing SW with rock and reef along it: tucked away from the north, so it comes alive on bigger NW swells when the open beaches are too much, best in a NE–E wind.',
+    },
+    type:    'hls',
+    embed:   'https://video-auth1.iol.pt/beachcam/praiadosulericeira/playlist.m3u8',   // MEO's partner feed (see Bicas)
+    link:    'https://beachcam.meo.pt/livecams/',
+    source:  'MEO Beachcam',
+  },
+  {
+    id:      'foz-do-lizandro',
+    name:    'Foz do Lizandro',
+    town:    'Ericeira', area: 'Ericeira', zone: 'Mafra',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'ericeira', 'mafra', 'river mouth'],
+    lat: 38.942, lng: -9.4155, faces: 270,   // OSM: Praia da Foz do Lizandro
+    best: {
+      swell: [250, 330], size: [0.6, 2.5], period: 9, wind: [50, 130], tide: { range: [0.2, 0.8], dir: null, text: 'mid' },
+      notes: 'Beach break at the Lizandro river mouth south of Ericeira, banks shaped by the river; consistent and busy with surf schools. W–NW swell, E wind, mid tide.',
+    },
+    type:    'hls',
+    embed:   'https://video-auth1.iol.pt/beachcam/fozdolizandro/playlist.m3u8',   // MEO's partner feed (see Bicas)
+    link:    'https://beachcam.meo.pt/livecams/',
+    source:  'MEO Beachcam',
+  },
+  {
+    id:      'sao-juliao',
+    name:    'São Julião',
+    town:    'Ericeira', area: 'Ericeira', zone: 'Mafra',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'ericeira', 'mafra', 'sintra'],
+    lat: 38.9295, lng: -9.4213, faces: 270,   // OSM: Praia de São Julião
+    best: {
+      swell: [250, 330], size: [0.6, 2.5], period: 9, wind: [50, 130], tide: { range: [0, 1], dir: null, text: 'all tides' },
+      notes: 'Long open beach break south of Foz do Lizandro, exposed to everything from the west, so it has size when Ericeira is small; works most tides, blown out by the nortada.',
+    },
+    type:    'hls',
+    embed:   'https://video-auth1.iol.pt/beachcam/bcsaojuliao/playlist.m3u8',   // MEO's partner feed (see Bicas)
+    link:    'https://beachcam.meo.pt/livecams/',
     source:  'MEO Beachcam',
   },
 ];
