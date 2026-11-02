@@ -286,10 +286,14 @@ const CAMS = [
     name:    'Saúde',
     town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
     country: 'Portugal',
-    tags:    ['beach break', 'west facing', 'caparica', 'almada', 'no cam'],
+    tags:    ['beach break', 'west facing', 'caparica', 'almada'],
     lat: 38.6303, lng: -9.2284, faces: 250,   // OSM: Praia da Saúde
-    best: { ...CAPARICA, notes: 'South of Praia Nova where the jetties end; no camera, so Praia Nova and Riviera give the nearest look. ' + CAPARICA.notes },
-    type:    'none',
+    best: { ...CAPARICA, notes: 'South of Praia Nova where the jetties end. Its cam is Playocean’s Caparica 2 panorama from the cliff (placed here by the groyne in its view). ' + CAPARICA.notes },
+    type:    'video',
+    embed:   'https://www.youtube-nocookie.com/embed/_LUOa8uffGE?autoplay=1&mute=1&playsinline=1&rel=0',
+    link:    'https://www.youtube.com/watch?v=_LUOa8uffGE',
+    source:  'Playocean (YouTube)',
+    thumb:   'https://i.ytimg.com/vi/_LUOa8uffGE/hqdefault_live.jpg',
     swanLike: 'caparica-praia-nova',   // its SWAN table until the Caparica fine grid is rerun with it
   },
   {
@@ -347,10 +351,14 @@ const CAMS = [
     name:    'Casa do Sol',
     town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
     country: 'Portugal',
-    tags:    ['beach break', 'west facing', 'caparica', 'almada', 'no cam'],
+    tags:    ['beach break', 'west facing', 'caparica', 'almada'],
     lat: 38.617, lng: -9.2184, faces: 250,   // OSM: Casa do Sol, at Praia da Rainha
-    best: { ...CAPARICA, notes: 'By Casa do Sol at Praia da Rainha, south of Riviera; no camera, Riviera is the nearest look. ' + CAPARICA.notes },
-    type:    'none',
+    best: { ...CAPARICA, notes: 'By Casa do Sol at Praia da Rainha, south of Riviera. Its cam is Playocean’s Caparica panorama from the cliff over the dunes (placed here from its view). ' + CAPARICA.notes },
+    type:    'video',
+    embed:   'https://www.youtube-nocookie.com/embed/oDbKeeojgyk?autoplay=1&mute=1&playsinline=1&rel=0',
+    link:    'https://www.youtube.com/watch?v=oDbKeeojgyk',
+    source:  'Playocean (YouTube)',
+    thumb:   'https://i.ytimg.com/vi/oDbKeeojgyk/hqdefault_live.jpg',
     swanLike: 'caparica-riviera',   // its SWAN table until the Caparica fine grid is rerun with it
   },
   {
@@ -372,6 +380,36 @@ const CAMS = [
     link:    'https://gosurf.fr/webcam/fr/126/Fonte-da-Telha-Praia-da-Fonte-Telha',
     source:  'MEO Beachcam via viewsurf',
     thumb:   'https://films.viewsurf.com/BCfontedatelha_1_1.stream/media.jpg',
+  },
+  {
+    id:      'meco',
+    name:    'Meco',
+    town:    'Aldeia do Meco', area: 'Sesimbra', zone: 'Praia do Meco',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'sesimbra', 'meco', 'moinho de baixo', 'no cam'],
+    lat: 38.4830, lng: -9.1855, faces: 260,   // OSM: Praia do Meco / Moinho de Baixo
+    best: {
+      swell: [250, 330], size: [0.6, 2.5], period: 9, exposure: 0.85, wind: [40, 120], tide: { range: [0, 0.7], dir: null, text: 'low to mid' },
+      notes: 'Long open beach break south of Lagoa de Albufeira, out of the Caparica shelter, so it usually has more size than Fonte on a NW swell. Shifting sand banks; an E wind cleans it. MEO Beachcam has a cam here (on their site only).',
+    },
+    type:    'none',
+    link:    'https://beachcam.meo.pt/livecams/praia-do-meco/',
+    source:  'MEO Beachcam (their site)',
+  },
+  {
+    id:      'bicas',
+    name:    'Bicas',
+    town:    'Aldeia do Meco', area: 'Sesimbra', zone: 'Praia das Bicas',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'sesimbra', 'meco', 'no cam'],
+    lat: 38.4648, lng: -9.1925, faces: 265,   // OSM: Praia das Bicas
+    best: {
+      swell: [250, 330], size: [0.6, 2.4], period: 9, exposure: 0.85, wind: [45, 120], tide: { range: [0, 0.6], dir: null, text: 'low' },
+      notes: 'Sandy beach break under the cliffs north of Cabo Espichel, the most exposed of the Meco stretch: picks up W and NW swell, best at low tide with an E wind (MEO Beachcam). MEO Beachcam has a cam here (on their site only).',
+    },
+    type:    'none',
+    link:    'https://beachcam.meo.pt/livecams/praia-das-bicas/',
+    source:  'MEO Beachcam (their site)',
   },
   {
     id:      'arrifana',

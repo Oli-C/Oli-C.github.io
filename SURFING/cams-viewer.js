@@ -529,7 +529,7 @@ function open(id, push = true) {
   if (c.link) $('v-open').href = c.link;
   $('v-go').dataset.go = c.id;
   syncFav(c);
-  $('v-foot').innerHTML = noCam(c) ? 'No camera at this spot yet: forecast and local knowledge only.'
+  $('v-foot').innerHTML = noCam(c) ? (c.link ? `Cam on <a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">${esc(c.source || 'its own site')}</a>; forecast and local knowledge here.` : 'No camera at this spot yet: forecast and local knowledge only.')
     : `Stream by ${esc(c.source)} · <a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">open original</a>`;
   renderScore(c);
   renderFb(c);
@@ -564,7 +564,9 @@ function noCamHtml(c) {
   const near = CAMS.filter((o) => !noCam(o) && o.id !== c.id).map((o) => ({ o, km: km(c.lat, c.lng, o.lat, o.lng) }))
     .sort((a, b) => a.km - b.km).slice(0, 2).filter((x) => x.km < 25);
   const dist = (d) => (d < 0.95 ? `${Math.round(d * 1000 / 50) * 50} m` : `${d.toFixed(d < 10 ? 1 : 0)} km`);
-  return `<div class="frame-msg">${NOCAM_ART}<div><b>No camera at ${esc(c.name)} yet</b>${near.length ? `<span>Nearest cams</span><span class="near">${near.map((x) =>
+  // A cam we can't play here (only on its owner's site): the way to it first.
+  const theirs = c.link ? `<span class="near"><a class="pop-btn" href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">Watch on ${esc((c.source || 'its site').replace(/ \(their site\)$/, ''))}</a></span>` : '';
+  return `<div class="frame-msg">${NOCAM_ART}<div><b>${c.link ? `${esc(c.name)}’s cam only plays on its own site` : `No camera at ${esc(c.name)} yet`}</b>${theirs}${near.length ? `<span>Nearest cams</span><span class="near">${near.map((x) =>
     `<button class="pop-btn" type="button" data-near="${esc(x.o.id)}">${esc(x.o.name)} <small>${dist(x.km)}</small></button>`).join('')}</span>` : ''}</div></div>`;
 }
 frame.addEventListener('click', (e) => { const b = e.target.closest('[data-near]'); if (b) open(b.dataset.near); });

@@ -68,7 +68,7 @@ G = 9.81
 # Each area's box (W, S, E, N) runs well past its spots, so the open
 # boundaries (which get the full offshore swell) don't reach them.
 AREAS = {
-    'lisbon':   {'box': (-9.75, 38.45, -9.10, 38.88), 'res': 0.00125,
+    'lisbon':   {'box': (-9.75, 38.40, -9.10, 38.88), 'res': 0.00125,   # south to Cabo Espichel, for the Meco grid
                  'spots': ['guincho-norte', 'guincho-sul', 'sao-pedro-estoril', 'carcavelos', 'caparica-sao-joao',
                            'caparica-cds', 'caparica-praia-nova', 'caparica-riviera', 'fonte-da-telha']},
     'sintra':   {'box': (-9.75, 38.68, -9.40, 39.00), 'res': 0.00125, 'spots': ['praia-grande-norte', 'praia-grande-sul']},
@@ -84,6 +84,8 @@ FINE = {
                            'caparica-riviera', 'caparica-kanaloa', 'caparica-casa-do-sol', 'fonte-da-telha']},
     'cascais':  {'parent': 'lisbon', 'box': (-9.42, 38.655, -9.30, 38.72), 'res': 0.0003, 'diffrac': True,
                  'spots': ['sao-pedro-estoril', 'carcavelos']},
+    'meco':     {'parent': 'lisbon', 'box': (-9.27, 38.43, -9.15, 38.52), 'res': 0.0004, 'diffrac': False,
+                 'spots': ['meco', 'bicas']},
     'nazare':   {'parent': 'nazare', 'box': (-9.17, 39.55, -9.06, 39.66), 'res': 0.0003, 'diffrac': False,
                  'spots': ['nazare-norte']},
     'peniche':  {'parent': 'peniche', 'box': (-9.43, 39.32, -9.30, 39.40), 'res': 0.0003, 'diffrac': False,
