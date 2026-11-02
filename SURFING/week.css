@@ -114,20 +114,30 @@ a.btn { text-decoration: none; }
 .sec-head .acct-host { flex-basis: 100%; }
 .sec-head .acct-line { margin-top: 0; }
 
-/* A spot: its name, then a card per day. On narrow screens the cards
-   swipe sideways, every spot's row in step with the others. */
+/* The days scroll sideways as one: the whole list is a single sideways
+   scroller, so every spot's row moves together under the finger (no
+   script keeping separate rows in step, which always trailed). What isn't
+   a row of days (headings, names, the hint, an opened day) stays pinned
+   at the left, the width of the screen (100cqw: the list's own width). */
+#list {
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none; overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory; container-type: inline-size;
+}
+#list::-webkit-scrollbar { display: none; }
+#list > .sec { width: max-content; min-width: 100cqw; max-width: none; }
+#list .srow { width: max-content; min-width: 100cqw; }
+#list .sec-head, #list .srow-head, #list .dt, #list > .hint {
+  position: sticky; left: 0; box-sizing: border-box; width: 100cqw;
+}
+#list > .hint { width: min(100cqw, 1100px); }
+
+/* A spot: its name, then a card per day. */
 .srow { margin-bottom: 14px; }
 .srow-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; min-width: 0; }
 .srow-head a { color: var(--fg); text-decoration: none; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
 .srow-head a:hover { color: var(--accent-ink); }
 .srow-head small { font-size: 12px; color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.strip {
-  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(158px, 1fr); gap: 6px;
-  overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain;
-}
-.strip::-webkit-scrollbar { display: none; }
-/* While one row is swiped the others follow it unsnapped (week.js). */
-.syncing .strip:not(.lead) { scroll-snap-type: none; }
+.strip { display: grid; grid-auto-flow: column; grid-auto-columns: 158px; gap: 6px; }
 .dcard {
   display: flex; flex-direction: column; min-width: 0; padding: 0; scroll-snap-align: start;
   font: inherit; text-align: left; color: var(--fg); cursor: pointer;
@@ -179,8 +189,8 @@ a.btn { text-decoration: none; }
 
 /* Compact: a table of day scores, a row a spot; the names stay put while
    the days scroll sideways. */
-.ctab-wrap { overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; margin-bottom: 4px; }
-.ctab-wrap::-webkit-scrollbar { display: none; }
+.ctab-wrap { margin-bottom: 4px; }
+.ctab td { scroll-snap-align: start; scroll-margin-left: 156px; }   /* lands a day just clear of the pinned names */
 .ctab { border-collapse: separate; border-spacing: 3px; font-size: 12px; }
 .ctab thead th { font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-muted); text-align: center; padding: 0 0 2px; white-space: nowrap; }
 .ctab thead th small { display: block; font-size: 11px; letter-spacing: 0; color: var(--fg); }
@@ -203,7 +213,7 @@ a.btn { text-decoration: none; }
 .cc.lvl-x { color: var(--fg-muted); }
 .cc:hover { border-color: var(--fg); }
 .cc[aria-pressed="true"] { outline: 2px solid var(--fg); outline-offset: 1px; }
-@media (max-width: 520px) { .ctab-wrap { margin-right: -16px; padding-right: 16px; } .cc { width: 34px; } .ctab th[scope="row"] { width: 110px; min-width: 110px; max-width: 110px; } }
+@media (max-width: 520px) { .ctab td { scroll-margin-left: 116px; } .cc { width: 34px; } .ctab th[scope="row"] { width: 110px; min-width: 110px; max-width: 110px; } }
 
 /* The opened day: the essentials in a line of chips, coloured by how
    they help (green), are so-so (amber) or hurt (red). */
@@ -241,7 +251,7 @@ a.btn { text-decoration: none; }
 
 @media (max-width: 520px) {
   .legend { margin-left: 0; }
-  .strip { margin-right: -16px; padding-right: 16px; grid-auto-columns: 158px; }
+  #list { margin-right: -16px; padding-right: 16px; }
   .dcard .body { font-size: 12px; }
   /* Best bets: one row to swipe rather than a stack. */
   .bets { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-right: -16px; padding-right: 16px; }

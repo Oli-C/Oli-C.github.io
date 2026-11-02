@@ -207,12 +207,10 @@ function renderList() {
   if (shownFavs.length) html += `<section class="sec"><div class="sec-head"><h2>My spots</h2></div>${gridHtml(shownFavs)}</section>`;
   else if (!favs.length) html += `<p class="hint"><b>Make this your list:</b> star the spots you surf (★ in a spot’s viewer, or <a href="account.html#spots">pick them on your account page</a>). They’ll lead this page in your order, and follow your account onto every device.</p>`;
   if (showRest) html += AREAS.map((a) => { const l = rest.filter((c) => c.area === a); return l.length ? `<section class="sec"><div class="sec-head"><h2>${esc(a)}</h2></div>${gridHtml(l)}</section>` : ''; }).join('');
-  // Redrawn rows keep the days where they were, not back at today.
-  const was = list.querySelector('.strip, .ctab-wrap'), left = was ? was.scrollLeft : 0;
+  // Redrawn, the days stay where they were, not back at today.
+  const left = list.scrollLeft;
   list.innerHTML = html;
-  lead = null; list.classList.remove('syncing');
-  lastLeft = left;
-  for (const st of list.querySelectorAll('.strip, .ctab-wrap')) st.scrollLeft = left;
+  list.scrollLeft = left;
   renderBets(showRest ? [...shownFavs, ...rest] : shownFavs);
   empty.classList.toggle('show', !shownFavs.length && !(showRest && rest.length) && !!(q.value.trim() || area !== 'All'));
 }
@@ -227,61 +225,21 @@ function render() { renderChips(); renderList(); }
 function openTile(id, i) {
   sel = sel && sel.id === id && sel.i === i ? null : { id, i };
   renderList();
-  // Only if the day is out of sight (a best bet, say): slide its row to it,
-  // and the rest follow.
+  // Only if the day is out of sight (a best bet, say): slide the days to it
+  // (in the table, clear of the pinned names).
   const t = sel && list.querySelector(`.dcard[data-id="${CSS.escape(id)}"][data-i="${i}"], .cc[data-id="${CSS.escape(id)}"][data-i="${i}"]`);
-  const st = t && t.closest('.strip, .ctab-wrap');
-  if (!st) return;
-  const r = st.getBoundingClientRect(), q = t.getBoundingClientRect();
-  if (q.left < r.left) st.scrollBy({ left: q.left - r.left - 8, behavior: 'smooth' });
-  else if (q.right > r.right) st.scrollBy({ left: q.right - r.right + 8, behavior: 'smooth' });
+  if (!t) return;
+  const r = list.getBoundingClientRect(), q = t.getBoundingClientRect();
+  const name = t.closest('tr') && t.closest('tr').querySelector('th');
+  const from = name ? name.getBoundingClientRect().right : r.left, to = r.right - (parseFloat(getComputedStyle(list).paddingRight) || 0);
+  if (q.left < from) list.scrollBy({ left: q.left - from - 8, behavior: 'smooth' });
+  else if (q.right > to) list.scrollBy({ left: q.right - to + 8, behavior: 'smooth' });
   if (q.top < 0 || q.bottom > innerHeight) t.scrollIntoView({ block: 'nearest' });
 }
 list.addEventListener('click', (e) => {
   const t = e.target.closest('.dcard, .cc');
   if (t) openTile(t.dataset.id, +t.dataset.i);
 });
-// Swiping one spot's days swipes them all, so the days stay in columns.
-// The row being swiped leads; the others follow it with their card snapping
-// off (snapping on every step made them jump, and each jump fired a scroll
-// of its own that fought the swipe). Once the lead settles (it snaps), the
-// followers are put where it stopped and snap again. Scrolls from the
-// followers while it leads are echoes and are ignored.
-let lastLeft = 0, lead = null, settle = 0;
-const ROWS = '.strip, .ctab-wrap';
-function follow(src) {
-  lastLeft = src.scrollLeft;
-  const kind = src.classList.contains('strip') ? '.strip' : '.ctab-wrap';
-  for (const st of list.querySelectorAll(kind)) if (st !== src && Math.abs(st.scrollLeft - lastLeft) >= 1) st.scrollLeft = lastLeft;
-}
-function release() {
-  clearTimeout(settle);
-  if (!lead) return;
-  follow(lead);
-  lead.classList.remove('lead');
-  list.classList.remove('syncing');
-  lead = null;
-}
-function take(src) {
-  if (lead === src) return;
-  if (lead) lead.classList.remove('lead');
-  lead = src;
-  src.classList.add('lead');
-  list.classList.add('syncing');
-}
-const grab = (e) => { const st = e.target.closest && e.target.closest(ROWS); if (st) take(st); };
-for (const ev of ['touchstart', 'pointerdown', 'wheel']) list.addEventListener(ev, grab, { passive: true, capture: true });
-list.addEventListener('scroll', (e) => {
-  const src = e.target;
-  if (!src.classList || !src.matches(ROWS)) return;
-  if (lead && src !== lead) return;                       // a follower's echo
-  if (!lead && Math.abs(src.scrollLeft - lastLeft) < 1) return;
-  take(src);                                              // (a slide to a best bet leads too)
-  follow(src);
-  clearTimeout(settle);
-  settle = setTimeout(release, 180);
-}, true);
-list.addEventListener('scrollend', (e) => { if (e.target === lead) release(); }, true);
 bets.addEventListener('click', (e) => { const b = e.target.closest('.bet'); if (b) openTile(b.dataset.id, +b.dataset.i); });
 tools.addEventListener('click', (e) => {
   const s = e.target.closest('[data-scope]');
