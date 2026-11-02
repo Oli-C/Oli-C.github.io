@@ -385,6 +385,14 @@ header { display: none; }
   transition: opacity .4s var(--ease);
 }
 .cam img.ready, .cam video.ready { opacity: 1; }
+/* A YouTube cam's tile: its muted player, a touch oversized so YouTube's own
+   edges don't show, and click-through (the tile opens the viewer). */
+.cam .yt-slot { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.cam .yt-slot iframe {
+  position: absolute; top: 50%; left: 50%; width: 104%; height: 104%; border: 0;
+  transform: translate(-50%, -50%); opacity: 0; transition: opacity .6s var(--ease);
+}
+.cam .yt-slot iframe.ready { opacity: 1; }
 .cam .score {
   position: absolute;
   z-index: 2;

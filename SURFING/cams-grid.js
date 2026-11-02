@@ -39,10 +39,19 @@ function renderChips() {
 // Spots without a camera (type 'none') stay out of the grid; they're on
 // the map, in Best right now and on the 16-day page.
 const noCam = (c) => c.type === 'none';
+// YouTube cams play in their tiles too, as a muted player with no controls
+// (the tile itself is the button), started and stopped like the streams.
+const isYouTube = (c) => c.type === 'video' && /youtube(-nocookie)?\.com\/embed\//.test(c.embed || '');
+function ytTileUrl(embed) {
+  const u = new URL(embed);
+  for (const [k, v] of Object.entries({ autoplay: 1, mute: 1, controls: 0, playsinline: 1, disablekb: 1, fs: 0, rel: 0, iv_load_policy: 3, modestbranding: 1 })) u.searchParams.set(k, v);
+  return u.toString();
+}
 const cardHtml = (c) => `
   <button class="cam" type="button" data-id="${esc(c.id)}" aria-label="Watch ${esc(c.name)}, ${esc(c.town)}">
     ${c.thumb ? `<img src="${esc(thumbUrl(c.thumb))}" alt="" loading="lazy" decoding="async" onload="this.classList.add('ready')" onerror="this.remove()">` : ''}
     ${c.type === 'hls' ? `<video muted playsinline preload="none"${c.poster ? ` poster="${esc(c.poster)}"` : ''} aria-hidden="true"></video>` : ''}
+    ${isYouTube(c) ? '<span class="yt-slot" aria-hidden="true"></span>' : ''}
     <span class="live"><i></i>Live</span>
     <span class="off" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M15 15v2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h2m4 0h4a1 1 0 0 1 1 1v3l5-3v9"/></svg><span class="t-off">Camera offline</span><span class="t-blk">Plays on ${esc(sourceName(c))} only</span></span>
     <span class="score-slot">${badge(c)}</span>
@@ -193,6 +202,17 @@ addEventListener('resize', () => { if (landscape.matches) tileWalls(); });
 function startTile(c) {
   const t = tiles[c.id];
   if (!t || t.active || t.dead) return;
+  if (t.yt) {
+    t.active = true;
+    const f = document.createElement('iframe');
+    f.src = ytTileUrl(c.embed);
+    f.allow = 'autoplay; encrypted-media';
+    f.tabIndex = -1;
+    f.title = '';
+    f.addEventListener('load', () => { f.classList.add('ready'); t.yt.closest('.cam').classList.add('streaming'); });
+    t.yt.replaceChildren(f);
+    return;
+  }
   const video = t.video;
   t.active = true;
   video.muted = true;
@@ -243,6 +263,7 @@ function startTile(c) {
 function stopTile(id) {
   const t = tiles[id];
   if (!t || !t.active) return;
+  if (t.yt) { t.yt.replaceChildren(); t.yt.closest('.cam').classList.remove('streaming'); t.active = false; return; }
   if (t.hls) { try { t.hls.destroy(); } catch {} t.hls = null; }
   if (t.cleanup) { t.cleanup(); t.cleanup = null; }
   t.video.pause();
@@ -421,6 +442,8 @@ function setupTiles() {
     syncTiles();
   }, { rootMargin: '200px 0px' });
   for (const el of cards()) {
+    const yt = el.querySelector('.yt-slot');
+    if (yt) { tiles[el.dataset.id] = { yt, visible: false, active: false, hold: false, dead: false }; io.observe(el); continue; }
     const video = el.querySelector('video');
     if (!video) continue;
     tiles[el.dataset.id] = { video, hls: null, visible: false, active: false, hold: false, dead: offline.has(el.dataset.id) };
