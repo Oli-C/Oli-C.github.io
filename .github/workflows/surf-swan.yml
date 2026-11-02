@@ -75,16 +75,39 @@ jobs:
             SURFING/tools/swan-work/${{ matrix.area }}/meta.json
           if-no-files-found: warn
 
+  # The parent areas of the fine grids asked for (swan.py FINE), so stage 1
+  # only runs the areas it needs.
+  plan:
+    if: ${{ inputs.fine != '[]' && !inputs.quick }}
+    runs-on: ubuntu-latest
+    outputs:
+      parents: ${{ steps.p.outputs.parents }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: SURFING/tools/swan.py
+          sparse-checkout-cone-mode: false
+      - id: p
+        env:
+          FINE: ${{ inputs.fine }}
+        run: |
+          python - <<'EOF' >> "$GITHUB_OUTPUT"
+          import ast, json, os
+          tree = ast.parse(open('SURFING/tools/swan.py', encoding='utf-8').read())
+          fine = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign) and getattr(n.targets[0], 'id', '') == 'FINE')
+          print('parents=' + json.dumps(sorted({fine[f]['parent'] for f in json.loads(os.environ['FINE'])})))
+          EOF
+
   # Stage 1 for the fine grids: each parent area's runs, writing the edge
   # spectra for all its fine grids, split three ways by period.
   edges:
-    if: ${{ inputs.fine != '[]' && !inputs.quick }}
+    needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 340
     strategy:
       fail-fast: false
       matrix:
-        area: [lisbon, nazare, peniche]
+        area: ${{ fromJSON(needs.plan.outputs.parents) }}
         periods: ['6,8,10', '12,14', '16,18']
     steps:
       - uses: actions/checkout@v4
