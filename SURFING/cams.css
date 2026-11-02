@@ -930,11 +930,12 @@ header { display: none; }
   transition: transform .3s var(--ease);
 }
 .viewer.open .sheet { transform: none; }
-/* The header (and its close button) stays put while the sheet scrolls. */
+/* The header (and its close button) stays put while the sheet scrolls,
+   above everything that scrolls under it. */
 .sheet-head {
   position: sticky;
   top: 0;
-  z-index: 3;
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1039,7 +1040,9 @@ header { display: none; }
   --plyr-control-radius: 6px;
 }
 
-.panel { padding: 14px 18px; border-top: 1px solid var(--border); }
+/* isolation: each panel keeps its graphs' layered marks (now line, labels,
+   tide dots) to itself, so none can rise over the sticky header. */
+.panel { padding: 14px 18px; border-top: 1px solid var(--border); isolation: isolate; }
 .panel[hidden] { display: none; }
 .k {
   font-size: 11px;
