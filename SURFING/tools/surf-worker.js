@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build f7bd9c9446. */
-const WORKER_BUILD = 'f7bd9c9446';
+   Build a2ae4ed298. */
+const WORKER_BUILD = 'a2ae4ed298';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (16-day outlook).
@@ -336,6 +336,21 @@ const CAMS = [
     link:    'https://www.youtube.com/watch?v=oDbKeeojgyk',
     source:  'Playocean (YouTube)',
     thumb:   'https://i.ytimg.com/vi/oDbKeeojgyk/hqdefault_live.jpg',
+    swanLike: 'caparica-riviera',   // its SWAN table until the Caparica fine grid is rerun with it
+  },
+  {
+    id:      'caparica-infante',
+    name:    'Infante',
+    town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'caparica', 'almada'],
+    lat: 38.6002, lng: -9.2094, faces: 250,   // OSM: Praia do Infante
+    best: { ...CAPARICA, notes: 'Open beach between Casa do Sol and Fonte da Telha, past the jetties, under the cliffs. Its cam is Playocean’s, looking straight out from Praia do Infante. ' + CAPARICA.notes },
+    type:    'video',
+    embed:   'https://www.youtube-nocookie.com/embed/9K9f_tgRDXI?autoplay=1&mute=1&playsinline=1&rel=0',
+    link:    'https://www.youtube.com/watch?v=9K9f_tgRDXI',
+    source:  'Playocean (YouTube)',
+    thumb:   'https://i.ytimg.com/vi/9K9f_tgRDXI/hqdefault_live.jpg',
     swanLike: 'caparica-riviera',   // its SWAN table until the Caparica fine grid is rerun with it
   },
   {
