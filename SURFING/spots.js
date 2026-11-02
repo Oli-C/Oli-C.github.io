@@ -401,7 +401,6 @@ const CAMS = [
     link:    'https://www.youtube.com/watch?v=_LUOa8uffGE',
     source:  'Playocean (YouTube)',
     thumb:   'https://i.ytimg.com/vi/_LUOa8uffGE/hqdefault_live.jpg',
-    swanLike: 'caparica-praia-nova',   // its SWAN table until the Caparica fine grid is rerun with it
   },
   {
     id:      'caparica-riviera',
@@ -433,7 +432,6 @@ const CAMS = [
     link:    'https://www.youtube.com/watch?v=oDbKeeojgyk',
     source:  'Playocean (YouTube)',
     thumb:   'https://i.ytimg.com/vi/oDbKeeojgyk/hqdefault_live.jpg',
-    swanLike: 'caparica-riviera',   // its SWAN table until the Caparica fine grid is rerun with it
   },
   {
     id:      'caparica-infante',

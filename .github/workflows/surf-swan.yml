@@ -187,7 +187,11 @@ jobs:
     if: ${{ always() && !inputs.quick }}
     runs-on: ubuntu-latest
     steps:
+      # The latest master, not the commit the run started on hours ago: the
+      # merge keeps what swan.js has and drops spots no longer in spots.js.
       - uses: actions/checkout@v4
+        with:
+          ref: master
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -207,11 +211,18 @@ jobs:
       - name: Commit
         id: commit
         run: |
-          node SURFING/tools/stamp.mjs
           git config user.name "surf-swan bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add SURFING/swan.js SURFING/*.html
-          if git diff --cached --quiet; then echo "no change"; else git commit -m "swan: what reaches each spot [skip ci]" && git pull --rebase && git push && echo "moved=1" >> "$GITHUB_OUTPUT"; fi
+          git add SURFING/swan.js
+          if git diff --cached --quiet; then echo "no change"; exit 0; fi
+          git commit -m "swan: what reaches each spot [skip ci]"
+          git pull --rebase
+          # Restamp the pages on top of whatever landed meanwhile (the commit
+          # is [skip ci], so surf-stamp won't).
+          node SURFING/tools/stamp.mjs
+          git add SURFING/*.html SURFING/*.js
+          git diff --cached --quiet || git commit -m "surf: version stamps [skip ci]"
+          git push && echo "moved=1" >> "$GITHUB_OUTPUT"
       - name: Deploy the worker with the new tables
         if: steps.commit.outputs.moved == '1'
         env:
