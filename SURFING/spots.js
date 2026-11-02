@@ -1,4 +1,5 @@
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (16-day outlook).
+   Where each spot's settings came from (sources, what changed, confidence): data/local-knowledge.md.
    Plain script, no modules, so file:// and GitHub Pages both work. */
 
 /* ---------------------------------------------------------------------------

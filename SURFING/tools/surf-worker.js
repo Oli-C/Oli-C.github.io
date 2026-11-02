@@ -4,11 +4,12 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build 6f110cf438. */
-const WORKER_BUILD = '6f110cf438';
+   Build 1b7479df1c. */
+const WORKER_BUILD = '1b7479df1c';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (16-day outlook).
+   Where each spot's settings came from (sources, what changed, confidence): data/local-knowledge.md.
    Plain script, no modules, so file:// and GitHub Pages both work. */
 
 /* ---------------------------------------------------------------------------
