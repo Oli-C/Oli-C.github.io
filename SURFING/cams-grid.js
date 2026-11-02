@@ -275,15 +275,27 @@ function stopTile(id) {
 }
 
 // Reconcile every tile with what should be playing right now.
+// Who gets the budget: tiles on screen first, nearest the middle, then ones
+// just off it. A tile scrolled away keeps playing a while (LINGER), so
+// scrolling back and forth doesn't keep restarting streams.
+const LINGER = 15000;
 function syncTiles() {
-  let budget = MAX_TILES;
-  const listShown = effectiveView() !== 'map';
-  for (const c of cards().map((el) => byId(el.dataset.id))) {   // in page order, extra views included
-    const t = tiles[c.id];
+  const listShown = effectiveView() !== 'map', now = Date.now(), mid = innerHeight / 2;
+  const want = [];
+  for (const el of cards()) {
+    const c = byId(el.dataset.id), t = c && tiles[c.id];
     if (!t) continue;
-    const want = !dataSaver && listShown && t.visible && !t.hold && !document.hidden && matches(c) && budget > 0;
-    if (want) { budget--; startTile(c); } else stopTile(c.id);
+    if (dataSaver || !listShown || t.hold || document.hidden || !matches(c)) { stopTile(c.id); continue; }
+    if (t.visible) t.seen = now;
+    if (!t.visible && !(t.active && now - (t.seen || 0) < LINGER)) { stopTile(c.id); continue; }
+    const r = el.getBoundingClientRect(), onScreen = r.width > 0 && r.bottom > 0 && r.top < innerHeight;
+    want.push({ c, t, rank: (onScreen ? 0 : t.visible ? 1e5 : 2e5) + Math.abs((r.top + r.bottom) / 2 - mid) });
   }
+  want.sort((a, b) => a.rank - b.rank);
+  want.forEach((x, i) => (i < MAX_TILES ? startTile(x.c) : stopTile(x.c.id)));
+  // Lingering tiles: look again once they'd have run out.
+  clearTimeout(syncTiles.timer);
+  if (want.some((x) => !x.t.visible)) syncTiles.timer = setTimeout(syncTiles, LINGER + 500);
 }
 
 /* ---------- Offline cams ----------
@@ -440,7 +452,7 @@ function setupTiles() {
       if (t) t.visible = e.isIntersecting;
     }
     syncTiles();
-  }, { rootMargin: '200px 0px' });
+  }, { rootMargin: '600px 0px' });   // start a screen or so early
   for (const el of cards()) {
     const yt = el.querySelector('.yt-slot');
     if (yt) { tiles[el.dataset.id] = { yt, visible: false, active: false, hold: false, dead: false }; io.observe(el); continue; }
@@ -450,4 +462,7 @@ function setupTiles() {
     io.observe(el);
   }
   document.addEventListener('visibilitychange', syncTiles);
+  // Scrolling re-ranks who's on screen, at most twice a second (the grid scrolls in the page or its pane).
+  let scrollT = 0;
+  document.addEventListener('scroll', () => { if (!scrollT) scrollT = setTimeout(() => { scrollT = 0; syncTiles(); }, 500); }, { capture: true, passive: true });
 }

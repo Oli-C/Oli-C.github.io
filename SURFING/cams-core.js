@@ -19,7 +19,7 @@ const TILE_HLS = {
 };
 // How many tiles may stream at once; the rest sit on their snapshot until
 // one scrolls away.
-const MAX_TILES = matchMedia('(max-width: 640px)').matches ? 6 : 12;
+const MAX_TILES = matchMedia('(max-width: 640px)').matches ? 8 : 18;   // tiles streaming at once (most feeds are ~3.5 Mbit/s 1080p)
 const wide = matchMedia('(min-width: 1000px)');
 // Phones get the compact toolbar and always open on the cams (the map is
 // one tap away); only wider screens remember their last view.
