@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build f648034635. */
-const WORKER_BUILD = 'f648034635';
+   Build 6a19eb2e8e. */
+const WORKER_BUILD = '6a19eb2e8e';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (16-day outlook).
@@ -378,15 +378,17 @@ const CAMS = [
     name:    'Meco',
     town:    'Aldeia do Meco', area: 'Sesimbra', zone: 'Praia do Meco',
     country: 'Portugal',
-    tags:    ['beach break', 'west facing', 'sesimbra', 'meco', 'moinho de baixo', 'no cam'],
+    tags:    ['beach break', 'west facing', 'sesimbra', 'meco', 'moinho de baixo'],
     lat: 38.4830, lng: -9.1855, faces: 260,   // OSM: Praia do Meco / Moinho de Baixo
     best: {
       swell: [250, 330], size: [0.6, 2.5], period: 9, exposure: 0.85, wind: [40, 120], tide: { range: [0, 0.7], dir: null, text: 'low to mid' },
-      notes: 'Long open beach break south of Lagoa de Albufeira, out of the Caparica shelter, so it usually has more size than Fonte on a NW swell. Shifting sand banks; an E wind cleans it. MEO Beachcam has a cam here (on their site only).',
+      notes: 'Long open beach break south of Lagoa de Albufeira, out of the Caparica shelter, so it usually has more size than Fonte on a NW swell. Shifting sand banks; an E wind cleans it. Its cam is Playocean’s at Bar do Peixe (MEO Beachcam has one too, on their site only).',
     },
-    type:    'none',
-    link:    'https://beachcam.meo.pt/livecams/praia-do-meco/',
-    source:  'MEO Beachcam (their site)',
+    type:    'video',
+    embed:   'https://www.youtube-nocookie.com/embed/EqnyST2s53I?autoplay=1&mute=1&playsinline=1&rel=0',
+    link:    'https://www.youtube.com/watch?v=EqnyST2s53I',
+    source:  'Playocean (YouTube)',
+    thumb:   'https://i.ytimg.com/vi/EqnyST2s53I/hqdefault_live.jpg',
   },
   {
     id:      'bicas',
