@@ -385,15 +385,20 @@ const CAMS = [
     name:    'Bicas',
     town:    'Aldeia do Meco', area: 'Sesimbra', zone: 'Praia das Bicas',
     country: 'Portugal',
-    tags:    ['beach break', 'west facing', 'sesimbra', 'meco', 'no cam'],
+    tags:    ['beach break', 'west facing', 'sesimbra', 'meco'],
     lat: 38.4648, lng: -9.1925, faces: 265,   // OSM: Praia das Bicas
     best: {
       swell: [250, 330], size: [0.6, 2.4], period: 9, exposure: 0.85, wind: [45, 120], tide: { range: [0, 0.6], dir: null, text: 'low' },
-      notes: 'Sandy beach break under the cliffs north of Cabo Espichel, the most exposed of the Meco stretch: picks up W and NW swell, best at low tide with an E wind (MEO Beachcam). MEO Beachcam has a cam here (on their site only).',
+      notes: 'Sandy beach break under the cliffs north of Cabo Espichel, the most exposed of the Meco stretch: picks up W and NW swell, best at low tide with an E wind (MEO Beachcam).',
     },
-    type:    'none',
+    type:    'hls',
+    // MEO's partner feed (the one their partners' embedded player uses), not a
+    // published one: if it stops, set type back to 'none' and the viewer links
+    // out to MEO's page as before.
+    embed:   'https://video-auth1.iol.pt/beachcam/bcpraiadasbicas/playlist.m3u8',
+    fallback: 'https://beachcam.meo.pt/livecams/praia-das-bicas/',
     link:    'https://beachcam.meo.pt/livecams/praia-das-bicas/',
-    source:  'MEO Beachcam (their site)',
+    source:  'MEO Beachcam',
   },
   {
     id:      'arrifana',
