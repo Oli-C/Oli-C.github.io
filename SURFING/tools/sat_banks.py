@@ -251,7 +251,10 @@ def main(args):
         if cams:
             results.append({'t': t, 'scene': ','.join(sorted(used)), 'cams': cams, 'img': imgs})
     if '--out' in args:
-        json.dump([{k: v for k, v in r.items() if k != 'img'} for r in results], open(args[args.index('--out') + 1], 'w'), indent=1)
+        out = args[args.index('--out') + 1]
+        if os.path.dirname(out):
+            os.makedirs(os.path.dirname(out), exist_ok=True)   # nothing clear to draw: no strips, so maybe no folder yet
+        json.dump([{k: v for k, v in r.items() if k != 'img'} for r in results], open(out, 'w'), indent=1)
     if '--post' in args:
         url, key = os.environ['FEEDBACK_URL'].rstrip('/'), os.environ['FEEDBACK_KEY']
         for r in sorted(results, key=lambda r: r['t']):   # oldest first, so the newest image is the one kept
