@@ -80,7 +80,8 @@ AREAS = {
 # Fine grids, nested in an area: (W, S, E, N), resolution in degrees.
 FINE = {
     'caparica': {'parent': 'lisbon', 'box': (-9.32, 38.55, -9.17, 38.68), 'res': 0.0004, 'diffrac': False,
-                 'spots': ['caparica-sao-joao', 'caparica-cds', 'caparica-praia-nova', 'caparica-riviera', 'fonte-da-telha']},
+                 'spots': ['caparica-sao-joao', 'caparica-cds', 'caparica-praia-nova', 'caparica-saude', 'caparica-cornelia', 'caparica-mata',
+                           'caparica-riviera', 'caparica-kanaloa', 'caparica-casa-do-sol', 'fonte-da-telha']},
     'cascais':  {'parent': 'lisbon', 'box': (-9.42, 38.655, -9.30, 38.72), 'res': 0.0003, 'diffrac': True,
                  'spots': ['sao-pedro-estoril', 'carcavelos']},
     'nazare':   {'parent': 'nazare', 'box': (-9.17, 39.55, -9.06, 39.66), 'res': 0.0003, 'diffrac': False,

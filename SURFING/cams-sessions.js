@@ -109,18 +109,37 @@ function sessSlots(data, date) {
 // The forecast hours a session covers (an hour counts if the session is in the water during it).
 const sessHours = (data, local, mins) => (data.byDate[local.slice(0, 10)] || []).filter((k) => k.t.slice(0, 13) >= local.slice(0, 13) && k.t < addMins(local, mins));
 
-async function openSess(c) {
-  sess = { id: c.id, day: null, slot: null, mins: 90, rating: null, size: null, surface: null, shape: null, why: new Set(), opened: Date.now(), data: null, msg: '', warn: '', busy: true, done: false };
+// `keep`: answers carried over when the form moves to another beach.
+async function openSess(c, keep) {
+  sess = { id: c.id, area: c.area, day: null, slot: null, mins: 90, rating: null, size: null, surface: null, shape: null, why: new Set(), opened: Date.now(), data: null, msg: '', warn: '', busy: true, done: false };
+  if (keep) Object.assign(sess, keep, { id: c.id, area: c.area });
   renderSess(c); renderFb(c);
   try {
     sess.data = await pastConditions(c);
     const days = Object.keys(sess.data.byDate).sort().filter((d) => sessSlots(sess.data, d).length);
-    sess.day = days[days.length - 1] || null;
+    if (!days.includes(sess.day)) sess.day = days[days.length - 1] || null;
     const slots = sess.day ? sessSlots(sess.data, sess.day) : [];
-    sess.slot = slots.length ? slots[Math.max(0, slots.length - 3)] : null;
+    if (!slots.includes(sess.slot)) sess.slot = slots.length ? slots[Math.max(0, slots.length - 3)] : null;
   } catch { sess.msg = 'Couldn’t load the forecast for those days. Try again in a moment.'; }
   sess.busy = false;
   if (sess.id === c.id) renderSess(c);
+}
+// Where exactly: the area, then the beach in it (north to south, cams or
+// not). Another beach moves the viewer and the form there, answers kept.
+function whereHtml(c) {
+  const beaches = CAMS.filter((o) => o.area === sess.area);
+  return `<div class="sess-q">Where</div>
+    <div class="sess-opts">
+      <label class="sess-sel"><span class="sr-only">Area</span><select data-sarea>${AREAS.map((a) => `<option${a === sess.area ? ' selected' : ''}>${esc(a)}</option>`).join('')}</select></label>
+      <label class="sess-sel"><span class="sr-only">Beach</span><select data-sbeach>${sess.area !== c.area ? '<option value="" selected disabled>Pick the beach…</option>' : ''}${beaches.map((o) => `<option value="${esc(o.id)}"${o.id === c.id ? ' selected' : ''}>${esc(o.name)}</option>`).join('')}</select></label>
+    </div>`;
+}
+function moveSess(id) {
+  const to = byId(id);
+  if (!to || !sess) return;
+  const { day, slot, mins, rating, size, surface, shape, why, opened } = sess;
+  open(to.id);
+  openSess(to, { day, slot, mins, rating, size, surface, shape, why, opened });
 }
 function closeSess() {
   const c = sess && byId(sess.id);
@@ -139,7 +158,7 @@ function renderSess(c) {
     return;
   }
   if (sess.busy || !sess.data) {
-    el.innerHTML = head + `<p class="fb-note">${sess.msg || 'Loading the forecast for the last few days…'}</p>`;
+    el.innerHTML = head + whereHtml(c) + `<p class="fb-note">${sess.msg || 'Loading the forecast for the last few days…'}</p>`;
     return;
   }
   const d = sess.data, today = spotNow(d.offset).slice(0, 10);
@@ -159,7 +178,7 @@ function renderSess(c) {
     then = `<div class="sess-then"><span class="k">Forecast then</span> ${esc(SIZE_BANDS[sizeBand((fr[0] + fr[1]) / 2)])} (${rng(fr[0], fr[1])}) · ${Math.round(k.p)} s ${k.d != null ? dirName(k.d) : ''} · ${kts(k.ws)} kts ${esc(windRel(c, k))}${r && r.surface ? `, <b>${esc(r.surface.label.toLowerCase())}</b>` : ''}${k.tn != null ? ` · ${tideWord(k.tn)} tide${k.tdir ? ' ' + k.tdir : ''}` : ''}${model != null && r ? ` · we scored it <b>${fmt(model)}</b>` : ''}</div>`;
   }
   const end = sess.slot ? addMins(sess.slot, sess.mins) : '';
-  el.innerHTML = head + `
+  el.innerHTML = head + whereHtml(c) + `
     <div class="sess-q">When</div>
     <div class="sess-opts">${days.map((x) => opt('data-sday', x, dayLabel(x), x === sess.day)).join('')}</div>
     <div class="sess-opts">
@@ -299,7 +318,10 @@ $('v-sess').addEventListener('click', (e) => {
 });
 $('v-sess').addEventListener('change', (e) => {
   const c = sess && byId(sess.id);
-  if (!c || !e.target.matches('[data-sslot]')) return;
+  if (!c) return;
+  if (e.target.matches('[data-sarea]')) { sess.area = e.target.value; return renderSess(c); }
+  if (e.target.matches('[data-sbeach]')) { if (e.target.value && e.target.value !== c.id) moveSess(e.target.value); return; }
+  if (!e.target.matches('[data-sslot]')) return;
   sess.slot = e.target.value; sess.warn = ''; sess.msg = '';
   renderSess(c);
 });

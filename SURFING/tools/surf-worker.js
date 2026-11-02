@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build 665a72b881. */
-const WORKER_BUILD = '665a72b881';
+   Build 1a3b14b05e. */
+const WORKER_BUILD = '1a3b14b05e';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (16-day outlook).
@@ -288,6 +288,39 @@ const CAMS = [
     type:    'none',
   },
   {
+    id:      'caparica-saude',
+    name:    'Saúde',
+    town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'caparica', 'almada', 'no cam'],
+    lat: 38.6303, lng: -9.2284, faces: 250,   // OSM: Praia da Saúde
+    best: { ...CAPARICA, notes: 'South of Praia Nova where the jetties end; no camera, so Praia Nova and Riviera give the nearest look. ' + CAPARICA.notes },
+    type:    'none',
+    swanLike: 'caparica-praia-nova',   // its SWAN table until the Caparica fine grid is rerun with it
+  },
+  {
+    id:      'caparica-cornelia',
+    name:    'Cornélia',
+    town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'caparica', 'almada', 'no cam'],
+    lat: 38.6277, lng: -9.2266, faces: 250,   // OSM: Praia da Cornélia
+    best: { ...CAPARICA, notes: 'Open beach between Saúde and Mata, banks shifting with each swell; no camera, Riviera is the nearest look. ' + CAPARICA.notes },
+    type:    'none',
+    swanLike: 'caparica-riviera',   // its SWAN table until the Caparica fine grid is rerun with it
+  },
+  {
+    id:      'caparica-mata',
+    name:    'Mata',
+    town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'caparica', 'almada', 'no cam'],
+    lat: 38.6255, lng: -9.225, faces: 250,   // OSM: Praia da Mata
+    best: { ...CAPARICA, notes: 'Open beach just north of Riviera; no camera, Riviera is the nearest look. ' + CAPARICA.notes },
+    type:    'none',
+    swanLike: 'caparica-riviera',   // its SWAN table until the Caparica fine grid is rerun with it
+  },
+  {
     id:      'caparica-riviera',
     name:    'Riviera',
     town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
@@ -302,6 +335,28 @@ const CAMS = [
     link:    'https://gosurf.fr/webcam/fr/125/Costa-Caparica-Praia-do-Riviera',
     source:  'MEO Beachcam via viewsurf',
     thumb:   'https://films.viewsurf.com/BCriviera_1_1.stream/media.jpg',
+  },
+  {
+    id:      'caparica-kanaloa',
+    name:    'Kanaloa',
+    town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'caparica', 'almada', 'no cam'],
+    lat: 38.6186, lng: -9.2193, faces: 250,   // by Kanaloa Beach Club, just south of Riviera (not named in OSM)
+    best: { ...CAPARICA, notes: 'In front of Kanaloa Beach Club, just south of Riviera; no camera, Riviera is the nearest look. ' + CAPARICA.notes },
+    type:    'none',
+    swanLike: 'caparica-riviera',   // its SWAN table until the Caparica fine grid is rerun with it
+  },
+  {
+    id:      'caparica-casa-do-sol',
+    name:    'Casa do Sol',
+    town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'caparica', 'almada', 'no cam'],
+    lat: 38.617, lng: -9.2184, faces: 250,   // OSM: Casa do Sol, at Praia da Rainha
+    best: { ...CAPARICA, notes: 'By Casa do Sol at Praia da Rainha, south of Riviera; no camera, Riviera is the nearest look. ' + CAPARICA.notes },
+    type:    'none',
+    swanLike: 'caparica-riviera',   // its SWAN table until the Caparica fine grid is rerun with it
   },
   {
     id:      'fonte-da-telha',
@@ -567,12 +622,15 @@ const learnedSpot = (id) => (typeof sharedSkill !== 'undefined' && sharedSkill &
 function arrival(c, k, raw) {
   const b = c.best, p = k.p || 0;
   const bend = k.d != null ? angleDiff(k.d, c.faces) : 0;
-  const fine = USE_SWAN && typeof SWAN !== 'undefined' && SWAN.fine && SWAN.fine[c.id] && SWAN.heights && k.d != null;
-  const swan = USE_SWAN && typeof SWAN !== 'undefined' && SWAN.spots[c.id] && k.d != null;
+  // A spot added since the last SWAN run borrows its neighbour's tables
+  // (spots.js swanLike) until it has its own.
+  const sw = (t) => (t && (t[c.id] || (c.swanLike && t[c.swanLike]))) || null;
+  const fine = USE_SWAN && typeof SWAN !== 'undefined' && SWAN.fine && sw(SWAN.fine) && SWAN.heights && k.d != null;
+  const swan = USE_SWAN && typeof SWAN !== 'undefined' && sw(SWAN.spots) && k.d != null;
   const geo = !swan && USE_GEO && typeof GEO !== 'undefined' && GEO[c.id] && k.d != null;
   let arrive;
-  if (fine) arrive = swanBreak(SWAN.fine[c.id], k.h, k.d, p);
-  else if (swan) arrive = swanArrive(SWAN.spots[c.id], k.d, p);
+  if (fine) arrive = swanBreak(sw(SWAN.fine), k.h, k.d, p);
+  else if (swan) arrive = swanArrive(sw(SWAN.spots), k.d, p);
   else if (geo) arrive = geoArrive(GEO[c.id], k.d, p);
   else {
     // Whole within 20° of the facing, then the cosine of the angle (a

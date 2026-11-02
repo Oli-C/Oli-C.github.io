@@ -130,12 +130,15 @@ const learnedSpot = (id) => (typeof sharedSkill !== 'undefined' && sharedSkill &
 function arrival(c, k, raw) {
   const b = c.best, p = k.p || 0;
   const bend = k.d != null ? angleDiff(k.d, c.faces) : 0;
-  const fine = USE_SWAN && typeof SWAN !== 'undefined' && SWAN.fine && SWAN.fine[c.id] && SWAN.heights && k.d != null;
-  const swan = USE_SWAN && typeof SWAN !== 'undefined' && SWAN.spots[c.id] && k.d != null;
+  // A spot added since the last SWAN run borrows its neighbour's tables
+  // (spots.js swanLike) until it has its own.
+  const sw = (t) => (t && (t[c.id] || (c.swanLike && t[c.swanLike]))) || null;
+  const fine = USE_SWAN && typeof SWAN !== 'undefined' && SWAN.fine && sw(SWAN.fine) && SWAN.heights && k.d != null;
+  const swan = USE_SWAN && typeof SWAN !== 'undefined' && sw(SWAN.spots) && k.d != null;
   const geo = !swan && USE_GEO && typeof GEO !== 'undefined' && GEO[c.id] && k.d != null;
   let arrive;
-  if (fine) arrive = swanBreak(SWAN.fine[c.id], k.h, k.d, p);
-  else if (swan) arrive = swanArrive(SWAN.spots[c.id], k.d, p);
+  if (fine) arrive = swanBreak(sw(SWAN.fine), k.h, k.d, p);
+  else if (swan) arrive = swanArrive(sw(SWAN.spots), k.d, p);
   else if (geo) arrive = geoArrive(GEO[c.id], k.d, p);
   else {
     // Whole within 20° of the facing, then the cosine of the angle (a

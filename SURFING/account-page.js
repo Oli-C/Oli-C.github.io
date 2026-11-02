@@ -96,6 +96,21 @@ async function loadSuggested() {
   suggested = j.error ? [] : j.suggestions;
 }
 
+/* ---------- Log a session: area, then beach ---------- */
+// The form itself lives on the spot's page (cams-sessions.js); this sends
+// you there with it open (?log=), beaches without a cam included.
+(function logPick() {
+  const area = $('log-area'), beach = $('log-beach'), go = $('log-go');
+  const fill = () => {
+    beach.innerHTML = CAMS.filter((c) => c.area === area.value).map((c) => `<option value="${esc(c.id)}">${esc(c.name)}${c.type === 'none' ? ' (no cam)' : ''}</option>`).join('');
+    go.href = './?log=' + encodeURIComponent(beach.value);
+  };
+  area.innerHTML = AREAS.map((a) => `<option${a === 'Caparica' ? ' selected' : ''}>${esc(a)}</option>`).join('');
+  area.addEventListener('change', fill);
+  beach.addEventListener('change', () => { go.href = './?log=' + encodeURIComponent(beach.value); });
+  fill();
+})();
+
 /* ---------- My sessions ---------- */
 const lengthOf = (m) => (m < 60 ? `${m} min` : `${m / 60} h`.replace('.5 h', '½ h'));
 function renderSessions() {
@@ -103,7 +118,7 @@ function renderSessions() {
   if (!Account.get()) { el.innerHTML = '<p class="none">Sign in to see the sessions you’ve logged.</p>'; return; }
   if (mine === null) { el.innerHTML = '<p class="none">Loading…</p>'; return; }
   if (mine.error) { el.innerHTML = `<p class="none">${esc(mine.error)}</p>`; return; }
-  if (!mine.length) { el.innerHTML = '<p class="none">None yet. Open a cam and tap “Surfed here? Log a session” after you’ve been in.</p>'; return; }
+  if (!mine.length) { el.innerHTML = '<p class="none">None yet. Pick where you surfed above, after you’ve been in.</p>'; return; }
   el.innerHTML = `<ol class="sess-list">${mine.map((s) => {
     const c = byId(s.id), d = new Date(s.local + ':00Z');
     const when = `${DAY_NAMES[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} · ${s.local.slice(11, 16)}`;

@@ -278,6 +278,39 @@ const CAMS = [
     type:    'none',
   },
   {
+    id:      'caparica-saude',
+    name:    'Saúde',
+    town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'caparica', 'almada', 'no cam'],
+    lat: 38.6303, lng: -9.2284, faces: 250,   // OSM: Praia da Saúde
+    best: { ...CAPARICA, notes: 'South of Praia Nova where the jetties end; no camera, so Praia Nova and Riviera give the nearest look. ' + CAPARICA.notes },
+    type:    'none',
+    swanLike: 'caparica-praia-nova',   // its SWAN table until the Caparica fine grid is rerun with it
+  },
+  {
+    id:      'caparica-cornelia',
+    name:    'Cornélia',
+    town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'caparica', 'almada', 'no cam'],
+    lat: 38.6277, lng: -9.2266, faces: 250,   // OSM: Praia da Cornélia
+    best: { ...CAPARICA, notes: 'Open beach between Saúde and Mata, banks shifting with each swell; no camera, Riviera is the nearest look. ' + CAPARICA.notes },
+    type:    'none',
+    swanLike: 'caparica-riviera',   // its SWAN table until the Caparica fine grid is rerun with it
+  },
+  {
+    id:      'caparica-mata',
+    name:    'Mata',
+    town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'caparica', 'almada', 'no cam'],
+    lat: 38.6255, lng: -9.225, faces: 250,   // OSM: Praia da Mata
+    best: { ...CAPARICA, notes: 'Open beach just north of Riviera; no camera, Riviera is the nearest look. ' + CAPARICA.notes },
+    type:    'none',
+    swanLike: 'caparica-riviera',   // its SWAN table until the Caparica fine grid is rerun with it
+  },
+  {
     id:      'caparica-riviera',
     name:    'Riviera',
     town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
@@ -292,6 +325,28 @@ const CAMS = [
     link:    'https://gosurf.fr/webcam/fr/125/Costa-Caparica-Praia-do-Riviera',
     source:  'MEO Beachcam via viewsurf',
     thumb:   'https://films.viewsurf.com/BCriviera_1_1.stream/media.jpg',
+  },
+  {
+    id:      'caparica-kanaloa',
+    name:    'Kanaloa',
+    town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'caparica', 'almada', 'no cam'],
+    lat: 38.6186, lng: -9.2193, faces: 250,   // by Kanaloa Beach Club, just south of Riviera (not named in OSM)
+    best: { ...CAPARICA, notes: 'In front of Kanaloa Beach Club, just south of Riviera; no camera, Riviera is the nearest look. ' + CAPARICA.notes },
+    type:    'none',
+    swanLike: 'caparica-riviera',   // its SWAN table until the Caparica fine grid is rerun with it
+  },
+  {
+    id:      'caparica-casa-do-sol',
+    name:    'Casa do Sol',
+    town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
+    country: 'Portugal',
+    tags:    ['beach break', 'west facing', 'caparica', 'almada', 'no cam'],
+    lat: 38.617, lng: -9.2184, faces: 250,   // OSM: Casa do Sol, at Praia da Rainha
+    best: { ...CAPARICA, notes: 'By Casa do Sol at Praia da Rainha, south of Riviera; no camera, Riviera is the nearest look. ' + CAPARICA.notes },
+    type:    'none',
+    swanLike: 'caparica-riviera',   // its SWAN table until the Caparica fine grid is rerun with it
   },
   {
     id:      'fonte-da-telha',
