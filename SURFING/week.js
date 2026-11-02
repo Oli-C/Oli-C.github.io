@@ -210,6 +210,7 @@ function renderList() {
   // Redrawn rows keep the days where they were, not back at today.
   const was = list.querySelector('.strip, .ctab-wrap'), left = was ? was.scrollLeft : 0;
   list.innerHTML = html;
+  lead = null; list.classList.remove('syncing');
   lastLeft = left;
   for (const st of list.querySelectorAll('.strip, .ctab-wrap')) st.scrollLeft = left;
   renderBets(showRest ? [...shownFavs, ...rest] : shownFavs);
@@ -241,16 +242,46 @@ list.addEventListener('click', (e) => {
   if (t) openTile(t.dataset.id, +t.dataset.i);
 });
 // Swiping one spot's days swipes them all, so the days stay in columns.
-// The rows it moves fire scroll events of their own, at the same place:
-// those are echoes and are ignored, so they never fight a smooth scroll.
-let lastLeft = 0;
+// The row being swiped leads; the others follow it with their card snapping
+// off (snapping on every step made them jump, and each jump fired a scroll
+// of its own that fought the swipe). Once the lead settles (it snaps), the
+// followers are put where it stopped and snap again. Scrolls from the
+// followers while it leads are echoes and are ignored.
+let lastLeft = 0, lead = null, settle = 0;
+const ROWS = '.strip, .ctab-wrap';
+function follow(src) {
+  lastLeft = src.scrollLeft;
+  const kind = src.classList.contains('strip') ? '.strip' : '.ctab-wrap';
+  for (const st of list.querySelectorAll(kind)) if (st !== src && Math.abs(st.scrollLeft - lastLeft) >= 1) st.scrollLeft = lastLeft;
+}
+function release() {
+  clearTimeout(settle);
+  if (!lead) return;
+  follow(lead);
+  lead.classList.remove('lead');
+  list.classList.remove('syncing');
+  lead = null;
+}
+function take(src) {
+  if (lead === src) return;
+  if (lead) lead.classList.remove('lead');
+  lead = src;
+  src.classList.add('lead');
+  list.classList.add('syncing');
+}
+const grab = (e) => { const st = e.target.closest && e.target.closest(ROWS); if (st) take(st); };
+for (const ev of ['touchstart', 'pointerdown', 'wheel']) list.addEventListener(ev, grab, { passive: true, capture: true });
 list.addEventListener('scroll', (e) => {
   const src = e.target;
-  const kind = src.classList && ['strip', 'ctab-wrap'].find((k) => src.classList.contains(k));
-  if (!kind || Math.abs(src.scrollLeft - lastLeft) < 1) return;
-  lastLeft = src.scrollLeft;
-  for (const st of list.querySelectorAll('.' + kind)) if (st !== src) st.scrollLeft = lastLeft;
+  if (!src.classList || !src.matches(ROWS)) return;
+  if (lead && src !== lead) return;                       // a follower's echo
+  if (!lead && Math.abs(src.scrollLeft - lastLeft) < 1) return;
+  take(src);                                              // (a slide to a best bet leads too)
+  follow(src);
+  clearTimeout(settle);
+  settle = setTimeout(release, 180);
 }, true);
+list.addEventListener('scrollend', (e) => { if (e.target === lead) release(); }, true);
 bets.addEventListener('click', (e) => { const b = e.target.closest('.bet'); if (b) openTile(b.dataset.id, +b.dataset.i); });
 tools.addEventListener('click', (e) => {
   const s = e.target.closest('[data-scope]');

@@ -126,6 +126,8 @@ a.btn { text-decoration: none; }
   overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain;
 }
 .strip::-webkit-scrollbar { display: none; }
+/* While one row is swiped the others follow it unsnapped (week.js). */
+.syncing .strip:not(.lead) { scroll-snap-type: none; }
 .dcard {
   display: flex; flex-direction: column; min-width: 0; padding: 0; scroll-snap-align: start;
   font: inherit; text-align: left; color: var(--fg); cursor: pointer;
