@@ -39,5 +39,6 @@ jobs:
             echo "no change"
           else
             git commit -m "skill: model skill, feedback and sessions [skip ci]"
-            git push
+            # Someone else may have pushed meanwhile (the site, another bot): rebase and retry.
+            for i in 1 2 3; do git pull -q --rebase && git push -q && exit 0; sleep $((i * 10)); done; exit 1
           fi
