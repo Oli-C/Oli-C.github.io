@@ -491,8 +491,8 @@ function renderLocal(c) {
 
 // How the banks have been breaking: from a cam (tools/banks.py, hourly by
 // day; this spot's own, else the nearest cam that reads them within 2.5 km),
-// and from space (tools/sat_banks.py, every clear Sentinel-2 pass, each
-// Caparica and Sesimbra beach its own). Each: the latest reading, a tally of
+// and from space (tools/sat_banks.py, every clear Sentinel-2 pass, every
+// spot its own). Each: the latest reading, a tally of
 // recent ones, and the image it came from.
 const BANK_WORDS = { flat: 'Hardly breaking', shorebreak: 'Shorebreak only', 'closing out': 'Closing out', peaky: 'Peaky, with channels', mixed: 'Mixed' };
 // From space a big day is white right across, so the satellite says where the bar is and whether channels cut it, not closeouts.
@@ -506,7 +506,7 @@ async function renderBanks(c) {
   const get = (u) => fetch(api + u).then((r) => (r.ok ? r.json() : null)).catch(() => null);
   const [cam, sat] = await Promise.all([
     src ? get(`/banks?id=${encodeURIComponent(src.cam.id)}&days=3`) : null,
-    ['Caparica', 'Sesimbra'].includes(c.area) ? get(`/banks/sat?id=${encodeURIComponent(c.id)}&days=30`) : null,
+    get(`/banks/sat?id=${encodeURIComponent(c.id)}&days=30`),
   ]);
   if ($('v-go').dataset.go !== c.id) return;
   const camList = (cam && cam.readings) || [], satList = (sat && sat.readings) || [];

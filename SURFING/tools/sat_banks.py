@@ -6,7 +6,8 @@ dark gaps are peaks and channels, and how far out the outer band sits is
 where the bar is. Sand is bright too but warm in colour, foam is white,
 so the two are told apart by colour.
 
-For each spot in AREAS (cams or not), on each clear scene: a strip of
+For every spot (cams or not), area by area (each its own window, since
+they fall on different tiles), on each clear scene: a strip of
 coast 1.4 km long (700 m either side), aligned with the way the beach
 faces, from 150 m inland to 700 m out. Per 10 m along the beach: the
 shoreline (where the sand ends) and the foam seaward of it. Then
@@ -41,7 +42,6 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 SURF = os.path.dirname(HERE)
 STAC = 'https://earth-search.aws.element84.com/v1/search'
-AREAS = ('Caparica', 'Sesimbra')
 ALONG, BACK, OUT, STEP = 700, 150, 700, 10      # metres
 SWASH, MIN_GAP, MAX_CLOUD, MAX_BAR = 30, 50, 0.10, 500   # metres, metres, share, metres
 BANDS = {'blue': 'B02', 'green': 'B03', 'red': 'B04', 'nir': 'B08'}
@@ -51,7 +51,7 @@ os.environ.setdefault('GDAL_DISABLE_READDIR_ON_OPEN', 'EMPTY_DIR')
 def spots():
     js = ("const fs=require('fs'),vm=require('vm'),c={};vm.createContext(c);"
           f"vm.runInContext(fs.readFileSync({json.dumps(os.path.join(SURF, 'spots.js'))},'utf8')+';this.C=CAMS',c);"
-          f"console.log(JSON.stringify(c.C.filter(x=>{json.dumps(list(AREAS))}.includes(x.area)).map(x=>({{id:x.id,lat:x.lat,lng:x.lng,faces:x.faces}}))))")
+          "console.log(JSON.stringify(c.C.map(x=>({id:x.id,area:x.area,lat:x.lat,lng:x.lng,faces:x.faces}))))")
     return json.loads(subprocess.run(['node', '-e', js], capture_output=True, text=True, check=True).stdout)
 
 
@@ -204,7 +204,21 @@ def picture(s, a):
 def main(args):
     days = int(args[args.index('--days') + 1]) if '--days' in args else 5
     img_dir = args[args.index('--img') + 1] if '--img' in args else None
-    sp = spots()
+    by_area = {}
+    for spot in spots():
+        by_area.setdefault(spot['area'], []).append(spot)
+    results = []
+    for area, sp in by_area.items():
+        print(f'--- {area}: {len(sp)} spots', flush=True)
+        try:
+            results += area_readings(sp, days, img_dir)
+        except Exception as e:
+            print(area, 'failed:', e, flush=True)
+    finish(results, args)
+
+
+def area_readings(sp, days, img_dir):
+    """Every clear pass over these spots in the last `days`: [{ t, scene, cams, img }]."""
     lats, lngs = [s['lat'] for s in sp], [s['lng'] for s in sp]
     bbox = [min(lngs) - 0.03, min(lats) - 0.02, max(lngs) + 0.03, max(lats) + 0.02]
     found = scenes(bbox, days)
@@ -250,6 +264,11 @@ def main(args):
             print(t, spot['id'], json.dumps(cams[spot['id']]), flush=True)
         if cams:
             results.append({'t': t, 'scene': ','.join(sorted(used)), 'cams': cams, 'img': imgs})
+    return results
+
+
+def finish(results, args):
+    """--out writes the readings, --post sends them (and the strips) to the worker."""
     if '--out' in args:
         out = args[args.index('--out') + 1]
         if os.path.dirname(out):

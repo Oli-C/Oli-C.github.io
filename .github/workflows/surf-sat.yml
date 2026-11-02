@@ -1,6 +1,6 @@
 name: surf sat
 
-# Daily: the banks from space at each Caparica and Sesimbra beach, from every
+# Daily: the banks from space at every spot, area by area, from every
 # clear Sentinel-2 pass of the last few days (SURFING/tools/sat_banks.py:
 # whitewater in near-infrared, per beach; no AI, no keys, Element 84's
 # public catalogue). Sends the readings and each beach's latest strip to

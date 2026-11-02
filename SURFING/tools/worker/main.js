@@ -2,7 +2,8 @@
    fetch      the routes in accounts.js, feedback.js, forecast.js,
               history.js and banks.js, plus /health, all behind the rate
               limits below
-   scheduled  the hourly Cron Trigger: rebuild the forecast (and every 3 h
+   scheduled  the hourly Cron Trigger: start the GitHub jobs that must run
+              on time (dispatch.js), rebuild the forecast (and every 3 h
               the map's wind grid, grid.js), then add the
               hour's measurements (and every 6 h the buoys and the wave
               models' forecasts) to the history database
@@ -65,7 +66,9 @@ export default {
       let forecast = 'not built yet';
       try { const f = JSON.parse((await env.FEEDBACK.get('fc:latest')) || 'null'); if (f) forecast = `built ${f.built} (${Object.keys(f.spots).length} spots, ${f.ms} ms)`; } catch {}
       const limits = Object.keys(LIMITS).map((c) => `${c} ${env[`RL_${c.toUpperCase()}`] ? 'edge' : 'local'}`).join(', ');
-      return json({ ok: true, build: WORKER_BUILD, kv: !!env.FEEDBACK, db: !!env.DB, exportKey: exportKey ? `set, ${exportKey.length} characters` : 'missing', forecast, limits });
+      let dispatch = (await readSecret(env.GH_DISPATCH_TOKEN)) ? 'token set' : 'no token (GitHub schedules stand in)';
+      try { const d = JSON.parse((await env.FEEDBACK.get('dispatch:last')) || 'null'); if (d) dispatch += `; last ${d.t}: ` + Object.entries(d.out).map(([f, s]) => `${f} ${s}`).join(', '); } catch {}
+      return json({ ok: true, build: WORKER_BUILD, kv: !!env.FEEDBACK, db: !!env.DB, exportKey: exportKey ? `set, ${exportKey.length} characters` : 'missing', forecast, limits, dispatch });
     }
     // The IP is only ever kept as this keyed hash.
     const ipTag = await senderTag(ip, await readSecret(env.EXPORT_KEY));
@@ -80,6 +83,7 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
+    ctx.waitUntil(dispatchJobs(env).catch((e) => console.log('dispatch', e.message)));   // GitHub jobs that must run on time (dispatch.js)
     ctx.waitUntil(buildForecast(env).catch((e) => console.log('forecast', e.message))
       .then(() => windGrid(env)).catch((e) => console.log('wind grid', e.message))
       .then(() => archiveHistory(env)));

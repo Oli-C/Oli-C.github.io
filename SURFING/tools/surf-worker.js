@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build 403731f4d9. */
-const WORKER_BUILD = '403731f4d9';
+   Build 385af94e76. */
+const WORKER_BUILD = '385af94e76';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (16-day outlook).
@@ -2989,12 +2989,54 @@ async function handleSat(req, env, url, json) {
 }
 
 
+/* ===== worker/dispatch.js ===== */
+/* ---------- Starting GitHub Actions jobs on time ----------
+   GitHub's own schedules are best-effort and often skipped; this worker's
+   hourly cron never misses, so it starts the jobs that must run on time
+   (workflow_dispatch through GitHub's API):
+
+     surf-banks.yml  the cams' bank readings, every hour 07–18 UTC
+     surf-watch.yml  the freshness check, every 3 hours
+     surf-sat.yml    the satellite bank readings, daily at 19 UTC
+
+   Needs the secret GH_DISPATCH_TOKEN: a fine-grained GitHub token for
+   Oli-C/Oli-C.github.io with Actions: read and write, nothing else. Without
+   it nothing is started and the workflows' own schedules stand in. The last
+   round is kept in KV (dispatch:last) and shown on /health. */
+const GH_REPO = 'Oli-C/Oli-C.github.io';
+const DISPATCH = [
+  { file: 'surf-banks.yml', when: (h) => h >= 7 && h <= 18 },
+  { file: 'surf-watch.yml', when: (h) => h % 3 === 0 },
+  { file: 'surf-sat.yml', when: (h) => h === 19 },
+];
+
+async function dispatchJobs(env, now = new Date()) {
+  const token = await readSecret(env.GH_DISPATCH_TOKEN);
+  if (!token) return null;
+  const h = now.getUTCHours(), out = {};
+  for (const d of DISPATCH) {
+    if (!d.when(h)) continue;
+    try {
+      const r = await fetch(`https://api.github.com/repos/${GH_REPO}/actions/workflows/${d.file}/dispatches`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'allfield-surf-worker' },
+        body: JSON.stringify({ ref: 'master' }),
+      });
+      out[d.file] = r.status;   // 204: started
+    } catch (e) { out[d.file] = 'error: ' + e.message; }
+  }
+  await env.FEEDBACK.put('dispatch:last', JSON.stringify({ t: now.toISOString().slice(0, 16), out }));
+  return out;
+}
+
+
 /* ===== worker/main.js ===== */
 /* ---------- Entry points ----------
    fetch      the routes in accounts.js, feedback.js, forecast.js,
               history.js and banks.js, plus /health, all behind the rate
               limits below
-   scheduled  the hourly Cron Trigger: rebuild the forecast (and every 3 h
+   scheduled  the hourly Cron Trigger: start the GitHub jobs that must run
+              on time (dispatch.js), rebuild the forecast (and every 3 h
               the map's wind grid, grid.js), then add the
               hour's measurements (and every 6 h the buoys and the wave
               models' forecasts) to the history database
@@ -3057,7 +3099,9 @@ export default {
       let forecast = 'not built yet';
       try { const f = JSON.parse((await env.FEEDBACK.get('fc:latest')) || 'null'); if (f) forecast = `built ${f.built} (${Object.keys(f.spots).length} spots, ${f.ms} ms)`; } catch {}
       const limits = Object.keys(LIMITS).map((c) => `${c} ${env[`RL_${c.toUpperCase()}`] ? 'edge' : 'local'}`).join(', ');
-      return json({ ok: true, build: WORKER_BUILD, kv: !!env.FEEDBACK, db: !!env.DB, exportKey: exportKey ? `set, ${exportKey.length} characters` : 'missing', forecast, limits });
+      let dispatch = (await readSecret(env.GH_DISPATCH_TOKEN)) ? 'token set' : 'no token (GitHub schedules stand in)';
+      try { const d = JSON.parse((await env.FEEDBACK.get('dispatch:last')) || 'null'); if (d) dispatch += `; last ${d.t}: ` + Object.entries(d.out).map(([f, s]) => `${f} ${s}`).join(', '); } catch {}
+      return json({ ok: true, build: WORKER_BUILD, kv: !!env.FEEDBACK, db: !!env.DB, exportKey: exportKey ? `set, ${exportKey.length} characters` : 'missing', forecast, limits, dispatch });
     }
     // The IP is only ever kept as this keyed hash.
     const ipTag = await senderTag(ip, await readSecret(env.EXPORT_KEY));
@@ -3072,6 +3116,7 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
+    ctx.waitUntil(dispatchJobs(env).catch((e) => console.log('dispatch', e.message)));   // GitHub jobs that must run on time (dispatch.js)
     ctx.waitUntil(buildForecast(env).catch((e) => console.log('forecast', e.message))
       .then(() => windGrid(env)).catch((e) => console.log('wind grid', e.message))
       .then(() => archiveHistory(env)));
