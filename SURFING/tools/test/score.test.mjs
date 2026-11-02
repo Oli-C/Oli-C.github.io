@@ -106,7 +106,7 @@ test('regression: set conditions keep their scores', () => {
   ];
   for (const [id, k, want] of table) assert.equal(site.score(spot(id), k).total, want, id);
 });
-const SNAP = { cds: 9, guincho: 7, nazare: 3, carcavelos: 3.5 };   // guincho 7.5 → 7: its 14 s swell now breaks bigger, past the top of its range; carcavelos 3 → 3.5: SWAN lets a SW swell in (0.91, not the hand rule's 0.52)
+const SNAP = { cds: 8.5, guincho: 7, nazare: 3, carcavelos: 3.5 };   // guincho 7.5 → 7: its 14 s swell now breaks bigger, past the top of its range; carcavelos 3 → 3.5: SWAN lets a SW swell in (0.91, not the hand rule's 0.52)
 
 test('period: longer swell breaks bigger; the wind sea can be the swell', () => {
   const g = spot('guincho-norte'), k = (p) => ({ ...base, h: 1.5, p, d: 300 });

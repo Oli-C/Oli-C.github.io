@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build 2bf28c7812. */
-const WORKER_BUILD = '2bf28c7812';
+   Build 403731f4d9. */
+const WORKER_BUILD = '403731f4d9';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (16-day outlook).
@@ -72,15 +72,15 @@ const WORKER_BUILD = '2bf28c7812';
 
 // Shared local knowledge for the Caparica jetty beaches.
 const CAPARICA = {
-  swell: [240, 320], size: [0.6, 2.0], period: 9, exposure: 0.8, wind: [30, 120], tide: { range: [0, 1], dir: 'rising', text: 'all tides, best on the push' },
-  notes: 'Jetty-sheltered beach breaks with gentle banks, the surf-school stretch south of Lisbon. Takes most W/NW swell and works on every tide, best as it rises; above ~2 m it starts to wall up. E/NE wind cleans it; the summer nortada blows it side-on.',
+  swell: [240, 320], size: [0.6, 2.0], period: 9, exposure: 0.8, wind: [30, 120], tide: { range: [0, 1], dir: null, text: 'all tides' },
+  notes: 'Caparica’s beach breaks take W–NW swell, less of it the further north (Cabo Raso shelters the north end). The groyne field from São João to Praia Nova shapes short wedges; south of it the banks are open and shift. An E/NE wind cleans it, the summer nortada blows it side-on, and the water is worse after heavy rain (the Tagus).',
 };
 
 // Praia do Norte's local knowledge, kept separate so another cam on the
 // same beach can share it.
 const NAZARE = {
-  swell: [260, 330], size: [0.6, 2.5], period: 9, exposure: 0.9, gain: 1.4, wind: [60, 150], tide: { range: [0.2, 0.8], dir: null, text: 'mid' },
-  notes: 'The big-wave beach, the Nazaré Canyon focuses any W–NW swell into something far heavier than the numbers suggest. For paddling it’s a powerful, shifty beach break that’s best small (under ~2 m), mid tide, with an E/SE wind; above that it’s tow-in country and the rips are serious. Experienced surfers only. Praia da Vila, round the headland, is the gentler option.',
+  swell: [240, 335], size: [0.8, 2.2], period: 9, exposure: 0.9, gain: 1.4, wind: [20, 140], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
+  notes: 'The big-wave beach: the canyon offshore focuses long-period W–NW groundswell into the giant days. On normal days it’s a heavy beach break, lefts and rights over sand with a hollow inside bar and very strong currents: low to mid tide, an E–NE wind in the morning, and not alone above ~2 m. Praia da Vila, round the headland, is the gentler option.',
 };
 const CAMS = [
   {
@@ -89,7 +89,7 @@ const CAMS = [
     town:    'Nazaré', area: 'Nazaré', zone: 'Praia do Norte',
     country: 'Portugal',
     tags:    ['beach break', 'big wave', 'canyon', 'heavy'],
-    lat: 39.6080, lng: -9.0856, faces: 290,   // OSM coastline, the beach north of the fort
+    lat: 39.617, lng: -9.083, faces: 280,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: NAZARE,
     type:    'hls',
     embed:   'https://deliverys5.quanteec.com/contents/encodings/live/528309e0-caee-4b99-3933-3530-6d61-63-b69a-caa00a3177f6d/master.m3u8',
@@ -105,10 +105,10 @@ const CAMS = [
     town:    'Peniche', area: 'Peniche', zone: 'Baleal',
     country: 'Portugal',
     tags:    ['reef break', 'left', 'baleal'],
-    lat: 39.3734, lng: -9.3367, faces: 320,   // OSM coastline, north side of the Baleal isthmus
+    lat: 39.3755, lng: -9.3357, faces: 10,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [270, 350], size: [0.6, 3.0], period: 9, exposure: 0.6, wind: [120, 200], tide: { range: [0.3, 0.8], dir: 'rising', text: 'mid, on the rise' },
-      notes: 'Long, mellow left over flat reef on the north side of Baleal. Likes W–NW swell with a S/SE wind; rocks and urchins show at low tide, so mid tide on the push is the call. Handles size when the beaches max out. Busy, and the bodyboarders have priority on the inside.',
+      swell: [280, 20], size: [0.9, 3.0], period: 9, exposure: 0.6, wind: [120, 230], tide: { range: [0.45, 0.95], dir: 'rising', text: 'mid to high, on the push' },
+      notes: 'Left-hand reef over flat rock and sand on the north side of the peninsula, facing almost the opposite way to Supertubos: it wants N–NW swell and a S wind, the setup that blows Supertubos onshore. Mid to high tide on the push; urchins, and a competitive crowd when it’s on.',
     },
     type:    'hls',
     embed:   'https://deliverys5.quanteec.com/contents/encodings/live/d2d6a6b5-eeee-4850-3134-3530-6d61-63-8b84-8bfc9f91f211d/master.m3u8',
@@ -124,10 +124,10 @@ const CAMS = [
     town:    'Peniche', area: 'Peniche', zone: 'Peniche south',
     country: 'Portugal',
     tags:    ['beach break', 'barrels', 'wsl'],
-    lat: 39.3483, lng: -9.3660, faces: 250,   // OSM coastline at the end of Estrada da Supertubos
+    lat: 39.3483, lng: -9.3660, faces: 248,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [210, 290], size: [1.0, 3.0], period: 10, exposure: 0.7, wind: [20, 100], tide: { range: [0.4, 1], dir: null, text: 'mid to high' },
-      notes: 'Heavy, hollow beach break, the "European Pipeline" and the WSL contest site. Wants SW–W swell from head high to double overhead with a NE/E wind, mid to high tide; bigger than that it closes out. Advanced only, and crowded. Sept–Nov is prime.',
+      swell: [210, 310], size: [1.0, 3.0], period: 10, exposure: 0.7, wind: [340, 100], tide: { range: [0.3, 1], dir: null, text: 'mid to high' },
+      notes: 'Shallow sandbanks that throw hollow A-frames, the WSL contest wave: a W–SW groundswell and a N to NE wind, mid to high tide; head-high to double overhead, heavy closeouts when it’s huge. Expert when it’s on, crowded enough to be dangerous; best in autumn, mostly flat in summer.',
     },
     type:    'hls',
     embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/d0b0b725-f0cd-4ac6-3234-3530-6d61-63-9da6-3f3819b83f9ad/master.m3u8',
@@ -143,10 +143,10 @@ const CAMS = [
     town:    'Colares', area: 'Sintra', zone: 'Praia das Maçãs',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'sintra', 'colares'],
-    lat: 38.8262, lng: -9.469, faces: 285,   // OSM: Praia das Maçãs
+    lat: 38.8262, lng: -9.469, faces: 300,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [260, 340], size: [0.6, 2.5], period: 9, wind: [40, 130], tide: { range: [0.3, 0.9], dir: null, text: 'mid' },
-      notes: 'Village beach break north of Praia Grande, with banks shaped by the stream at its mouth; picks up W–NW swell well, cleaned by an E wind and blown out early by the nortada. Mid tide is usually best.',
+      swell: [260, 340], size: [0.6, 2.5], period: 9, wind: [60, 150], tide: { range: [0.1, 0.6], dir: 'rising', text: 'low to mid, rising' },
+      notes: 'Small village bay with rocks at both ends: A-frame peaks and wedgy lefts off the south cliffs where the stream comes out. Best on a small to moderate NW swell at lower tide (dumpy at high), cleaned by an E–SE wind; crowded at weekends.',
     },
     type:    'hls',
     embed:   'https://video-auth1.iol.pt/beachcam/praiadasmacas/playlist.m3u8',   // MEO's partner feed (see Bicas)
@@ -159,10 +159,10 @@ const CAMS = [
     town:    'Sintra', area: 'Sintra', zone: 'Praia Grande',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'bodyboard', 'colares'],
-    lat: 38.8185, lng: -9.4752, faces: 260,   // OSM coastline, north end below Praia Pequena
+    lat: 38.8185, lng: -9.4752, faces: 294,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [260, 330], size: [0.6, 2.5], period: 9, wind: [40, 130], tide: { range: [0.4, 1], dir: 'rising', text: 'mid to high' },
-      notes: 'The open northern half of Praia Grande, wider, sandier banks and a bit more exposed than the south end, so it picks up the most swell and is first to blow out in a nortada. Same recipe: W–NW swell, E/NE wind, mid to high tide as the shorebreak at low is heavy. Lots of room when the south end is crowded; strong rips when it’s big.',
+      swell: [260, 350], size: [0.6, 2.5], period: 9, wind: [60, 150], tide: { range: [0.2, 0.8], dir: 'rising', text: 'low to mid, rising' },
+      notes: 'The most consistent beach on this coast, powerful and fast-dropping: a left on the north side, a peak in the middle and the right off the pool reef at the north end. W–NW swell, E–SE wind; strong rips once it’s overhead, and big NW winter swells close it out. Not for beginners.',
     },
     type:    'hls',
     embed:   'https://ds2-cache.quanteec.com/contents/encodings/live/97f4c14c-c861-44cf-3634-3530-6d61-63-8d1d-f07b2cd93deed/master.m3u8',
@@ -180,10 +180,10 @@ const CAMS = [
     town:    'Sintra', area: 'Sintra', zone: 'Praia Grande',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'bodyboard', 'colares'],
-    lat: 38.8121, lng: -9.4789, faces: 255,   // OSM: Praia Grande do Rodízio, south end
+    lat: 38.8121, lng: -9.4789, faces: 302,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [260, 330], size: [0.6, 2.5], period: 9, wind: [40, 130], tide: { range: [0.4, 1], dir: 'rising', text: 'mid to high' },
-      notes: 'Sintra’s long, open beach break, consistent, punchy and a bodyboarding stronghold. The south end has the best-shaped banks and a rock ledge for shelter. Takes W–NW swell with an E/NE wind; low tide is a heavy shorebreak, so mid to high on the push is the call. Rips when it’s big; the nortada blows it out in summer afternoons.',
+      swell: [260, 350], size: [0.6, 2.5], period: 9, wind: [60, 160], tide: { range: [0.2, 0.8], dir: 'rising', text: 'low to mid, rising' },
+      notes: 'The south end of Praia Grande, a little sheltered by the slate cliffs and usually less crowded than the north: same powerful beach break on W–NW swell with an E–SE wind, best on a rising low to mid tide; rips when it’s big.',
     },
     type:    'hls',
     embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/f05e1d93-57cf-4e07-3734-3530-6d61-63-8b8c-a57a96c1fc1ed/master.m3u8',
@@ -199,10 +199,10 @@ const CAMS = [
     town:    'Almoçageme', area: 'Sintra', zone: 'Praia da Adraga',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'sintra', 'rocks'],
-    lat: 38.8037, lng: -9.4848, faces: 265,   // OSM: Praia da Adraga
+    lat: 38.8037, lng: -9.4848, faces: 298,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [250, 330], size: [0.6, 2.2], period: 9, wind: [40, 120], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
-      notes: 'Cliff-backed cove south of Praia Grande, peaks off sand between rocks; shelters a little from N wind under the cliffs. Low to mid tide; the rocks show at low, so watch them.',
+      swell: [260, 350], size: [0.6, 2.2], period: 9, wind: [70, 170], tide: { range: [0.15, 0.6], dir: 'rising', text: 'low to mid, rising' },
+      notes: 'Cliff-backed cove: short, hollow, ledgey peaks both ways over sand and rock, best on a WNW swell and a rising low to mid tide with an E–SE wind. Submerged rocks; for intermediate to experienced surfers.',
     },
     type:    'hls',
     embed:   'https://video-auth1.iol.pt/beachcam/bcadraga/playlist.m3u8',   // MEO's partner feed (see Bicas)
@@ -216,10 +216,10 @@ const CAMS = [
     town:    'Cascais', area: 'Cascais', zone: 'Guincho',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'sintra-cascais'],
-    lat: 38.7370, lng: -9.4726, faces: 270,   // OSM coastline, north end (beach centre 38.7337, -9.4728)
+    lat: 38.7370, lng: -9.4726, faces: 277,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [270, 340], size: [0.6, 2.4], period: 9, wind: [60, 130], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
-      notes: 'Exposed beach break that catches every swell going, NW is best, with an E wind. The summer nortada (N wind) blows it side-shore by late morning, so go early. Low to mid tide works best; strong currents when it gets big. The north end is the more open, punchier bank.',
+      swell: [270, 340], size: [0.6, 2.4], period: 9, wind: [60, 170], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
+      notes: 'Exposed beach break that catches every swell going, the indicator for the Lisbon coast: NW is best, with an E wind (S winds are fine too). The summer nortada blows it out by late morning, so go early. Lefts and rights over sand with rocks; strong rips that run north along the beach.',
     },
     type:    'hls',
     embed:   'https://ds2-cache.quanteec.com/contents/encodings/live/61f5d898-0c04-4515-3934-3530-6d61-63-87e5-3432badee226d/master.m3u8',
@@ -237,9 +237,9 @@ const CAMS = [
     town:    'Cascais', area: 'Cascais', zone: 'Guincho',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'sintra-cascais'],
-    lat: 38.7306, lng: -9.4750, faces: 265,   // OSM coastline, south end by the Muchaxo
+    lat: 38.7306, lng: -9.4750, faces: 289,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [270, 340], size: [0.6, 2.4], period: 9, wind: [60, 130], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
+      swell: [270, 340], size: [0.6, 2.4], period: 9, wind: [60, 170], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
       notes: 'The southern end of Guincho, tucked in a touch under the headland so it holds a little longer when the nortada picks up. Same recipe as the north end: NW swell, E wind, low to mid tide, and early. Rips run hard along the rocks when it’s big.',
     },
     type:    'hls',
@@ -256,10 +256,10 @@ const CAMS = [
     town:    'Cascais', area: 'Cascais', zone: 'Guincho',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'guincho', 'cascais'],
-    lat: 38.7252, lng: -9.4766, faces: 270,   // OSM: Praia da Cresmina
+    lat: 38.7252, lng: -9.4766, faces: 289,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [260, 340], size: [0.6, 2.4], period: 9, wind: [60, 130], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
-      notes: 'The smaller beach just south of Guincho, under the dunes, with rock at each end; same recipe as Guincho (NW swell, E wind, low to mid tide) and the same nortada problem, a little more tucked in at the south corner.',
+      swell: [260, 340], size: [0.6, 2.4], period: 9, wind: [60, 170], tide: { range: [0.1, 0.8], dir: null, text: 'low to high, not the top' },
+      notes: 'The smaller bay just south of Guincho, sand with rock and some reef: same NW swell and E wind as Guincho, less crowded, a little more tucked in at the south corner. Sources disagree on tide, so it’s set wide.',
     },
     type:    'hls',
     embed:   'https://video-auth1.iol.pt/beachcam/crismina/playlist.m3u8',   // MEO's partner feed (see Bicas)
@@ -273,10 +273,10 @@ const CAMS = [
     town:    'Estoril', area: 'Cascais', zone: 'Linha de Cascais',
     country: 'Portugal',
     tags:    ['reef break', 'right', 'south facing', 'linha de cascais', 'sao pedro', 'bafureira', 'bico'],
-    lat: 38.6936, lng: -9.3698, faces: 180,
+    lat: 38.6936, lng: -9.3698, faces: 188,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [200, 300], size: [0.5, 2.2], period: 10, exposure: 0.45, wind: [340, 60], tide: { range: [0, 0.7], dir: 'falling', text: 'low to mid, on the drop' },
-      notes: 'Reef and point setups, Bafureira’s right on the left of the bay, the Bico point next door. A decent NW groundswell wraps into the Linha at roughly half size, so there’s usually something small and rideable here; the reefs line up properly from about a metre of SW–W swell, with a N/NE wind. Low to mid on a dropping tide is the usual call. Intermediate and up; less crowded than Bico.',
+      swell: [200, 300], size: [0.5, 2.2], period: 10, exposure: 0.45, wind: [340, 60], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
+      notes: 'Bico: a long, fat right point over flat rock and sand, 150–300 m on a good day, the Linha’s most reliable wave and a longboard favourite; Bafureira next door is a reef A-frame. Needs a SW–W swell or a big long-period NW wrapping in; a N–NE wind is offshore. Urchins and crowds.',
     },
     type:    'hls',
     embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/5fcf6d21-f52c-422a-3035-3530-6d61-63-98fa-626cced74f41d/master.m3u8',
@@ -292,10 +292,10 @@ const CAMS = [
     town:    'Cascais', area: 'Cascais', zone: 'Linha de Cascais',
     country: 'Portugal',
     tags:    ['reef', 'south facing', 'cascais', 'linha'],
-    lat: 38.6856, lng: -9.3537, faces: 185,   // OSM: Praia da Parede
+    lat: 38.6856, lng: -9.3537, faces: 198,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [200, 290], size: [0.8, 2.5], period: 11, exposure: 0.45, wind: [330, 60], tide: { range: [0, 0.5], dir: null, text: 'low' },
-      notes: 'Rocky reef on the Linha with rights and lefts that need a proper SW–W swell, or a big long-period NW wrapping round Cabo Raso. A N wind is offshore, so it works when the west coast is blown out. Best at low tide; shallow, for experienced surfers.',
+      swell: [200, 290], size: [1.0, 2.5], period: 11, exposure: 0.45, wind: [330, 60], tide: { range: [0, 0.5], dir: null, text: 'low' },
+      notes: 'Right-hand reef over sharp rock, short and hollow, that needs a big W–SW swell to break (it rarely does). A N wind is offshore, so it works when the west coast is blown out; best around low tide. For experienced surfers.',
     },
     type:    'hls',
     embed:   'https://video-auth1.iol.pt/beachcam/parede/playlist.m3u8',   // MEO's partner feed (see Bicas)
@@ -309,9 +309,9 @@ const CAMS = [
     town:    'Carcavelos', area: 'Cascais', zone: 'Linha de Cascais',
     country: 'Portugal',
     tags:    ['beach break', 'south facing', 'linha de cascais'],
-    lat: 38.6792, lng: -9.3352, faces: 190,   // OSM: Praia de Carcavelos
+    lat: 38.6792, lng: -9.3352, faces: 205,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [200, 290], size: [0.8, 2.5], period: 10, exposure: 0.45, wind: [340, 60], tide: { range: [0.3, 0.8], dir: 'rising', text: 'mid, on the rise' },
+      swell: [200, 290], size: [0.6, 2.5], period: 10, exposure: 0.45, wind: [340, 60], tide: { range: [0.3, 0.8], dir: 'rising', text: 'mid, on the rise' },
       notes: 'Lisbon’s town beach. Faces south, so it needs a proper SW–W swell, or a big long-period NW to wrap round Cabo Raso. Sheltered from the nortada and best in a N/NE wind, it’s the call when Guincho is blown out. Works all tides, best mid and rising. Crowded; watch the rips.',
     },
     type:    'hls',
@@ -330,10 +330,10 @@ const CAMS = [
     town:    'Oeiras', area: 'Cascais', zone: 'Linha de Cascais',
     country: 'Portugal',
     tags:    ['beach break', 'reef', 'south facing', 'oeiras', 'linha'],
-    lat: 38.6845, lng: -9.3123, faces: 190,   // OSM: Praia de Santo Amaro de Oeiras
+    lat: 38.6845, lng: -9.3123, faces: 187,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [200, 290], size: [0.8, 2.5], period: 10, exposure: 0.4, wind: [330, 60], tide: { range: [0.3, 0.9], dir: null, text: 'mid' },
-      notes: 'Sandy bay with reef at the ends at the Oeiras end of the Linha, east of Carcavelos and more sheltered still: it needs a big swell to break, then works in a N wind when the open coast is messy.',
+      swell: [200, 290], size: [1.0, 2.5], period: 10, exposure: 0.35, wind: [300, 60], tide: { range: [0.45, 1], dir: 'rising', text: 'mid to high, on the push' },
+      notes: 'A fast, powerful, tubing right-hand point over a reef plateau at the Oeiras end of the Linha, the wave the Salvem o Surf campaign saved; it only breaks on a big SW–W swell, with a N–NW wind, mid to high tide on the push. Urchins and rocks, localism; for experienced surfers.',
     },
     type:    'hls',
     embed:   'https://video-auth1.iol.pt/beachcam/santoamaro/playlist.m3u8',   // MEO's partner feed (see Bicas)
@@ -347,8 +347,8 @@ const CAMS = [
     town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'caparica', 'almada', 'sao joao', 'beginner'],
-    lat: 38.6569, lng: -9.2513, faces: 260,   // OSM: Praia de São João; the Caparica front runs NNE–SSW, so it faces WSW
-    best: { ...CAPARICA, notes: 'The northernmost Caparica beach and the roomiest. Waves are flatter and fatter than further south, a good hunting ground for learners and improvers, though an E wind in autumn can throw up glassy little wedges. ' + CAPARICA.notes },
+    lat: 38.6569, lng: -9.2513, faces: 234,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
+    best: { ...CAPARICA, tide: { range: [0.4, 1], dir: null, text: 'mid to high' }, notes: 'Open sand north of the groynes: softer, longer A-frame walls than the town beaches, best mid to high tide; the Cova do Vapor groynes to the north give heavier wedges.' + CAPARICA.notes },
     banks:   true,   // its cam's bank readings (tools/banks.py)
     type:    'hls',
     embed:   'https://deliverys5.quanteec.com/contents/encodings/live/f829148a-5ae5-4a90-3735-3530-6d61-63-b215-b6a95fb68802d/master.m3u8',
@@ -366,8 +366,8 @@ const CAMS = [
     town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'caparica', 'almada'],
-    lat: 38.6449, lng: -9.2419, faces: 250,   // OSM: Praia do CDS, shore normal ~245° (EMODnet fit)
-    best: { ...CAPARICA, notes: 'Right in front of town by the surf centre, between two jetties that groom the banks. ' + CAPARICA.notes },
+    lat: 38.6449, lng: -9.2419, faces: 243,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
+    best: { ...CAPARICA, size: [0.6, 1.8], notes: 'Right in front of town by the surf centre, in the groyne field: short, hollow, mostly right-hand wedges off the jetties, the busiest lineup on the coast; it can’t hold much size before closing out.' + CAPARICA.notes },
     banks:   true,   // its cam's bank readings (tools/banks.py)
     type:    'hls',
     embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/b969e298-ceb4-4132-3635-3530-6d61-63-82b6-c59507e55b39d/master.m3u8',
@@ -385,8 +385,8 @@ const CAMS = [
     town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'caparica', 'almada'],
-    lat: 38.6376, lng: -9.2354, faces: 250,   // OSM: Praia Nova, between CDS and Riviera on the same jetty-lined front
-    best: { ...CAPARICA, notes: 'Between the jetties just south of CDS, so it works much like it. ' + CAPARICA.notes },
+    lat: 38.6376, lng: -9.2354, faces: 248,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
+    best: { ...CAPARICA, size: [0.6, 1.8], notes: 'The southernmost beach between the groynes: a powerful right that starts over the jetty rocks and runs onto the sand, lefts and rights in front of them; fewer people than CDS on weekdays.' + CAPARICA.notes },
     type:    'hls',
     // MEO's partner feeds (their partners' embedded player), not published
     // ones: straight out past the groyne, and the wide look south from
@@ -404,8 +404,8 @@ const CAMS = [
     town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'caparica', 'almada'],
-    lat: 38.6303, lng: -9.2284, faces: 250,   // OSM: Praia da Saúde
-    best: { ...CAPARICA, notes: 'South of Praia Nova where the jetties end. Its cam is Playocean’s Caparica 2 panorama from the cliff (placed here by the groyne in its view). ' + CAPARICA.notes },
+    lat: 38.6303, lng: -9.2284, faces: 239,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
+    best: { ...CAPARICA, size: [0.6, 2.2], notes: 'South of the last groyne, open sandbanks: semi-hollow peaks, emptier than the town beaches; a shifty rip and a hard paddle when it’s big.' + CAPARICA.notes },
     type:    'video',
     embed:   'https://www.youtube-nocookie.com/embed/_LUOa8uffGE?autoplay=1&mute=1&playsinline=1&rel=0',
     link:    'https://www.youtube.com/watch?v=_LUOa8uffGE',
@@ -418,8 +418,8 @@ const CAMS = [
     town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'caparica', 'almada'],
-    lat: 38.6197, lng: -9.2202, faces: 250,   // OSM: Praia da Riviera, shore normal ~240° (EMODnet fit)
-    best: { ...CAPARICA, notes: 'South of town, where the jetties thin out, so a touch more open and more push than CDS. ' + CAPARICA.notes },
+    lat: 38.6197, lng: -9.2202, faces: 243,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
+    best: { ...CAPARICA, size: [0.6, 2.2], notes: 'Open beach break south of the groynes, softer and mellower: a longboard and learner stretch on smaller days.' + CAPARICA.notes },
     banks:   true,   // its cam's bank readings (tools/banks.py)
     type:    'hls',
     embed:   'https://ds2-cache.quanteec.com/contents/encodings/live/033c1cda-143d-4a55-3835-3530-6d61-63-a933-f44c0821ad62d/master.m3u8',
@@ -435,8 +435,8 @@ const CAMS = [
     town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'caparica', 'almada'],
-    lat: 38.617, lng: -9.2184, faces: 250,   // OSM: Casa do Sol, at Praia da Rainha
-    best: { ...CAPARICA, notes: 'By Casa do Sol at Praia da Rainha, south of Riviera. Its cam is Playocean’s Caparica panorama from the cliff over the dunes (placed here from its view). ' + CAPARICA.notes },
+    lat: 38.617, lng: -9.2184, faces: 244,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
+    best: { ...CAPARICA, size: [0.6, 2.2], notes: 'Open sandbank beach by Praia da Rainha, south of Riviera: hollow peaks both ways, empty on weekdays.' + CAPARICA.notes },
     type:    'video',
     embed:   'https://www.youtube-nocookie.com/embed/oDbKeeojgyk?autoplay=1&mute=1&playsinline=1&rel=0',
     link:    'https://www.youtube.com/watch?v=oDbKeeojgyk',
@@ -449,8 +449,8 @@ const CAMS = [
     town:    'Costa da Caparica', area: 'Caparica', zone: 'Costa da Caparica',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'caparica', 'almada'],
-    lat: 38.6002, lng: -9.2094, faces: 250,   // OSM: Praia do Infante
-    best: { ...CAPARICA, notes: 'Open beach between Casa do Sol and Fonte da Telha, past the jetties, under the cliffs. Its cam is Playocean’s, looking straight out from Praia do Infante. ' + CAPARICA.notes },
+    lat: 38.6002, lng: -9.2094, faces: 252,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
+    best: { ...CAPARICA, size: [0.6, 2.2], notes: 'Further south under the cliffs, where the longshore drift builds the most consistent banks: often the best waves and the fewest people on the Caparica stretch.' + CAPARICA.notes },
     type:    'video',
     embed:   'https://www.youtube-nocookie.com/embed/9K9f_tgRDXI?autoplay=1&mute=1&playsinline=1&rel=0',
     link:    'https://www.youtube.com/watch?v=9K9f_tgRDXI',
@@ -466,10 +466,10 @@ const CAMS = [
     town:    'Fonte da Telha', area: 'Caparica', zone: 'South of the jetties',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'caparica', 'almada'],
-    lat: 38.5719, lng: -9.1961, faces: 250,   // OSM: Fonte da Telha beach, shore normal ~245° (EMODnet fit)
+    lat: 38.5719, lng: -9.1961, faces: 247,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [230, 300], size: [0.6, 2.5], period: 9, wind: [30, 110], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
-      notes: 'Open, exposed beach south of the Caparica jetties with more punch than town, picks up local windswell as well as groundswell, so it’s rarely flat. WSW swell and an ENE wind is the recipe; even a light onshore ruins it. Low to mid tide; often crowded.',
+      swell: [230, 300], size: [0.8, 3.0], period: 9, wind: [30, 140], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
+      notes: 'Open beach south of Caparica: A-frame peaks over sand, best at low to mid tide; it gets less swell than town on small days but holds a big swell better. Since the 2025–26 winter storms two permanent rip channels have formed, so pick the peak with care.',
     },
     banks:   true,   // its cam's bank readings (tools/banks.py)
     type:    'hls',
@@ -488,10 +488,10 @@ const CAMS = [
     town:    'Aldeia do Meco', area: 'Sesimbra', zone: 'Praia do Meco',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'sesimbra', 'meco', 'moinho de baixo'],
-    lat: 38.4830, lng: -9.1855, faces: 260,   // OSM: Praia do Meco / Moinho de Baixo
+    lat: 38.4830, lng: -9.1855, faces: 280,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [250, 330], size: [0.6, 2.5], period: 9, exposure: 0.85, wind: [40, 120], tide: { range: [0, 0.7], dir: null, text: 'low to mid' },
-      notes: 'Long open beach break south of Lagoa de Albufeira, out of the Caparica shelter, so it usually has more size than Fonte on a NW swell. Shifting sand banks; an E wind cleans it. Its cam is Playocean’s at Bar do Peixe (MEO Beachcam has one too, on their site only).',
+      swell: [250, 330], size: [0.6, 3.0], period: 9, exposure: 0.85, wind: [40, 150], tide: { range: [0, 0.7], dir: null, text: 'low to mid' },
+      notes: 'A powerful, hollow wedge breaking close to the sand, short rides, best at low to mid tide on W–NW swell with an E wind; the rips are notorious. Empty, and mostly flat in summer.',
     },
     type:    'video',
     embed:   'https://www.youtube-nocookie.com/embed/EqnyST2s53I?autoplay=1&mute=1&playsinline=1&rel=0',
@@ -507,10 +507,10 @@ const CAMS = [
     town:    'Aldeia do Meco', area: 'Sesimbra', zone: 'Praia das Bicas',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'sesimbra', 'meco'],
-    lat: 38.4648, lng: -9.1925, faces: 265,   // OSM: Praia das Bicas
+    lat: 38.4648, lng: -9.1925, faces: 290,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [250, 330], size: [0.6, 2.4], period: 9, exposure: 0.85, wind: [45, 120], tide: { range: [0, 0.6], dir: null, text: 'low' },
-      notes: 'Sandy beach break under the cliffs north of Cabo Espichel, the most exposed of the Meco stretch: picks up W and NW swell, best at low tide with an E wind (MEO Beachcam).',
+      swell: [250, 330], size: [1.0, 3.0], period: 9, exposure: 0.85, wind: [50, 160], tide: { range: [0, 0.6], dir: 'rising', text: 'low to mid, rising' },
+      notes: 'Sand and rock reef under the cliffs: the main peak splits both ways (the left is usually better), heavy on the inside and bigger than it looks from the beach. Needs a solid W–NW swell; urchins and rocks, a local crowd. For experienced surfers.',
     },
     type:    'hls',
     // MEO's partner feed (the one their partners' embedded player uses), not a
@@ -527,10 +527,10 @@ const CAMS = [
     town:    'Aljezur', area: 'Algarve', zone: 'Costa Vicentina',
     country: 'Portugal',
     tags:    ['beach break', 'right', 'point', 'aljezur', 'vicentina'],
-    lat: 37.2926, lng: -8.8653, faces: 250,   // OSM: Praia da Arrifana, the bay below the village
+    lat: 37.2926, lng: -8.8653, faces: 240,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [250, 320], size: [0.8, 2.5], period: 9, exposure: 0.5, wind: [340, 110], tide: { range: [0.3, 0.8], dir: 'rising', text: 'mid, on the rise' },
-      notes: 'Horseshoe bay under high cliffs on the Costa Vicentina, with a beach break through the middle and a long right-hand point over rocks at the north end when a solid W/NW swell runs. The cliffs shelter it from the nortada, so it’s often the call when the open beaches are blown out. Mid tide on the push; N/NE wind. Point is for experienced surfers; the beach suits everyone and gets crowded.',
+      swell: [210, 330], size: [0.5, 2.5], period: 9, exposure: 0.65, wind: [0, 120], tide: { range: [0.3, 0.8], dir: 'rising', text: 'mid, on the rise' },
+      notes: 'Cliff-ringed bay open to the SW, sheltered from N wind: a sand beach break for all levels on small days (it closes out in the middle when big) and a fast, hollow right over rock at the north end by the harbour that needs a solid 1.5 m+ swell. Very consistent; autumn is best.',
     },
     type:    'hls',
     embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/a91257ec-cafd-4eeb-3436-3530-6d61-63-b7ab-31c6e7bb583bd/master.m3u8',
@@ -546,10 +546,10 @@ const CAMS = [
     town:    'Ericeira', area: 'Ericeira', zone: 'Mafra',
     country: 'Portugal',
     tags:    ['point', 'reef', 'right', 'ericeira', 'mafra', 'world surfing reserve'],
-    lat: 38.9872, lng: -9.4194, faces: 275,   // OSM: Ribeira d'Ilhas beach, the bay north of Ericeira
+    lat: 38.9872, lng: -9.4194, faces: 249,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [280, 330], size: [1.0, 3.0], period: 10, exposure: 0.75, wind: [50, 140], tide: { range: [0.35, 0.85], dir: 'rising', text: 'mid to high, on the push' },
-      notes: 'The heart of the Ericeira World Surfing Reserve: a long, walling right-hand point over reef and boulders that peels for a couple of hundred metres on a clean NW swell. Handles size well and holds its shape at 2–3 m when the beaches close out. Mid to high tide on the push is the classic call; low tide gets fast and shallow on the inside. E/NE wind is dead offshore. WSL contest venue, so expect a crowd and a strong local pack when it’s on.',
+      swell: [260, 340], size: [0.6, 3.5], period: 10, exposure: 0.75, wind: [50, 140], tide: { range: [0.35, 0.85], dir: 'rising', text: 'mid to high, on the push' },
+      notes: 'The heart of the Ericeira World Surfing Reserve and its contest venue: a long right point over reef and some sand, 150–300 m on a good NW swell, mellow on small days and powerful when it holds a big swell. Mid tide; rocks, urchins and a very crowded lineup.',
     },
     type:    'hls',
     embed:   'https://video-auth1.iol.pt/beachcam/bcmafraribeira/playlist.m3u8',
@@ -562,10 +562,10 @@ const CAMS = [
     town:    'Ericeira', area: 'Ericeira', zone: 'Ericeira',
     country: 'Portugal',
     tags:    ['reef', 'right', 'west facing', 'ericeira', 'mafra'],
-    lat: 38.9755, lng: -9.4204, faces: 285,   // OSM: Praia do Matadouro
+    lat: 38.9755, lng: -9.4204, faces: 270,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [280, 340], size: [1.0, 3.0], period: 11, exposure: 0.75, wind: [60, 150], tide: { range: [0.3, 0.9], dir: null, text: 'mid to high' },
-      notes: 'Right-hand reef at the north end of Ericeira town, by the old slaughterhouse: a heavy wedge on a clean NW swell with an E wind. Shallow rock; for experienced surfers.',
+      swell: [250, 340], size: [0.8, 2.5], period: 11, exposure: 0.75, wind: [60, 150], tide: { range: [0.3, 0.8], dir: null, text: 'mid' },
+      notes: 'Reef and sand A-frame in front of the Boardriders skatepark, about 1 km north of Praia do Norte: the steeper, ledgey right on the north side is the wave, a slower left to the south. Mid tide (too little water at low); urchins and rocks; dumpy when it’s big.',
     },
     type:    'hls',
     embed:   'https://video-auth1.iol.pt/beachcam/matadouroskatepark/playlist.m3u8',   // MEO's partner feed (see Bicas)
@@ -578,10 +578,10 @@ const CAMS = [
     town:    'Ericeira', area: 'Ericeira', zone: 'Ericeira',
     country: 'Portugal',
     tags:    ['beach break', 'reef', 'south-west facing', 'ericeira', 'mafra'],
-    lat: 38.9576, lng: -9.4155, faces: 240,   // OSM: Praia do Sul, Ericeira
+    lat: 38.9576, lng: -9.4155, faces: 250,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [240, 320], size: [0.8, 2.5], period: 10, exposure: 0.6, wind: [20, 110], tide: { range: [0.3, 0.9], dir: null, text: 'mid' },
-      notes: 'Town beach south of the harbour, facing SW with rock and reef along it: tucked away from the north, so it comes alive on bigger NW swells when the open beaches are too much, best in a NE–E wind.',
+      swell: [240, 320], size: [1.0, 2.5], period: 10, exposure: 0.6, wind: [40, 130], tide: { range: [0.1, 0.6], dir: null, text: 'low to mid' },
+      notes: 'Town beach south of the harbour, sand and flat rock: a right off the north headland, an inside A-frame and a left to the south. Sheltered, so it only comes alive on bigger NW swells, when the open beaches are maxing out; best at lower tide with an E wind.',
     },
     type:    'hls',
     embed:   'https://video-auth1.iol.pt/beachcam/praiadosulericeira/playlist.m3u8',   // MEO's partner feed (see Bicas)
@@ -594,10 +594,10 @@ const CAMS = [
     town:    'Ericeira', area: 'Ericeira', zone: 'Mafra',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'ericeira', 'mafra', 'river mouth'],
-    lat: 38.942, lng: -9.4155, faces: 270,   // OSM: Praia da Foz do Lizandro
+    lat: 38.942, lng: -9.4155, faces: 292,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [250, 330], size: [0.6, 2.5], period: 9, wind: [50, 130], tide: { range: [0.2, 0.8], dir: null, text: 'mid' },
-      notes: 'Beach break at the Lizandro river mouth south of Ericeira, banks shaped by the river; consistent and busy with surf schools. W–NW swell, E wind, mid tide.',
+      swell: [230, 330], size: [0.6, 2.5], period: 9, wind: [50, 130], tide: { range: [0.2, 0.8], dir: null, text: 'mid' },
+      notes: 'River-mouth beach break: a central A-frame and a left by the river mouth, banks shaped by the river; Ericeira’s main learner spot and protected from N winds. Strong rips drifting north towards the rocks; dirty water after rain.',
     },
     type:    'hls',
     embed:   'https://video-auth1.iol.pt/beachcam/fozdolizandro/playlist.m3u8',   // MEO's partner feed (see Bicas)
@@ -610,10 +610,10 @@ const CAMS = [
     town:    'Ericeira', area: 'Ericeira', zone: 'Mafra',
     country: 'Portugal',
     tags:    ['beach break', 'west facing', 'ericeira', 'mafra', 'sintra'],
-    lat: 38.9295, lng: -9.4213, faces: 270,   // OSM: Praia de São Julião
+    lat: 38.932, lng: -9.42, faces: 278,   // facing from Sentinel-2 shorelines, checked against OSM (2026-11-02)
     best: {
-      swell: [250, 330], size: [0.6, 2.5], period: 9, wind: [50, 130], tide: { range: [0, 1], dir: null, text: 'all tides' },
-      notes: 'Long open beach break south of Foz do Lizandro, exposed to everything from the west, so it has size when Ericeira is small; works most tides, blown out by the nortada.',
+      exposure: 0.95, swell: [250, 330], size: [0.6, 2.2], period: 9, wind: [50, 130], tide: { range: [0, 0.7], dir: null, text: 'low to mid' },
+      notes: 'The area’s swell magnet: a long beach with many A-frame peaks, easily maxed out with heavy closeouts as it picks up. Best at low to mid tide with an E wind; the main peak by the car park is crowded, quieter walking towards Vigia.',
     },
     type:    'hls',
     embed:   'https://video-auth1.iol.pt/beachcam/bcsaojuliao/playlist.m3u8',   // MEO's partner feed (see Bicas)
