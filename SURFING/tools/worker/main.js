@@ -1,6 +1,7 @@
 /* ---------- Entry points ----------
-   fetch      the routes in accounts.js, feedback.js, forecast.js and
-              history.js, plus /health, all behind the rate limits below
+   fetch      the routes in accounts.js, feedback.js, forecast.js,
+              history.js and banks.js, plus /health, all behind the rate
+              limits below
    scheduled  the hourly Cron Trigger: rebuild the forecast (and every 3 h
               the map's wind grid, grid.js), then add the
               hour's measurements (and every 6 h the buoys and the wave
@@ -72,6 +73,7 @@ export default {
       || (await handleSkill(req, env, url, json))
       || (await handleGrid(req, env, url, json))
       || (await handleHistory(req, env, url, json))
+      || (await handleBanks(req, env, url, json))
       || (await handleAccounts(req, env, url, json, ipTag))
       || (await handleFeedback(req, env, url, json, ipTag))
       || json({ routes: ['GET /forecast', 'GET /forecast/day?d=', 'GET /health', 'POST /a/signup', 'POST /a/login', 'POST /a/recover', 'POST /a/password', 'POST /a/logout', 'GET /a/me', 'GET /a/favs', 'POST /a/favs', 'POST /a/suggest', 'GET /a/suggest', 'POST /s', 'GET /s/mine', 'GET /skill/waves?days=', 'GET /obs?src=&since=', 'GET /history/status', 'GET /history/spot?id=&from=&to=', 'GET /history/spot/hours?id=&date=', 'GET /skill', 'POST /skill', 'GET /grid', 'POST /grid/swell', 'POST /ibi'] }, 404);

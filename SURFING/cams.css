@@ -1400,6 +1400,16 @@ header { display: none; }
   line-height: 1.45;
 }
 .panel .tags { margin-top: 10px; }
+/* Banks (renderBanks): the reading's word coloured like the score levels. */
+.banks-now { margin-top: 6px; font-size: 14px; line-height: 1.45; }
+.banks-now b { font-weight: 600; }
+.bank-peaky { color: var(--lvl-3); }
+.bank-mixed, .bank-shorebreak { color: var(--lvl-2); }
+.bank-closing-out { color: #e0605a; }
+.bank-flat { color: var(--fg-muted); }
+.banks-tally { margin-top: 2px; font-size: 12px; color: var(--fg-muted); }
+.banks-img img { display: block; width: 100%; max-width: 480px; margin-top: 8px; border-radius: 8px; border: 1px solid var(--border); }
+
 
 .sheet-foot {
   padding: 10px 18px 12px;

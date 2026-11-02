@@ -1,0 +1,57 @@
+name: surf banks
+
+# Hourly by day: how the banks are breaking at the cams marked `banks: true`
+# in spots.js (SURFING/tools/banks.py: a few minutes of each cam averaged
+# per view, then where the foam persists; no AI). Sends the readings and
+# each cam's latest marked-up view to the worker (POST /banks). Every view's
+# marked-up image is kept a week as an artifact, for checking the labels.
+#
+# Secrets: FEEDBACK_URL, FEEDBACK_KEY.
+
+on:
+  schedule:
+    - cron: '20 7-18 * * *'
+  workflow_dispatch:
+    inputs:
+      secs:
+        description: 'Seconds of each cam to record'
+        default: '480'
+
+concurrency:
+  group: surf-banks
+  cancel-in-progress: false
+
+jobs:
+  banks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            SURFING/spots.js
+            SURFING/tools/banks.py
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install
+        run: pip install numpy pillow imageio-ffmpeg
+      - name: Read the banks
+        env:
+          FEEDBACK_URL: ${{ secrets.FEEDBACK_URL }}
+          FEEDBACK_KEY: ${{ secrets.FEEDBACK_KEY }}
+          BANKS_VIEWS: views
+        run: |
+          mkdir -p views
+          python SURFING/tools/banks.py --secs ${{ inputs.secs || '480' }} --out views/readings.json --post
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: banks-views
+          path: views
+          retention-days: 7
+          if-no-files-found: ignore

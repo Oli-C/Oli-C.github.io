@@ -23,6 +23,7 @@ const parts = [
   ['worker/forecast.js', './worker/forecast.js'],
   ['worker/history.js', './worker/history.js'],
   ['worker/grid.js', './worker/grid.js'],
+  ['worker/banks.js', './worker/banks.js'],
   ['worker/main.js', './worker/main.js'],
 ];
 const sources = parts.map(([name, p]) => [name, fs.readFileSync(at(p), 'utf8').replace(/\r\n/g, '\n')]);

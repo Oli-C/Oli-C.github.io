@@ -489,6 +489,33 @@ function renderLocal(c) {
     <div class="tags">${(c.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div>`;
 }
 
+// How the banks have been breaking, read from a cam (tools/banks.py, hourly
+// by day): this spot's own, else the nearest cam that reads them within
+// 2.5 km. The latest reading, the last 3 days' tally, and the cam's latest
+// averaged view with the sea band and breaking marked.
+const BANK_WORDS = { flat: 'Hardly breaking', shorebreak: 'Shorebreak only', 'closing out': 'Closing out', peaky: 'Peaky, with channels', mixed: 'Mixed' };
+function bankCam(c) {
+  if (c.banks) return { cam: c, km: 0 };
+  return CAMS.filter((o) => o.banks).map((o) => ({ cam: o, km: km(c.lat, c.lng, o.lat, o.lng) })).filter((x) => x.km <= 2.5).sort((a, b) => a.km - b.km)[0] || null;
+}
+async function renderBanks(c) {
+  const el = $('v-banks'), src = bankCam(c);
+  if (!src) { el.hidden = true; el.innerHTML = ''; return; }
+  let j;
+  try { j = await (await fetch(`${FEEDBACK_URL.replace(/\/$/, '')}/banks?id=${encodeURIComponent(src.cam.id)}&days=3`)).json(); } catch { j = null; }
+  if ($('v-go').dataset.go !== c.id) return;
+  const list = (j && j.readings) || [];
+  if (!list.length) { el.hidden = true; el.innerHTML = ''; return; }
+  const last = list[0], ago = Math.max(0, Math.round((Date.now() - Date.parse(last.t + 'Z')) / 36e5));
+  const tally = Object.entries(list.reduce((m, r) => ((m[r.label] = (m[r.label] || 0) + 1), m), {})).sort((a, b) => b[1] - a[1]);
+  const from = src.km ? `the ${esc(src.cam.name)} cam, ${src.km.toFixed(1)} km away` : 'its cam';
+  el.hidden = false;
+  el.innerHTML = `<div class="today-head"><span class="k">Banks</span><small>from ${from} · no AI, averaged frames</small></div>
+    <p class="banks-now"><b class="bank-${last.label.replace(' ', '-')}">${esc(BANK_WORDS[last.label] || last.label)}</b> ${ago ? `${ago} h ago` : 'this hour'} · breaking along ${Math.round(last.cover * 100)}% of the beach, longest unbroken ${Math.round(last.longest * 100)}%${last.gaps ? `, ${last.gaps} channel${last.gaps > 1 ? 's' : ''}` : ''}</p>
+    <p class="banks-tally">Last 3 days: ${tally.map(([l, n]) => `${esc((BANK_WORDS[l] || l).toLowerCase())} ${n}`).join(' · ')}</p>
+    <a class="banks-img" href="${FEEDBACK_URL.replace(/\/$/, '')}/banks/img?id=${encodeURIComponent(src.cam.id)}&t=${encodeURIComponent(last.t)}" target="_blank" rel="noopener"><img alt="The ${esc(src.cam.name)} cam averaged over a minute: white where waves keep breaking; red marks along the bottom where it counted breaking" loading="lazy" src="${FEEDBACK_URL.replace(/\/$/, '')}/banks/img?id=${encodeURIComponent(src.cam.id)}&t=${encodeURIComponent(last.t)}"></a>`;
+}
+
 function open(id, push = true) {
   const [sid, day] = String(id).split('@');
   const c = byId(sid);
@@ -506,6 +533,7 @@ function open(id, push = true) {
     : `Stream by ${esc(c.source)} · <a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">open original</a>`;
   renderScore(c);
   renderFb(c);
+  renderBanks(c);
   renderSrc(c);
   renderToday(c);
   renderLocal(c);

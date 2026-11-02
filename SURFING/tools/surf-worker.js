@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build 1a3b14b05e. */
-const WORKER_BUILD = '1a3b14b05e';
+   Build 0ccbac5307. */
+const WORKER_BUILD = '0ccbac5307';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (16-day outlook).
@@ -57,6 +57,8 @@ const WORKER_BUILD = '1a3b14b05e';
      link    the cam's own page, for the "open on source" button
      source  who runs / hosts the cam
      thumb   optional preview image (also the tile's backdrop until it plays)
+     banks   true: read how its banks are breaking from the cam, hourly by day
+             (tools/banks.py: time-averaged frames, no AI)
 
    Areas are listed in the order they first appear here, so keep the array
    roughly north → south.
@@ -253,6 +255,7 @@ const CAMS = [
     tags:    ['beach break', 'west facing', 'caparica', 'almada', 'sao joao', 'beginner'],
     lat: 38.6569, lng: -9.2513, faces: 260,   // OSM: Praia de São João; the Caparica front runs NNE–SSW, so it faces WSW
     best: { ...CAPARICA, notes: 'The northernmost Caparica beach and the roomiest. Waves are flatter and fatter than further south, a good hunting ground for learners and improvers, though an E wind in autumn can throw up glassy little wedges. ' + CAPARICA.notes },
+    banks:   true,   // its cam's bank readings (tools/banks.py)
     type:    'hls',
     embed:   'https://deliverys5.quanteec.com/contents/encodings/live/f829148a-5ae5-4a90-3735-3530-6d61-63-b215-b6a95fb68802d/master.m3u8',
     poster:  'https://deliverys5.quanteec.com/contents/encodings/live/f829148a-5ae5-4a90-3735-3530-6d61-63-b215-b6a95fb68802d/poster.jpg',
@@ -269,6 +272,7 @@ const CAMS = [
     tags:    ['beach break', 'west facing', 'caparica', 'almada'],
     lat: 38.6449, lng: -9.2419, faces: 250,   // OSM: Praia do CDS, shore normal ~245° (EMODnet fit)
     best: { ...CAPARICA, notes: 'Right in front of town by the surf centre, between two jetties that groom the banks. ' + CAPARICA.notes },
+    banks:   true,   // its cam's bank readings (tools/banks.py)
     type:    'hls',
     embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/b969e298-ceb4-4132-3635-3530-6d61-63-82b6-c59507e55b39d/master.m3u8',
     poster:  'https://ds1-cache.quanteec.com/contents/encodings/live/b969e298-ceb4-4132-3635-3530-6d61-63-82b6-c59507e55b39d/poster.jpg',
@@ -328,6 +332,7 @@ const CAMS = [
     tags:    ['beach break', 'west facing', 'caparica', 'almada'],
     lat: 38.6197, lng: -9.2202, faces: 250,   // OSM: Praia da Riviera, shore normal ~240° (EMODnet fit)
     best: { ...CAPARICA, notes: 'South of town, where the jetties thin out, so a touch more open and more push than CDS. ' + CAPARICA.notes },
+    banks:   true,   // its cam's bank readings (tools/banks.py)
     type:    'hls',
     embed:   'https://ds2-cache.quanteec.com/contents/encodings/live/033c1cda-143d-4a55-3835-3530-6d61-63-a933-f44c0821ad62d/master.m3u8',
     poster:  'https://ds2-cache.quanteec.com/contents/encodings/live/033c1cda-143d-4a55-3835-3530-6d61-63-a933-f44c0821ad62d/poster.jpg',
@@ -369,6 +374,7 @@ const CAMS = [
       swell: [230, 300], size: [0.6, 2.5], period: 9, wind: [30, 110], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
       notes: 'Open, exposed beach south of the Caparica jetties with more punch than town, picks up local windswell as well as groundswell, so it’s rarely flat. WSW swell and an ENE wind is the recipe; even a light onshore ruins it. Low to mid tide; often crowded.',
     },
+    banks:   true,   // its cam's bank readings (tools/banks.py)
     type:    'hls',
     embed:   'https://ds2-cache.quanteec.com/contents/encodings/live/a31a9026-5ced-4668-3935-3530-6d61-63-aa32-b07694268059d/master.m3u8',
     poster:  'https://ds2-cache.quanteec.com/contents/encodings/live/a31a9026-5ced-4668-3935-3530-6d61-63-aa32-b07694268059d/poster.jpg',
@@ -2667,10 +2673,68 @@ async function handleGrid(req, env, url, json) {
 }
 
 
+/* ===== worker/banks.js ===== */
+/* ---------- How the banks are breaking (tools/banks.py) ----------
+   POST /banks          admin: { t, cams: { id: reading }, img: { id: base64 JPEG } };
+                        each reading is filed in the history database (banks),
+                        each cam's latest marked-up view kept in KV (banks:img:<id>)
+   GET  /banks?id=&days= a cam's readings, newest first (1–30 days, default 7)
+   GET  /banks/img?id=   its latest marked-up view (JPEG)
+
+   A reading: label ('flat' | 'shorebreak' | 'closing out' | 'peaky' |
+   'mixed'), cover, longest, gaps, shore, views (how many of the cam's
+   views it came from) and each (the views one by one). */
+const BANK_LABELS = ['flat', 'shorebreak', 'closing out', 'peaky', 'mixed'];
+const unit = (v) => (typeof v === 'number' && v >= 0 && v <= 1 ? v : null);
+
+async function handleBanks(req, env, url, json) {
+  if (!url.pathname.startsWith('/banks')) return null;
+  if (!env.DB) return json({ error: 'no history database bound' }, 503);
+  if (req.method === 'POST' && url.pathname === '/banks') {
+    if (!(await isAdmin(req, env))) return json({ error: 'no' }, 403);
+    let b;
+    try { b = await req.json(); } catch { return json({ error: 'bad json' }, 400); }
+    if (!b || !/^\d{4}-\d\d-\d\dT\d\d:\d\d$/.test(b.t || '') || !b.cams || typeof b.cams !== 'object') return json({ error: 'bad reading' }, 400);
+    const stmts = [];
+    for (const [id, r] of Object.entries(b.cams)) {
+      if (!byId(id) || !r || !BANK_LABELS.includes(r.label)) continue;
+      stmts.push(env.DB.prepare('INSERT OR REPLACE INTO banks (spot, t, label, cover, longest, gaps, shore, views, each) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .bind(id, b.t, r.label, unit(r.cover), unit(r.longest), Number.isInteger(r.gaps) ? r.gaps : null, unit(r.shore), Number.isInteger(r.views) ? r.views : null,
+          JSON.stringify(Array.isArray(r.each) ? r.each.slice(0, 8) : [])));
+    }
+    if (stmts.length) await env.DB.batch(stmts);
+    let imgs = 0;
+    for (const [id, b64] of Object.entries(b.img || {})) {
+      if (!byId(id) || typeof b64 !== 'string' || b64.length > 400000) continue;
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      await env.FEEDBACK.put('banks:img:' + id, bytes, { metadata: { t: b.t } });
+      imgs++;
+    }
+    return json({ ok: true, filed: stmts.length, images: imgs });
+  }
+  if (req.method !== 'GET') return null;
+  const id = url.searchParams.get('id') || '';
+  if (!byId(id)) return json({ error: 'id=<spot>' }, 400);
+  if (url.pathname === '/banks/img') {
+    const { value, metadata } = await env.FEEDBACK.getWithMetadata('banks:img:' + id, 'arrayBuffer');
+    if (!value) return json({ error: 'no view yet' }, 404);
+    return new Response(value, { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=600', 'Access-Control-Allow-Origin': '*', 'X-Banks-Time': (metadata && metadata.t) || '' } });
+  }
+  if (url.pathname === '/banks') {
+    const days = Math.min(30, Math.max(1, parseInt(url.searchParams.get('days') || '7', 10) || 7));
+    const since = new Date(Date.now() - days * 864e5).toISOString().slice(0, 16);
+    const r = await env.DB.prepare('SELECT t, label, cover, longest, gaps, shore, views FROM banks WHERE spot = ? AND t >= ? ORDER BY t DESC LIMIT 400').bind(id, since).all();
+    return json({ id, days, readings: r.results }, 200, { 'Cache-Control': 'public, max-age=600' });
+  }
+  return null;
+}
+
+
 /* ===== worker/main.js ===== */
 /* ---------- Entry points ----------
-   fetch      the routes in accounts.js, feedback.js, forecast.js and
-              history.js, plus /health, all behind the rate limits below
+   fetch      the routes in accounts.js, feedback.js, forecast.js,
+              history.js and banks.js, plus /health, all behind the rate
+              limits below
    scheduled  the hourly Cron Trigger: rebuild the forecast (and every 3 h
               the map's wind grid, grid.js), then add the
               hour's measurements (and every 6 h the buoys and the wave
@@ -2742,6 +2806,7 @@ export default {
       || (await handleSkill(req, env, url, json))
       || (await handleGrid(req, env, url, json))
       || (await handleHistory(req, env, url, json))
+      || (await handleBanks(req, env, url, json))
       || (await handleAccounts(req, env, url, json, ipTag))
       || (await handleFeedback(req, env, url, json, ipTag))
       || json({ routes: ['GET /forecast', 'GET /forecast/day?d=', 'GET /health', 'POST /a/signup', 'POST /a/login', 'POST /a/recover', 'POST /a/password', 'POST /a/logout', 'GET /a/me', 'GET /a/favs', 'POST /a/favs', 'POST /a/suggest', 'GET /a/suggest', 'POST /s', 'GET /s/mine', 'GET /skill/waves?days=', 'GET /obs?src=&since=', 'GET /history/status', 'GET /history/spot?id=&from=&to=', 'GET /history/spot/hours?id=&date=', 'GET /skill', 'POST /skill', 'GET /grid', 'POST /grid/swell', 'POST /ibi'] }, 404);

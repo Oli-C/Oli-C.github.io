@@ -47,6 +47,8 @@
      link    the cam's own page, for the "open on source" button
      source  who runs / hosts the cam
      thumb   optional preview image (also the tile's backdrop until it plays)
+     banks   true: read how its banks are breaking from the cam, hourly by day
+             (tools/banks.py: time-averaged frames, no AI)
 
    Areas are listed in the order they first appear here, so keep the array
    roughly north → south.
@@ -243,6 +245,7 @@ const CAMS = [
     tags:    ['beach break', 'west facing', 'caparica', 'almada', 'sao joao', 'beginner'],
     lat: 38.6569, lng: -9.2513, faces: 260,   // OSM: Praia de São João; the Caparica front runs NNE–SSW, so it faces WSW
     best: { ...CAPARICA, notes: 'The northernmost Caparica beach and the roomiest. Waves are flatter and fatter than further south, a good hunting ground for learners and improvers, though an E wind in autumn can throw up glassy little wedges. ' + CAPARICA.notes },
+    banks:   true,   // its cam's bank readings (tools/banks.py)
     type:    'hls',
     embed:   'https://deliverys5.quanteec.com/contents/encodings/live/f829148a-5ae5-4a90-3735-3530-6d61-63-b215-b6a95fb68802d/master.m3u8',
     poster:  'https://deliverys5.quanteec.com/contents/encodings/live/f829148a-5ae5-4a90-3735-3530-6d61-63-b215-b6a95fb68802d/poster.jpg',
@@ -259,6 +262,7 @@ const CAMS = [
     tags:    ['beach break', 'west facing', 'caparica', 'almada'],
     lat: 38.6449, lng: -9.2419, faces: 250,   // OSM: Praia do CDS, shore normal ~245° (EMODnet fit)
     best: { ...CAPARICA, notes: 'Right in front of town by the surf centre, between two jetties that groom the banks. ' + CAPARICA.notes },
+    banks:   true,   // its cam's bank readings (tools/banks.py)
     type:    'hls',
     embed:   'https://ds1-cache.quanteec.com/contents/encodings/live/b969e298-ceb4-4132-3635-3530-6d61-63-82b6-c59507e55b39d/master.m3u8',
     poster:  'https://ds1-cache.quanteec.com/contents/encodings/live/b969e298-ceb4-4132-3635-3530-6d61-63-82b6-c59507e55b39d/poster.jpg',
@@ -318,6 +322,7 @@ const CAMS = [
     tags:    ['beach break', 'west facing', 'caparica', 'almada'],
     lat: 38.6197, lng: -9.2202, faces: 250,   // OSM: Praia da Riviera, shore normal ~240° (EMODnet fit)
     best: { ...CAPARICA, notes: 'South of town, where the jetties thin out, so a touch more open and more push than CDS. ' + CAPARICA.notes },
+    banks:   true,   // its cam's bank readings (tools/banks.py)
     type:    'hls',
     embed:   'https://ds2-cache.quanteec.com/contents/encodings/live/033c1cda-143d-4a55-3835-3530-6d61-63-a933-f44c0821ad62d/master.m3u8',
     poster:  'https://ds2-cache.quanteec.com/contents/encodings/live/033c1cda-143d-4a55-3835-3530-6d61-63-a933-f44c0821ad62d/poster.jpg',
@@ -359,6 +364,7 @@ const CAMS = [
       swell: [230, 300], size: [0.6, 2.5], period: 9, wind: [30, 110], tide: { range: [0, 0.6], dir: null, text: 'low to mid' },
       notes: 'Open, exposed beach south of the Caparica jetties with more punch than town, picks up local windswell as well as groundswell, so it’s rarely flat. WSW swell and an ENE wind is the recipe; even a light onshore ruins it. Low to mid tide; often crowded.',
     },
+    banks:   true,   // its cam's bank readings (tools/banks.py)
     type:    'hls',
     embed:   'https://ds2-cache.quanteec.com/contents/encodings/live/a31a9026-5ced-4668-3935-3530-6d61-63-aa32-b07694268059d/master.m3u8',
     poster:  'https://ds2-cache.quanteec.com/contents/encodings/live/a31a9026-5ced-4668-3935-3530-6d61-63-aa32-b07694268059d/poster.jpg',
