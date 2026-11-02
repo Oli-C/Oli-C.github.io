@@ -11,9 +11,10 @@ name: surf ibi
 # Marine account; without them it reads the public store), FEEDBACK_URL
 # and FEEDBACK_KEY (the worker and its key, as surf-skill uses).
 
+# Started on time by the surf worker's hourly cron (SURFING/tools/worker/
+# dispatch.js); GitHub's own schedules were often skipped.
+
 on:
-  schedule:
-    - cron: '50 */6 * * *'
   workflow_dispatch:
 
 concurrency:

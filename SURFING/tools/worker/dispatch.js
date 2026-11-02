@@ -4,18 +4,26 @@
    (workflow_dispatch through GitHub's API):
 
      surf-banks.yml  the cams' bank readings, every hour 07–18 UTC
-     surf-watch.yml  the freshness check, every 3 hours
+     surf-skill.yml  the models' record, every 3 hours
+     surf-ibi.yml    Copernicus IBI, every 6 hours (01, 07, 13, 19 UTC)
      surf-sat.yml    the satellite bank readings, daily at 19 UTC
+     surf-watch.yml  the freshness check, every 3 hours
+
+   Those have no GitHub schedule of their own, except surf-watch: it keeps
+   one as a backstop, so if these starts ever stop it notices the stale
+   readings and opens an issue.
 
    Needs the secret GH_DISPATCH_TOKEN: a fine-grained GitHub token for
    Oli-C/Oli-C.github.io with Actions: read and write, nothing else. Without
-   it nothing is started and the workflows' own schedules stand in. The last
+   it nothing is started (and only surf-watch's backstop schedule runs). The last
    round is kept in KV (dispatch:last) and shown on /health. */
 const GH_REPO = 'Oli-C/Oli-C.github.io';
 const DISPATCH = [
   { file: 'surf-banks.yml', when: (h) => h >= 7 && h <= 18 },
-  { file: 'surf-watch.yml', when: (h) => h % 3 === 0 },
+  { file: 'surf-skill.yml', when: (h) => h % 3 === 0 },
+  { file: 'surf-ibi.yml', when: (h) => h % 6 === 1 },
   { file: 'surf-sat.yml', when: (h) => h === 19 },
+  { file: 'surf-watch.yml', when: (h) => h % 3 === 1 },
 ];
 
 async function dispatchJobs(env, now = new Date()) {

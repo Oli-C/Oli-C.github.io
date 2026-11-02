@@ -9,9 +9,10 @@ name: surf sat
 #
 # Secrets: FEEDBACK_URL, FEEDBACK_KEY.
 
+# Started on time by the surf worker's hourly cron (SURFING/tools/worker/
+# dispatch.js); GitHub's own schedules were often skipped.
+
 on:
-  schedule:
-    - cron: '40 19 * * *'
   workflow_dispatch:
     inputs:
       days:

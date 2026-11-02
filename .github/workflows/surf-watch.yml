@@ -6,8 +6,10 @@ name: surf watch
 # counter.) Fails, so GitHub emails, naming whatever has gone stale.
 
 on:
+  # Started every 3 hours by the surf worker (tools/worker/dispatch.js);
+  # this schedule is the backstop, should those starts ever stop.
   schedule:
-    - cron: '25 */3 * * *'
+    - cron: '40 2-23/6 * * *'
   workflow_dispatch:
 
 jobs:

@@ -8,9 +8,10 @@ name: surf banks
 #
 # Secrets: FEEDBACK_URL, FEEDBACK_KEY.
 
+# Started on time by the surf worker's hourly cron (SURFING/tools/worker/
+# dispatch.js); GitHub's own schedules were often skipped.
+
 on:
-  schedule:
-    - cron: '20 7-18 * * *'
   workflow_dispatch:
     inputs:
       secs:

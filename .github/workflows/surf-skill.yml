@@ -4,9 +4,10 @@ name: surf skill
 # publishes SURFING/data/skill.json, which both surf pages read to weight
 # the models. Runs every three hours; safe to trigger by hand.
 
+# Started on time by the surf worker's hourly cron (SURFING/tools/worker/
+# dispatch.js); GitHub's own schedules were often skipped.
+
 on:
-  schedule:
-    - cron: '17 */3 * * *'
   workflow_dispatch:
 
 permissions:
