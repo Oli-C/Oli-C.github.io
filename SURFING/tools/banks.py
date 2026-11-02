@@ -43,6 +43,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SURF = os.path.dirname(HERE)
 FF = imageio_ffmpeg.get_ffmpeg_exe()
 W, H = 480, 270          # analysis frame size
+S = 2                    # the picture is kept at S x that (960x540: sharp on a phone; MEO streams are 1080p)
 TW, TH = 96, 54          # thumbnails for telling views apart
 SAME = 0.9               # correlation for "the same view"
 MIN_VIEW_S = 30          # seconds of a view needed for a reading
@@ -72,8 +73,10 @@ def corr(a, b):
 
 
 def record(url, secs):
-    """The stopped views in `secs` of a cam: [{ frames, sum (H, W, 3), thumb }]."""
-    p = subprocess.Popen([FF, '-loglevel', 'error', '-i', url, '-t', str(secs), '-vf', f'fps=1,scale={W}:{H}',
+    """The stopped views in `secs` of a cam: [{ frames, sum (H, W, 3), hi (H*S, W*S, 3), thumb }].
+    Frames come in at S x the analysis size; the analysis reads them shrunk
+    (S x S averaged), the picture keeps them whole."""
+    p = subprocess.Popen([FF, '-loglevel', 'error', '-i', url, '-t', str(secs), '-vf', f'fps=1,scale={W * S}:{H * S}',
                           '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], stdout=subprocess.PIPE)
     views, run = [], None
     def close(r):
@@ -82,19 +85,21 @@ def record(url, secs):
         th = r['thumbs'] / r['n']
         v = next((v for v in views if corr(v['thumb'], th) > SAME), None)
         if v is None:
-            views.append({'frames': 0, 'sum': np.zeros((H, W, 3), np.float64), 'thumb': th})
+            views.append({'frames': 0, 'sum': np.zeros((H, W, 3), np.float64), 'hi': np.zeros((H * S, W * S, 3), np.float32), 'thumb': th})
             v = views[-1]
-        v['frames'] += r['n']; v['sum'] += r['sum']
+        v['frames'] += r['n']; v['sum'] += r['sum']; v['hi'] += r['hi']
     while True:
-        buf = p.stdout.read(W * H * 3)
-        if len(buf) < W * H * 3:
+        n = W * S * H * S * 3
+        buf = p.stdout.read(n)
+        if len(buf) < n:
             break
-        f = np.frombuffer(buf, np.uint8).reshape(H, W, 3).astype(np.float64)
+        hi = np.frombuffer(buf, np.uint8).reshape(H * S, W * S, 3)
+        f = hi.reshape(H, S, W, S, 3).mean((1, 3))
         th = np.asarray(Image.fromarray(f.mean(2).astype(np.uint8)).resize((TW, TH), Image.BILINEAR), np.float64)
         if run is None or corr(run['first'], th) < SAME:
             close(run)
-            run = {'first': th, 'n': 0, 'sum': np.zeros((H, W, 3), np.float64), 'thumbs': np.zeros((TH, TW))}
-        run['n'] += 1; run['sum'] += f; run['thumbs'] += th
+            run = {'first': th, 'n': 0, 'sum': np.zeros((H, W, 3), np.float64), 'hi': np.zeros((H * S, W * S, 3), np.float32), 'thumbs': np.zeros((TH, TW))}
+        run['n'] += 1; run['sum'] += f; run['hi'] += hi; run['thumbs'] += th
     close(run)
     p.wait()
     return views
@@ -187,7 +192,7 @@ def reading(cam, secs):
         timex = vw['sum'] / vw['frames']
         a = analyse(timex)
         if a:
-            out.append((vw['frames'], timex, a))
+            out.append((vw['frames'], vw['hi'] / vw['frames'], a))
     res = {'secs': round(time.time() - t0), 'views_seen': len(views), 'views': len(out)}
     if not out:
         return res, None
@@ -204,15 +209,18 @@ def reading(cam, secs):
 
 
 def marked(timex, a):
-    """The averaged view with its sea band (white: horizon, sand: shoreline) and, along the bottom, where it's breaking (red)."""
+    """The averaged view (at S x the analysis size) with its sea band (white:
+    horizon, sand: shoreline) and, along the bottom, where it's breaking (red)."""
     im = Image.fromarray(timex.clip(0, 255).astype(np.uint8)).convert('RGB')
     d = ImageDraw.Draw(im)
     for x in range(W):
         if a['good'][x]:
-            d.point((x, a['horizon']), fill=(255, 255, 255))
-            d.point((x, int(a['shore_y'][x])), fill=(255, 210, 120))
+            X = x * S
+            d.rectangle([X, a['horizon'] * S, X + S - 1, a['horizon'] * S + S - 1], fill=(255, 255, 255))
+            y = int(a['shore_y'][x]) * S
+            d.rectangle([X, y, X + S - 1, y + S - 1], fill=(255, 210, 120))
             if a['frac'][x] > BREAK:
-                d.line([(x, H - 6), (x, H - 1)], fill=(255, 80, 80))
+                d.rectangle([X, (H - 6) * S, X + S - 1, H * S - 1], fill=(255, 80, 80))
     return im
 
 

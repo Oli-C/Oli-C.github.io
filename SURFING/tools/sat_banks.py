@@ -37,7 +37,7 @@ import rasterio
 from rasterio.windows import from_bounds
 from rasterio.warp import transform, transform_bounds
 from rasterio.enums import Resampling
-from PIL import Image
+from PIL import Image, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SURF = os.path.dirname(HERE)
@@ -79,22 +79,32 @@ def read_scene(item, bbox):
     return bands, meta
 
 
-def strip(spot, bands, meta, faces=None):
-    """The beach's strip in its own frame: rows across the beach (seaward up), columns along it."""
+def strip(spot, bands, meta, faces=None, k=1):
+    """The beach's strip in its own frame: rows across the beach (seaward up),
+    columns along it, every STEP m (the nearest pixel: what's measured). k > 1:
+    every STEP/k m, blended from the four nearest pixels (bilinear), for the
+    picture only, so the turned strip has smooth edges, not stair-steps."""
     x0, y0 = transform('EPSG:4326', meta['crs'], [spot['lng']], [spot['lat']])
     x0, y0 = x0[0], y0[0]
     th = math.radians(spot['faces'] if faces is None else faces)
     sea = np.array([math.sin(th), math.cos(th)])         # east, north: seaward
     alg = np.array([sea[1], -sea[0]])                    # along the beach
-    ns = np.arange(OUT, -BACK - 1, -STEP)                # seaward first
-    ss = np.arange(-ALONG, ALONG + 1, STEP)
+    ns = np.arange(OUT, -BACK - 1, -STEP / k)            # seaward first
+    ss = np.arange(-ALONG, ALONG + 1, STEP / k)
     X = x0 + ns[:, None] * sea[0] + ss[None, :] * alg[0]
     Y = y0 + ns[:, None] * sea[1] + ss[None, :] * alg[1]
     inv = ~meta['transform']
     cols, rows = inv * (X, Y)
+    if k > 1:
+        rows, cols = rows - 0.5, cols - 0.5                # pixel centres
+        r0 = np.clip(np.floor(rows).astype(int), 0, meta['shape'][0] - 2)
+        c0 = np.clip(np.floor(cols).astype(int), 0, meta['shape'][1] - 2)
+        fr, fc = np.clip(rows - r0, 0, 1), np.clip(cols - c0, 0, 1)
+        lerp = lambda v: ((v[r0, c0] * (1 - fc) + v[r0, c0 + 1] * fc) * (1 - fr) + (v[r0 + 1, c0] * (1 - fc) + v[r0 + 1, c0 + 1] * fc) * fr)
+        return {b: lerp(bands[b]) for b in ('red', 'green', 'blue')}, ns
     r = np.clip(np.round(rows).astype(int), 0, meta['shape'][0] - 1)
     c = np.clip(np.round(cols).astype(int), 0, meta['shape'][1] - 1)
-    return {k: v[r, c] for k, v in bands.items()}, ns
+    return {b: v[r, c] for b, v in bands.items()}, ns
 
 
 def shoreline(s):
@@ -186,18 +196,18 @@ def analyse(s, ns):
             'label': label, 'cloud': round(cloud, 3), 'foam': foam, 'shore': shore, 'ok': ok}, cloud
 
 
-def picture(s, a):
-    """The strip as seen, sea up, a bit brighter, foam it counted in red along the top."""
+def picture(spot, bands, meta, faces, a, k=6):
+    """The strip as seen, sea up, a bit brighter, foam it counted in red along
+    the top: sampled every STEP/k m (bilinear), so it's sharp on a phone (the
+    panel shows it up to 480 px wide). Still 10 m pixels underneath."""
+    s, _ = strip(spot, bands, meta, faces, k)
     rgb = np.stack([s['red'], s['green'], s['blue']], -1)
-    img = (np.clip(rgb / 0.25, 0, 1) ** 0.6 * 255).astype(np.uint8)
-    im = Image.fromarray(img).resize((img.shape[1] * 3, img.shape[0] * 3), Image.NEAREST)
+    im = Image.fromarray((np.clip(rgb / 0.25, 0, 1) ** 0.6 * 255).astype(np.uint8))
     if a:
-        px = im.load()
-        for x in range(img.shape[1]):
+        d = ImageDraw.Draw(im)
+        for x in range(len(a['ok'])):
             if a['ok'][x] and a['foam'][: a['shore'][x], x].sum() >= 2:
-                for dx in range(3):
-                    for dy in range(4):
-                        px[x * 3 + dx, dy] = (255, 80, 80)
+                d.rectangle([x * k, 0, x * k + k - 1, 7], fill=(255, 80, 80))
     return im
 
 
@@ -257,7 +267,7 @@ def area_readings(sp, days, img_dir):
                 print(f"{t} {spot['id']}: {why}")
                 continue
             cams[spot['id']] = {k: a[k] for k in ('label', 'cover', 'longest', 'gaps', 'bar_m', 'cloud')} | {'faces': round(f)}
-            im = picture(s, a)
+            im = picture(spot, bands, meta, f, a)
             buf = io.BytesIO(); im.save(buf, 'JPEG', quality=82); imgs[spot['id']] = buf.getvalue()
             if img_dir:
                 os.makedirs(img_dir, exist_ok=True); im.save(os.path.join(img_dir, f"{day}-{spot['id']}.jpg"), quality=85)
