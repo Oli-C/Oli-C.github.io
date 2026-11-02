@@ -103,11 +103,9 @@ if (VIEWS.includes(urlView)) {
 setView(VIEWS.includes(tabView) ? tabView
   : phone.matches ? 'grid'
   : VIEWS.includes(savedView) ? savedView : wide.matches ? 'split' : 'grid');
-// ?log=<spot> (the account page's "Log a session"): that spot's viewer,
-// and its session form once the forecast is in (see refreshConditions).
-let logNext = new URLSearchParams(location.search).get('log');
-if (logNext && byId(logNext)) history.replaceState(null, '', location.pathname + '#' + logNext);
-else logNext = null;
+// ?log=<spot> links from before logging had its own page.
+const logOld = new URLSearchParams(location.search).get('log');
+if (logOld) location.replace('log.html?spot=' + encodeURIComponent(logOld));
 if (location.hash) open(location.hash.slice(1), false);
 
 // Tiles start streaming as soon as hls.js is in (Safari needs nothing).
@@ -130,8 +128,6 @@ function refreshConditions() {
       const c = byId(location.hash.slice(1).split('@')[0]);
       if (c) { renderScore(c); renderFb(c); renderSrc(c); renderToday(c); renderLocal(c); renderTune(c); }
     }
-    const b = logNext && !viewer.hidden && $('v-fb').querySelector('[data-sess-open]');
-    if (b) { logNext = null; b.click(); }
   });
 }
 refreshConditions();

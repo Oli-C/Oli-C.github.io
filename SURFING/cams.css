@@ -1122,7 +1122,7 @@ header { display: none; }
 /* Favourite: the star in the viewer's header. */
 #v-fav[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
 #v-fav[aria-pressed="true"] svg { fill: currentColor; }
-.sess-open .fb-btn { display: inline-flex; align-items: center; gap: 7px; }
+.sess-open .fb-btn { display: inline-flex; align-items: center; gap: 7px; text-decoration: none; }
 .sess-open .fb-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent-ink); }
 
 /* Surface: clean is good (green), bumpy so-so (amber), choppy or blown
@@ -1137,33 +1137,6 @@ header { display: none; }
 
 /* "Log a session" form */
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.sess-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.sess-x { font: inherit; font-size: 14px; color: var(--fg-muted); background: none; border: 0; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; }
-.sess-x:hover { color: var(--fg); background: var(--bg-2); }
-.sess-q { margin: 14px 0 7px; font-size: 13px; font-weight: 600; }
-.sess-q small { font-weight: 400; color: var(--fg-muted); margin-left: 4px; }
-.sess-opts { display: flex; flex-wrap: wrap; gap: 6px; }
-.sess-opts + .sess-opts { margin-top: 6px; }
-.sess-opts + .fb-note { margin-top: 6px; }
-/* Ratings light up in their level's colour. */
-.sess-opts .fb-btn[class*="lvl-"].sel { background: var(--pin); border-color: var(--pin); color: var(--ink); }
-.sess-sel select {
-  font: inherit; font-size: 13px; color: var(--fg); background: var(--bg-3);
-  border: 1px solid var(--border-2); border-radius: 999px; padding: 6px 28px 6px 13px; cursor: pointer;
-  appearance: none; -webkit-appearance: none;
-  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
-  background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%; background-size: 5px 5px; background-repeat: no-repeat;
-}
-.sess-then { margin-top: 10px; padding: 8px 10px; font-size: 13px; line-height: 1.45; background: var(--bg-3); border: 1px solid var(--border); border-radius: 10px; }
-.sess-then .k { margin-right: 6px; }
-.sess-go { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 16px; }
-.sess-go .pop-btn { padding: 9px 18px; font-size: 14px; }
-.sess-go .pop-btn[disabled] { opacity: 0.6; cursor: progress; }
-.sess-warn, .sess-err, .sess-ok { margin-top: 12px; font-size: 13px; line-height: 1.45; }
-.sess-warn { padding: 8px 10px; border-left: 3px solid var(--lvl-2); background: color-mix(in srgb, var(--lvl-2) 12%, transparent); border-radius: 4px; }
-.sess-err { color: var(--lvl-1); }
-.sess-ok { color: var(--fg); }
-.hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
 
 /* Tune mode (?tune): sliders for the spot's local knowledge */
 .tune-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 18px; margin-top: 10px; }

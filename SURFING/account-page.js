@@ -1,11 +1,10 @@
 /* The account page (account.html): signing in or out, your spots in your
    order (they lead the 16-day page and the cams page's My spots; kept on
-   this device, and on the account when signed in), and the sessions you've
-   logged (GET /s/mine), and spots to suggest (POST / GET /a/suggest).
+   this device, and on the account when signed in), and spots to suggest
+   (POST / GET /a/suggest). Sessions have their own page (log.html).
    account.js does the forms and the favourites. */
 const $ = (id) => document.getElementById(id);
 
-let mine = null;   // my sessions: null loading, [] none, or { error }
 let me = null;     // GET /a/me: { name, created, sessions }
 
 /* ---------- Account ---------- */
@@ -96,52 +95,14 @@ async function loadSuggested() {
   suggested = j.error ? [] : j.suggestions;
 }
 
-/* ---------- Log a session: area, then beach ---------- */
-// The form itself lives on the spot's page (cams-sessions.js); this sends
-// you there with it open (?log=), beaches without a cam included.
-(function logPick() {
-  const area = $('log-area'), beach = $('log-beach'), go = $('log-go');
-  const fill = () => {
-    beach.innerHTML = CAMS.filter((c) => c.area === area.value).map((c) => `<option value="${esc(c.id)}">${esc(c.name)}${c.type === 'none' ? ' (no cam)' : ''}</option>`).join('');
-    go.href = './?log=' + encodeURIComponent(beach.value);
-  };
-  area.innerHTML = AREAS.map((a) => `<option${a === 'Caparica' ? ' selected' : ''}>${esc(a)}</option>`).join('');
-  area.addEventListener('change', fill);
-  beach.addEventListener('change', () => { go.href = './?log=' + encodeURIComponent(beach.value); });
-  fill();
-})();
-
-/* ---------- My sessions ---------- */
-const lengthOf = (m) => (m < 60 ? `${m} min` : `${m / 60} h`.replace('.5 h', '½ h'));
-function renderSessions() {
-  const el = $('sess-list');
-  if (!Account.get()) { el.innerHTML = '<p class="none">Sign in to see the sessions you’ve logged.</p>'; return; }
-  if (mine === null) { el.innerHTML = '<p class="none">Loading…</p>'; return; }
-  if (mine.error) { el.innerHTML = `<p class="none">${esc(mine.error)}</p>`; return; }
-  if (!mine.length) { el.innerHTML = '<p class="none">None yet. Pick where you surfed above, after you’ve been in.</p>'; return; }
-  el.innerHTML = `<ol class="sess-list">${mine.map((s) => {
-    const c = byId(s.id), d = new Date(s.local + ':00Z');
-    const when = `${DAY_NAMES[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} · ${s.local.slice(11, 16)}`;
-    const bits = [lengthOf(s.mins), SIZE_BANDS[s.size], s.surface != null ? SURFACES[s.surface] : '', s.shape != null ? SESSION_SHAPE[s.shape] : '',
-      s.model != null ? `forecast said ${fmt(s.model)}` : ''].filter(Boolean);
-    return `<li class="lvl-${s.rating}">
-      <span class="rt">${SESSION_RATINGS[s.rating]}</span>
-      <a class="spot" href="insights.html?spot=${esc(s.id)}">${esc(c ? c.name : s.id)}</a>
-      <span class="when">${when}</span>
-      <span class="what">${esc(bits.join(' · '))}</span>
-    </li>`;
-  }).join('')}</ol>`;
-}
-
 /* ---------- Wiring ---------- */
 async function loadMine() {
-  if (!Account.get()) { mine = []; me = null; return; }
-  const [s, m] = await Promise.all([Account.call('GET', '/s/mine'), Account.call('GET', '/a/me')]);
-  mine = s.error ? { error: s.error } : s.sessions;
+  if (!Account.get()) { me = null; return; }
+  const m = await Account.call('GET', '/a/me');
   me = m.error ? null : m;
 }
-function render() { renderAccount(); renderSpots(); renderSuggest(); renderSessions(); }
-async function refresh() { mine = null; suggested = null; if (!Account.get()) $('suggest-box').innerHTML = ''; render(); await Promise.all([loadMine(), loadSuggested()]); render(); }
+function render() { renderAccount(); renderSpots(); renderSuggest(); }
+async function refresh() { suggested = null; if (!Account.get()) $('suggest-box').innerHTML = ''; render(); await Promise.all([loadMine(), loadSuggested()]); render(); }
 
 Account.favs.onChange(() => { renderSpots(); renderAccount(); });
 render();

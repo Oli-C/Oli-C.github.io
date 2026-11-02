@@ -95,7 +95,7 @@ const foldOpen = (el, sel, wideDefault = true) => {
 };
 
 // The glance: score, what's holding it back, and the few numbers the
-// graphs below don't carry (water, air, light, the station reading).
+// graphs below don't carry (light, the station reading).
 // The factor-by-factor breakdown folds away under "Why".
 function renderScore(c) {
   const r = scoreOf(c);
@@ -113,8 +113,6 @@ function renderScore(c) {
   const chips = [];
   // How clean it should be, first: what most people want to know.
   if (r.surface && k) chips.push(`<span class="chip-now surf-${r.surface.i}" title="${esc(r.surface.learned || 'From the wind, gusts, chop and any cross swell')}"><span class="k">Surface</span><b>${esc(r.surface.label)}</b>${r.surface.learned ? '<small>from sessions</small>' : ''}</span>`);
-  if (k && k.sst != null) chips.push(chip('Water', `${Math.round(k.sst)}°C`, esc(suit(k.sst))));
-  if (k && k.air != null) chips.push(chip('Air', `${Math.round(k.air)}°C`));
   if (cnd && cnd.sun && cnd.sun.rise) chips.push(chip('Light', `${cnd.sun.rise}–${cnd.sun.set}`));
   if (k && k.obs) chips.push(chip('Measured', `${kts(k.obs.ws)} kts${k.obs.wd != null ? ' ' + dirName(k.obs.wd) : ''}`, `${esc(k.obs.station)} ${k.obs.t}`));
   const open = foldOpen(el, 'details.why');
@@ -157,7 +155,7 @@ function renderSrc(c) {
   const wt = (w) => `<small>×${w.toFixed(1)}</small>`;
   const wind = k.src.wind.map((s) => `<span class="${s.out ? 'src-out' : ''}" title="${s.out ? 'Outlier, left out of the blend' : s.n ? `${s.n} station checks on this device` : 'base weight'}"><b>${esc(s.name)}</b> ${kts(s.ws)} kts${s.wd != null ? ' ' + dirName(s.wd) : ''} ${s.out ? '<small>ignored</small>' : wt(s.w)}</span>`).join('');
   const swell = k.src.swell.map((s) => `<span class="${s.out ? 'src-out' : ''}" title="${s.out ? 'Outlier, left out of the blend' : 'base weight'}"><b>${esc(s.name)}</b> ${hgt(s.h)}${s.p != null ? ' ' + Math.round(s.p) + ' s' : ''}${s.d != null ? ' ' + dirName(s.d) : ''} ${s.out ? '<small>ignored</small>' : wt(s.w)}</span>`).join('');
-  const obs = k.obs ? `<div class="src-row"><span class="src-k">Measured</span><span><b>${esc(k.obs.station)}</b> (${k.obs.km} km, ${k.obs.t}) ${kts(k.obs.ws)} kts${k.obs.wd != null ? ' ' + dirName(k.obs.wd) : ''}${k.obs.temp != null ? ` · ${Math.round(k.obs.temp)}°C` : ''} ${k.obsW ? wt(k.obsW) : '<small>not used</small>'}</span></div>` : '';
+  const obs = k.obs ? `<div class="src-row"><span class="src-k">Measured</span><span><b>${esc(k.obs.station)}</b> (${k.obs.km} km, ${k.obs.t}) ${kts(k.obs.ws)} kts${k.obs.wd != null ? ' ' + dirName(k.obs.wd) : ''} ${k.obsW ? wt(k.obsW) : '<small>not used</small>'}</span></div>` : '';
   const conf = k.conf != null ? `<span class="src-conf lvl-${k.conf >= 0.75 ? 3 : k.conf >= 0.45 ? 2 : 1}">${confWord(k.conf)} confidence</span>` : '';
   const checks = k.src.wind.reduce((a, s) => a + (s.n || 0), 0);
   const open = foldOpen(el, 'details.src', false);
@@ -508,7 +506,6 @@ function open(id, push = true) {
     : `Stream by ${esc(c.source)} · <a href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">open original</a>`;
   renderScore(c);
   renderFb(c);
-  renderSess(c);
   renderSrc(c);
   renderToday(c);
   renderLocal(c);
