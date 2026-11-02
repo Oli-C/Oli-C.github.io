@@ -268,14 +268,19 @@ def area_readings(sp, days, img_dir):
 
 
 def send(req, tries=6):
-    """POST, waiting out the worker's rate guard (429, Retry-After) on a long backfill."""
+    """POST, waiting out the worker's rate guard (429, Retry-After) and
+    retrying a dropped connection or a server error, on a long backfill."""
     for i in range(tries):
         try:
             return urllib.request.urlopen(req, timeout=60).read().decode()[:200]
         except urllib.error.HTTPError as e:
-            if e.code != 429 or i == tries - 1:
+            if (e.code != 429 and e.code < 500) or i == tries - 1:
                 raise
-            time.sleep(int(e.headers.get('Retry-After') or 60) + 2)
+            time.sleep(int(e.headers.get('Retry-After') or 30) + 2 if e.code == 429 else 10 * (i + 1))
+        except (urllib.error.URLError, ConnectionError, TimeoutError):
+            if i == tries - 1:
+                raise
+            time.sleep(10 * (i + 1))
 
 
 def finish(results, args):
@@ -287,11 +292,18 @@ def finish(results, args):
         json.dump([{k: v for k, v in r.items() if k != 'img'} for r in results], open(out, 'w'), indent=1)
     if '--post' in args:
         url, key = os.environ['FEEDBACK_URL'].rstrip('/'), os.environ['FEEDBACK_KEY']
+        failed = 0
         for r in sorted(results, key=lambda r: r['t']):   # oldest first, so the newest image is the one kept
             body = dict(r, img={k: base64.b64encode(v).decode() for k, v in r['img'].items()})
             req = urllib.request.Request(url + '/banks/sat', data=json.dumps(body).encode(), method='POST',
                                          headers={'Content-Type': 'application/json', 'X-Surf-Key': key, 'User-Agent': 'allfield-sat/1.0'})
-            print(r['t'], send(req))
+            try:
+                print(r['t'], send(req))
+            except Exception as e:   # one bad post doesn't lose the rest
+                print(r['t'], 'not sent:', e)
+                failed += 1
+        if failed:
+            sys.exit(f'{failed} of {len(results)} not sent')
 
 
 if __name__ == '__main__':
