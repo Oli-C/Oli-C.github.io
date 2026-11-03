@@ -17,8 +17,8 @@ import { RGBELoader }         from 'three/addons/loaders/RGBELoader.js';
 //   venue  — venue + city, rendered on its own line below the date
 const POSTERS = [
   // ---- 2026 (featured upcoming + Crescent residency)
-  { img: 'posters/Chameleon - 3 Nights at the Crescent - 30 May 2026.webp', title: 'Chameleon · 3 Nights at the Crescent', meta: '24 May 2026, 30 May 2026, 5 Jun 2026', venue: 'The Crescent, York', lineup: [], url: 'https://www.seetickets.com/event/chameleon-the-crescent-season-ticket/the-crescent/3634501', featured: true },
-  { img: 'posters/nd_baumecker - 28 Nov 2026.webp',                         title: 'nd_baumecker',                         meta: '28 Nov 2026', venue: 'The Crescent, York', lineup: ['nd_baumecker', 'Deo', 'Allfield'] },
+  { img: 'posters/nd_baumecker - 28 Nov 2026.webp',                         title: 'nd_baumecker',                         meta: '28 Nov 2026', venue: 'The Crescent, York', lineup: ['nd_baumecker', 'Deo', 'Allfield'], url: 'https://ra.co/events/2537359', featured: true },
+  { img: 'posters/Chameleon - 3 Nights at the Crescent - 30 May 2026.webp', title: 'Chameleon · 3 Nights at the Crescent', meta: '24 May 2026, 30 May 2026, 5 Jun 2026', venue: 'The Crescent, York', lineup: [], url: 'https://www.seetickets.com/event/chameleon-the-crescent-season-ticket/the-crescent/3634501' },
   { img: 'posters/Midland & SR (Special Request) - 13 Feb 2026.webp',       title: 'Special Request, Midland, Rosie',      meta: '13 Feb 2026', venue: 'The Crescent, York', lineup: ['Midland', 'Special Request', 'Rosie'] },
 
   // ---- 2025
@@ -88,6 +88,7 @@ const POSTERS = [
   const MONTHS = { jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11 };
   const parseMeta = s => {
     if (!s) return Infinity;
+    s = s.split(',')[0].trim();   // multi-date entries sort by their first night
     if (/^\d{4}$/.test(s)) return Date.UTC(+s, 0, 1);
     const m = s.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
     if (m) {

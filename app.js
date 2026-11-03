@@ -919,6 +919,9 @@
   //  Once a show has aired, move it into MIXES with its stream URL.
   // ============================================================================
   const UPCOMING = [
+    { code: 'CHA-NDB', title: 'Chameleon w/ nd_baumecker', series: 'cham', tag: 'THE CRESCENT', date: '28.11.2026',
+      when: '21:00 – 03:00', tz: 'Lisbon / London', start: '2026-11-28T21:00:00+00:00', until: '2026-11-29T03:00:00+00:00',
+      img: 'assets/mix-cha-baumecker.jpeg', url: 'https://ra.co/events/2537359' },
   ];
 
   // ============================================================================
