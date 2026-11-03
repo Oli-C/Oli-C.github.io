@@ -18,6 +18,10 @@ on:
       days:
         description: 'Days back to look for passes'
         default: '5'
+      post:
+        description: 'Send to the worker (off: readings only, in the artifact)'
+        type: boolean
+        default: true
 
 concurrency:
   group: surf-sat
@@ -46,7 +50,7 @@ jobs:
         env:
           FEEDBACK_URL: ${{ secrets.FEEDBACK_URL }}
           FEEDBACK_KEY: ${{ secrets.FEEDBACK_KEY }}
-        run: python SURFING/tools/sat_banks.py --days ${{ inputs.days || '5' }} --img strips --out strips/readings.json --post
+        run: python SURFING/tools/sat_banks.py --days ${{ inputs.days || '5' }} --img strips --out strips/readings.json ${{ inputs.post && '--post' || '' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
