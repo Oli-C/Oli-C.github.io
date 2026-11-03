@@ -1,25 +1,34 @@
 """The banks from space: Sentinel-2 (10 m, free, every 2-5 days at ~11:30 UTC).
 
 In near-infrared, water is black and whitewater bright, so the breaking
-shows as bands off the beach: one long band is a closeout, bands broken by
-dark gaps are peaks and channels, and how far out the outer band sits is
-where the bar is. Sand is bright too but warm in colour, foam is white,
-so the two are told apart by colour.
+shows as bands off the beach: bands broken by dark gaps are peaks and
+channels, and how far out the outer band sits is where the bar is. Sand is
+bright too but warm in colour; wet sand, rock and concrete (groynes) are
+white enough to pass for foam, but shortwave infrared (B11) tells them
+apart: water swallows it, foam included (SWIR/NIR 0.2-0.5), while they
+reflect it (1 and up).
 
 For every spot (cams or not), area by area (each its own window, since
 they fall on different tiles), on each clear scene: a strip of
 coast 1.4 km long (700 m either side), aligned with the way the beach
 faces, from 150 m inland to 700 m out. Per 10 m along the beach: the
-shoreline (where the sand ends) and the foam seaward of it. Then
+shoreline (where the land ends) and the foam seaward of it, in patches;
+a patch under 20 m deep (a speck, a whitecap, the swash line) doesn't
+count, and stretches of breaking or gaps under 50 m along the beach are
+ignored. Then
 
-  cover     share of the strip with breaking beyond the swash (> 30 m out)
+  cover     share of the strip with breaking (a shorebreak counts)
   longest   longest unbroken stretch of breaking, as a share of the strip
-  gaps      channels: breaks in it 50 m wide or more
-  bar_m     median distance of the outermost breaking from the shoreline
-  label     'flat' (cover < 0.15), 'inside only' (the breaking within 60 m
-            of the shore), 'channels' (cut by 1+ gaps), 'continuous'
-            (unbroken over 3/4 of it), else 'patchy'. Not closeouts: from
-            space a big day is white right across, broken waves and all
+  gaps      channels, on days with breaking along 40% or more: 50 m or
+            more with none, or where the outer breaking pulls back to
+            under half the bar's distance (a rip, the shorebreak still
+            white), with breaking either side
+  bar_m     median distance from the shoreline to the outer edge of the
+            breaking (grows with the swell: checked over 60 days, r 0.7)
+  label     'flat' (cover < 0.15), 'inside only' (bar_m 60 m or less),
+            'channels' (1+ channels), 'continuous' (unbroken over 3/4 of
+            it), else 'patchy'. Not closeouts: from space a big day is
+            white right across, broken waves and all
   cloud     share of the strip under cloud or its shadow (over 10%: skipped)
 
 Scenes from Element 84's Earth Search catalogue (public, no key), read a
@@ -43,7 +52,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SURF = os.path.dirname(HERE)
 STAC = 'https://earth-search.aws.element84.com/v1/search'
 ALONG, BACK, OUT, STEP = 700, 150, 700, 10      # metres
-SWASH, MIN_GAP, MAX_CLOUD, MAX_BAR = 30, 50, 0.10, 500   # metres, metres, share, metres
+MAX_CLOUD, MAX_BAR = 0.10, 500     # share, metres
 RATIO = 0.7          # SWIR / NIR: foam 0.2-0.5, sand, rock and concrete 1 and up
 MIN_RUN = 50         # metres along the beach: shorter stretches of breaking (specks) or gaps don't count
 BANDS = {'blue': 'B02', 'green': 'B03', 'red': 'B04', 'nir': 'B08'}
