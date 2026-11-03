@@ -66,8 +66,9 @@ export default {
       let forecast = 'not built yet';
       try { const f = JSON.parse((await env.FEEDBACK.get('fc:latest')) || 'null'); if (f) forecast = `built ${f.built} (${Object.keys(f.spots).length} spots, ${f.ms} ms)`; } catch {}
       const limits = Object.keys(LIMITS).map((c) => `${c} ${env[`RL_${c.toUpperCase()}`] ? 'edge' : 'local'}`).join(', ');
-      let dispatch = (await readSecret(env.GH_DISPATCH_TOKEN)) ? 'token set' : 'no token (GitHub schedules stand in)';
+      let dispatch = (await readSecret(env.GH_DISPATCH_TOKEN)) ? 'token set' : 'no token (nothing started on time; surf-watch has its own backstop)';
       try { const d = JSON.parse((await env.FEEDBACK.get('dispatch:last')) || 'null'); if (d) dispatch += `; last ${d.t}: ` + Object.entries(d.out).map(([f, s]) => `${f} ${s}`).join(', '); } catch {}
+      try { const q = JSON.parse((await env.FEEDBACK.get('dispatch:queue')) || '[]'); if (q.length) dispatch += `; queued (one a day at 01 UTC): ` + q.map((j) => `${j.file} ${JSON.stringify(j.inputs || {})}`).join(' | '); } catch {}
       return json({ ok: true, build: WORKER_BUILD, kv: !!env.FEEDBACK, db: !!env.DB, exportKey: exportKey ? `set, ${exportKey.length} characters` : 'missing', forecast, limits, dispatch });
     }
     // The IP is only ever kept as this keyed hash.
