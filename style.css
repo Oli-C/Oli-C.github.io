@@ -977,6 +977,15 @@ body.pills-away .pill { animation-play-state: running, paused; }
    sits a touch smaller inside the badge — more breathing room around it. */
 .mix-plat svg { width: 12px; height: 12px; }
 .mix-plat[data-plat="youtube"] svg { width: 10px; height: 7px; }
+.mix-plat[data-plat="ra"] { color: var(--fg); }
+.mix-plat .ra-glyph {
+  width: 13px; height: 7px;
+  background: currentColor;
+  -webkit-mask: url('assets/logo-ra.png') center / contain no-repeat;
+          mask: url('assets/logo-ra.png') center / contain no-repeat;
+}
+/* On an upcoming card the LIVE chip takes the badge's place while on air. */
+.mix-live.is-live + .mix-plat { display: none; }
 
 /* =============================================================================
    Animations / responsive

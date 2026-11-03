@@ -920,7 +920,7 @@
   // ============================================================================
   const UPCOMING = [
     { code: 'CHA-NDB', title: 'Chameleon w/ nd_baumecker', series: 'cham', tag: 'THE CRESCENT', date: '28.11.2026',
-      when: '21:00 – 03:00', tz: 'Lisbon / London', start: '2026-11-28T21:00:00+00:00', until: '2026-11-29T03:00:00+00:00',
+      when: '21:00 – 03:00', tz: 'York', platform: 'ra', start: '2026-11-28T21:00:00+00:00', until: '2026-11-29T03:00:00+00:00',
       img: 'assets/mix-cha-baumecker.jpeg', url: 'https://ra.co/events/2537359' },
   ];
 
@@ -987,7 +987,9 @@
     mixcloud:   '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><circle cx="6" cy="13" r="2.2"/><circle cx="10" cy="13" r="2.2"/><circle cx="14" cy="13" r="2.2"/><circle cx="18" cy="13" r="2.2"/><path d="M4 17c2 1.5 4 2 8 2s6-.5 8-2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M4 9c2-1.5 4-2 8-2s6 .5 8 2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
     youtube:    '<svg viewBox="0 0 28.57 20" width="14" height="10" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M27.9727 3.12324C27.6259 1.84956 26.6296 0.846416 25.3644 0.496002 23.0405 -0.130233 14.2858 0 14.2858 0S5.53113 -0.130233 3.20718 0.495876C1.94189 0.846416 0.945749 1.84956 0.598918 3.12324-0.0238482 5.46426-0.0238482 9.99826-0.0238482 9.99826S-0.0238482 14.5323 0.598918 16.8733C0.945749 18.147 1.94196 19.1066 3.20725 19.4571 5.53113 20.0833 14.2858 20.0833 14.2858 20.0833S23.0405 20.0833 25.3644 19.4571C26.6296 19.1066 27.6259 18.147 27.9727 16.8733 28.5965 14.5323 28.5965 9.99826 28.5965 9.99826S28.5965 5.46426 27.9727 3.12324zM11.4287 14.2854L18.6991 9.99835L11.4287 5.71132V14.2854z"/></svg>',
   };
-  const PLATFORM_LABEL = { soundcloud: 'SoundCloud', mixcloud: 'Mixcloud', youtube: 'YouTube' };
+  // RA has no inline glyph; the badge masks the same logo the header pill uses.
+  PLATFORM_ICONS.ra = '<span class="ra-glyph" aria-hidden="true"></span>';
+  const PLATFORM_LABEL = { soundcloud: 'SoundCloud', mixcloud: 'Mixcloud', youtube: 'YouTube', ra: 'Resident Advisor' };
   function platformBadge(p) {
     if (!p || !PLATFORM_ICONS[p]) return '';
     return `<span class="mix-plat" data-plat="${p}" title="${PLATFORM_LABEL[p]}" aria-label="${PLATFORM_LABEL[p]}">${PLATFORM_ICONS[p]}</span>`;
@@ -1022,6 +1024,7 @@
           <div class="mix-right">
             <span class="mix-tag">${esc(m.tag)}</span>
             <span class="mix-live${live ? ' is-live' : ''}"${m.start ? ` data-start="${esc(m.start)}" data-until="${esc(m.until)}"` : ''} aria-label="Broadcast live"><span class="mix-live-dot"></span>live</span>
+            ${platformBadge(m.platform)}
           </div>
         </a>`;
       }

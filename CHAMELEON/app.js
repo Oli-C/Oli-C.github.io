@@ -25,7 +25,7 @@ const POSTERS = [
   { img: 'posters/Call Super - Chameleon 6th Birthday - 12 Dec 2025.webp',  title: 'Call Super · Chameleon 6th Birthday',  meta: '12 Dec 2025', venue: 'Bluebox, York',     lineup: ['Call Super', 'Deo'] },
   { img: 'posters/Objekt - 29 Nov 2025.webp',                                title: 'Objekt',                               meta: '29 Nov 2025', venue: 'The Crescent, York', lineup: ['Objekt', 'Deo', 'B:Cam'] },
   { img: 'posters/Deo b2b Parris - 2 May 2025.webp',                         title: 'Deo b2b Parris',                       meta: '2 May 2025',  venue: 'The Crescent, York', lineup: ['Deo', 'Parris'] },
-  { img: 'posters/Rene Wise - 14 Mar 2024.webp',                             title: 'Rene Wise',                            meta: '14 Mar 2025', venue: 'Bluebox, York',     lineup: ['Rene Wise', 'Deo', 'Oren'] },
+  { img: 'posters/Rene Wise - 14 Mar 2025.webp',                             title: 'Rene Wise',                            meta: '14 Mar 2025', venue: 'Bluebox, York',     lineup: ['Rene Wise', 'Deo', 'Oren'] },
   { img: 'posters/Orla - 15 Feb 2025.webp',                                  title: 'Or:la',                                meta: '15 Feb 2025', venue: 'The Crescent, York', lineup: ['Or:la', 'Deo'] },
   { img: 'posters/Chameleon Free Party - 2 - 31 Jan 2025.webp',              title: 'Chameleon Free Party · 2',             meta: '31 Jan 2025', venue: 'Bluebox, York',     lineup: [] },
 
@@ -51,7 +51,7 @@ const POSTERS = [
   { img: 'posters/Kitsta - 3 Nov 2023.webp',                                  title: 'Kitsta',                                 meta: '3 Nov 2023',  venue: 'Bluebox, York',         lineup: ['Kitsta', 'se.arle'] },
   { img: 'posters/Reni b2b Ploy - 13 Oct 2023.webp',                          title: 'Re:ni b2b Ploy',                         meta: '13 Oct 2023', venue: 'The Crescent, York',    lineup: ['re:ni', 'Ploy', 'Deo'] },
   { img: 'posters/Residents Night - 22 Sep 2023.webp',                        title: 'Residents Night',                        meta: '22 Sep 2023', venue: 'Bluebox, York',         lineup: ['Allfield', 'B:Cam', 'Deo', 'Owari', 'Yuba'] },
-  { img: 'posters/OnRo x Chameleon - 9th Birthday - 23 Sep 2023.webp',        title: 'On Rotation',                            meta: '3 Sep 2023',  venue: 'Plant & Deck, Leeds',   lineup: ['Adam Pits', "Chris l'Anson", 'Deo', 'Allfield', 'B:Cam'] },
+  { img: 'posters/OnRo x Chameleon - 9th Birthday - 23 Sep 2023.webp',        title: 'On Rotation',                            meta: '23 Sep 2023',  venue: 'Plant & Deck, Leeds',   lineup: ['Adam Pits', "Chris l'Anson", 'Deo', 'Allfield', 'B:Cam'] },
   { img: 'posters/Cham & Friends - Vol. 2 - 21 Jul 2023.webp',                title: 'Deo, Oren, se.arle',                     meta: '21 Jul 2023', venue: 'Bluebox, York',         lineup: ['Deo', 'Oren', 'se.arle'] },
   { img: 'posters/Midland - 9 Jun 2023.webp',                                 title: 'Midland',                                meta: '9 Jun 2023',  venue: 'The Crescent, York',    lineup: ['Midland', 'Lara David'] },
   { img: 'posters/Deo - 2 Jun 2023.webp',                                     title: 'Deo',                                    meta: '2 Jun 2023',  venue: 'Bluebox, York',         lineup: ['Deo'] },
@@ -63,9 +63,9 @@ const POSTERS = [
   { img: 'posters/Space Cadets - 20 Jan 2023.webp',                           title: 'Space Cadets',                           meta: '20 Jan 2023', venue: 'Bluebox, York',         lineup: ['Adam Pits', 'Deo', 'Lisene'] },
 
   // ---- 2022
-  { img: 'posters/Hutch - Chameleon 3rd Birthday - 3 Dec 2022.webp',          title: 'Hutch · Chameleon 3rd Birthday',         meta: '2 Dec 2022',  venue: 'Bluebox, York',         lineup: ['Hutch', 'Allfield', 'B:Cam', 'Deo', 'New Ends', 'Yuba'] },
+  { img: 'posters/Hutch - Chameleon 3rd Birthday - 3 Dec 2022.webp',          title: 'Hutch · Chameleon 3rd Birthday',         meta: '3 Dec 2022',  venue: 'Bluebox, York',         lineup: ['Hutch', 'Allfield', 'B:Cam', 'Deo', 'New Ends', 'Yuba'] },
   { img: 'posters/Pangaea - 14 Oct 2022.webp',                                title: 'Pangaea',                                meta: '14 Oct 2022', venue: 'The Crescent, York',    lineup: ['Pangaea', 'Deo'] },
-  { img: 'posters/Chameleon Residents - 29 Sep 2022.webp',                    title: 'A Sum Of',                               meta: '30 Sep 2022', venue: 'Bluebox, York',         lineup: ['Allfield', 'B:Cam', 'Deo', 'Owari', 'Yuba'] },
+  { img: 'posters/Chameleon Residents - 29 Sep 2022.webp',                    title: 'A Sum Of',                               meta: '29 Sep 2022', venue: 'Bluebox, York',         lineup: ['Allfield', 'B:Cam', 'Deo', 'Owari', 'Yuba'] },
   { img: 'posters/Breaka & Tom VR - 18 Jun 2022.webp',                        title: 'Breaka & Tom VR',                        meta: '18 Jun 2022', venue: 'The Crescent, York',    lineup: ['Breaka', 'Tom VR', 'Owari'] },
   { img: 'posters/Chameleon Intimate Party - 17 Apr 2022.webp',               title: 'An Intimate Party',                      meta: '17 Apr 2022', venue: 'Bluebox, York',         lineup: ['Deo', 'Allfield', 'Yuba', 'B:Cam'] },
   { img: 'posters/The Chameleon - Residents - 18 Mar 2022.webp',              title: 'The Chameleon',                          meta: '18 Mar 2022', venue: 'Bluebox, York',         lineup: ['Allfield', 'B:Cam', 'Deo', 'Owari', 'New Ends', 'Yuba'] },
