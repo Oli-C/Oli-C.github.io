@@ -1,25 +1,34 @@
 """The banks from space: Sentinel-2 (10 m, free, every 2-5 days at ~11:30 UTC).
 
 In near-infrared, water is black and whitewater bright, so the breaking
-shows as bands off the beach: one long band is a closeout, bands broken by
-dark gaps are peaks and channels, and how far out the outer band sits is
-where the bar is. Sand is bright too but warm in colour, foam is white,
-so the two are told apart by colour.
+shows as bands off the beach: bands broken by dark gaps are peaks and
+channels, and how far out the outer band sits is where the bar is. Sand is
+bright too but warm in colour; wet sand, rock and concrete (groynes) are
+white enough to pass for foam, but shortwave infrared (B11) tells them
+apart: water swallows it, foam included (SWIR/NIR 0.2-0.5), while they
+reflect it (1 and up).
 
 For every spot (cams or not), area by area (each its own window, since
 they fall on different tiles), on each clear scene: a strip of
 coast 1.4 km long (700 m either side), aligned with the way the beach
 faces, from 150 m inland to 700 m out. Per 10 m along the beach: the
-shoreline (where the sand ends) and the foam seaward of it. Then
+shoreline (where the land ends) and the foam seaward of it, in patches;
+a patch under 20 m deep (a speck, a whitecap, the swash line) doesn't
+count, and stretches of breaking or gaps under 50 m along the beach are
+ignored. Then
 
-  cover     share of the strip with breaking beyond the swash (> 30 m out)
+  cover     share of the strip with breaking (a shorebreak counts)
   longest   longest unbroken stretch of breaking, as a share of the strip
-  gaps      channels: breaks in it 50 m wide or more
-  bar_m     median distance of the outermost breaking from the shoreline
-  label     'flat' (cover < 0.15), 'inside only' (the breaking within 60 m
-            of the shore), 'channels' (cut by 1+ gaps), 'continuous'
-            (unbroken over 3/4 of it), else 'patchy'. Not closeouts: from
-            space a big day is white right across, broken waves and all
+  gaps      channels, on days with breaking along 40% or more: 50 m or
+            more with none, or where the outer breaking pulls back to
+            under half the bar's distance (a rip, the shorebreak still
+            white), with breaking either side
+  bar_m     median distance from the shoreline to the outer edge of the
+            breaking (grows with the swell: checked over 60 days, r 0.7)
+  label     'flat' (cover < 0.15), 'inside only' (bar_m 60 m or less),
+            'channels' (1+ channels), 'continuous' (unbroken over 3/4 of
+            it), else 'patchy'. Not closeouts: from space a big day is
+            white right across, broken waves and all
   cloud     share of the strip under cloud or its shadow (over 10%: skipped)
 
 Scenes from Element 84's Earth Search catalogue (public, no key), read a
@@ -43,7 +52,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SURF = os.path.dirname(HERE)
 STAC = 'https://earth-search.aws.element84.com/v1/search'
 ALONG, BACK, OUT, STEP = 700, 150, 700, 10      # metres
-SWASH, MIN_GAP, MAX_CLOUD, MAX_BAR = 30, 50, 0.10, 500   # metres, metres, share, metres
+MAX_CLOUD, MAX_BAR = 0.10, 500     # share, metres
+RATIO = 0.7          # SWIR / NIR: foam 0.2-0.5, sand, rock and concrete 1 and up
+MIN_RUN = 50         # metres along the beach: shorter stretches of breaking (specks) or gaps don't count
 BANDS = {'blue': 'B02', 'green': 'B03', 'red': 'B04', 'nir': 'B08'}
 os.environ.setdefault('GDAL_DISABLE_READDIR_ON_OPEN', 'EMPTY_DIR')
 
@@ -76,6 +87,11 @@ def read_scene(item, bbox):
     with rasterio.open(item['assets']['scl']['href']) as ds:
         win = from_bounds(*transform_bounds('EPSG:4326', ds.crs, *bbox), ds.transform)
         bands['scl'] = ds.read(1, window=win, out_shape=meta['shape'], resampling=Resampling.nearest)
+    # Shortwave infrared (20 m): water, foam included, swallows it; sand,
+    # wet sand, rock and concrete don't. What tells foam from a groyne.
+    with rasterio.open(item['assets']['swir16']['href']) as ds:
+        win = from_bounds(*transform_bounds('EPSG:4326', ds.crs, *bbox), ds.transform)
+        bands['swir'] = ds.read(1, window=win, out_shape=meta['shape'], resampling=Resampling.bilinear).astype(np.float32) / 10000
     return bands, meta
 
 
@@ -111,7 +127,8 @@ def shoreline(s):
     """Per column, the last land row before the sea (rows run seaward first), and the land mask."""
     b, r, n = s['blue'], s['red'], s['nir']
     warm = (r - b) / np.maximum(r + b, 1e-4)
-    land = ((n > 0.12) & (warm > 0.12)) | (s['scl'] == 4)   # sand and dunes (warm, bright), vegetation
+    ratio = s['swir'] / np.maximum(n, 1e-3)
+    land = ((n > 0.12) & (warm > 0.12)) | (s['scl'] == 4) | ((n > 0.05) & (ratio >= RATIO))   # sand (warm, bright), vegetation, and wet sand / rock / concrete (bright in SWIR)
     H, Wd = n.shape
     shore = np.full(Wd, -1)
     for x in range(Wd):
@@ -150,50 +167,69 @@ def analyse(s, ns):
     if float(np.median(s['nir'][: s['nir'].shape[0] // 3])) > 0.06:
         cloud = 1.0
     shore, land, warm = shoreline(s)
-    foam = (n > 0.05) & (b > 0.07) & (warm < 0.12) & ~land   # whitewater: bright in infrared, white not warm
+    ratio = s['swir'] / np.maximum(n, 1e-3)
+    foam = (n > 0.05) & (b > 0.07) & (warm < 0.12) & (ratio < RATIO) & ~land   # whitewater: bright in NIR, white, dark in SWIR
     H, Wd = n.shape
     ok = shore > int(H * 0.25)
     if ok.mean() < 0.6:
         return None, cloud
-    dist = lambda x, y: (shore[x] - y) * STEP              # metres seaward of the shoreline
-    outer = np.full(Wd, np.nan); breaking = np.zeros(Wd, bool); share = np.zeros(Wd)
+    # Per column: the foam seaward of the shoreline, in runs (rows). A run
+    # under 20 m deep is a speck, a whitecap or the swash line, and doesn't
+    # count; any other is breaking (a shorebreak too). outer: how far out the
+    # furthest of it reaches.
+    outer = np.full(Wd, np.nan)
+    brk = np.zeros(Wd, bool)
     for x in range(Wd):
         if not ok[x]:
             continue
-        ys = np.where(foam[: shore[x], x])[0]
-        far = ys[[SWASH < dist(x, y) <= MAX_BAR for y in ys]] if len(ys) else ys
-        breaking[x] = len(far) >= 2
-        share[x] = len(far) / max(1, (shore[x] - max(0, shore[x] - (OUT // STEP))))
-        if len(far):
-            outer[x] = dist(x, far.min())
+        col = foam[: shore[x], x][::-1]                    # from the shore outward
+        y, far = 0, 0.0
+        while y < len(col):
+            if col[y]:
+                y0 = y
+                while y < len(col) and col[y]:
+                    y += 1
+                d0, d1 = y0 * STEP, y * STEP                # metres out, inner and outer edge
+                if y - y0 >= 2 and d0 <= MAX_BAR:
+                    far = max(far, d1)
+            y += 1
+        if far:
+            brk[x], outer[x] = True, far
     xs = np.where(ok)[0]
-    br = breaking[xs]
+    br = brk[xs].copy()
+    m = MIN_RUN // STEP
+    def runs(v):
+        out, i = [], 0
+        while i < len(v):
+            j = i
+            while j < len(v) and v[j] == v[i]:
+                j += 1
+            out.append((bool(v[i]), i, j)); i = j
+        return out
+    for v, i, j in runs(br):                               # specks of breaking out
+        if v and j - i < m:
+            br[i:j] = False
+    for v, i, j in runs(br):                               # narrow gaps in
+        if not v and j - i < m and i > 0 and j < len(br):
+            br[i:j] = True
     cover = float(br.mean())
-    runs, val, cur = [], br[0], 0
-    for v in br:
-        if v == val: cur += 1
-        else: runs.append((val, cur)); val, cur = v, 1
-    runs.append((val, cur))
-    min_gap = MIN_GAP // STEP
-    merged = []
-    for v, k in runs:
-        if not v and k < min_gap and merged and merged[-1][0]:
-            merged[-1] = (True, merged[-1][1] + k)
-        elif merged and merged[-1][0] == v:
-            merged[-1] = (v, merged[-1][1] + k)
-        else:
-            merged.append((v, k))
-    longest = max([k for v, k in merged if v] or [0]) / len(xs)
-    gaps = sum(1 for v, k in (merged[1:-1] if len(merged) > 2 else []) if not v)
-    bar = float(np.nanmedian(outer[xs][br])) if br.any() else None
-    near = float(np.mean([1 if (o <= 60) else 0 for o in outer[xs][br]])) if br.any() else 0.0
-    # From space a big day is white right across, broken waves and all, so it
-    # can't tell a closeout from a good day; what it shows is where the bar is
-    # and whether channels cut through it.
-    label = ('flat' if cover < 0.15 else 'inside only' if near >= 0.7 else
-             'channels' if gaps >= 1 and cover >= 0.25 else 'continuous' if longest >= 0.75 else 'patchy')
+    longest = max([j - i for v, i, j in runs(br) if v] or [0]) / len(xs)
+    o = outer[xs]
+    bar = float(np.nanmedian(o[br])) if br.any() else None
+    # Channels: on a day with real breaking, stretches of 50 m or more where
+    # there's none, or where the outer breaking pulls back to under half the
+    # bar's distance (a rip through the bar, the shorebreak still white),
+    # with breaking either side.
+    gaps = 0
+    if bar and cover >= 0.4:
+        sm = np.array([np.nanmedian(o[max(0, i - 2): i + 3]) if br[max(0, i - 2): i + 3].any() else 0 for i in range(len(o))])
+        gap = ~br | (np.nan_to_num(sm) < 0.5 * bar)
+        gaps = sum(1 for v, i, j in runs(gap) if v and j - i >= m and i > 0 and j < len(gap))
+    label = ('flat' if cover < 0.15 else 'inside only' if bar is not None and bar <= 60 else
+             'channels' if gaps >= 1 else 'continuous' if longest >= 0.75 else 'patchy')
+    full = np.zeros(Wd, bool); full[xs] = br
     return {'cover': round(cover, 3), 'longest': round(longest, 3), 'gaps': gaps, 'bar_m': None if bar is None else round(bar),
-            'label': label, 'cloud': round(cloud, 3), 'foam': foam, 'shore': shore, 'ok': ok}, cloud
+            'label': label, 'cloud': round(cloud, 3), 'brk': full, 'outer': outer, 'shore': shore, 'ok': ok}, cloud
 
 
 def picture(spot, bands, meta, faces, a, k=6):
@@ -205,8 +241,8 @@ def picture(spot, bands, meta, faces, a, k=6):
     im = Image.fromarray((np.clip(rgb / 0.25, 0, 1) ** 0.6 * 255).astype(np.uint8))
     if a:
         d = ImageDraw.Draw(im)
-        for x in range(len(a['ok'])):
-            if a['ok'][x] and a['foam'][: a['shore'][x], x].sum() >= 2:
+        for x in range(len(a['brk'])):
+            if a['brk'][x]:
                 d.rectangle([x * k, 0, x * k + k - 1, 7], fill=(255, 80, 80))
     return im
 
