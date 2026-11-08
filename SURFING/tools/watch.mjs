@@ -8,14 +8,20 @@
      the worker's forecast build (hourly, worker cron)          3 h
      the Copernicus IBI run it's using (surf-ibi.yml, 6-hourly)  14 h
      the models' record (surf-skill.yml, 3-hourly)               8 h
-     IPMA station readings filed (hourly, worker cron)           3 h
+     IPMA station readings filed (hourly, worker cron)           3.5 h behind IPMA's own
+                                                                 feed (IPMA going quiet is
+                                                                 noted, not failed; 24 h if
+                                                                 the feed can't be read)
      the full history run (6-hourly, worker cron)                8 h
      the newest buoy and tide gauge readings filed               48 h (EMODnet runs a day behind)
      the cams' bank readings (surf-banks, hourly by day)          3 h, 09–18 UTC only
      the satellite bank readings (surf-sat, every clear pass)     21 days (cloud can hide the coast for a fortnight)
      the page counter worker answering                           -
    Exits 1 with a line per problem; prints a line per check either way. */
+import { loadSite } from './site.mjs';
+
 const SURF = 'https://surf-feedback.odj-clarke.workers.dev';
+const IPMA = 'https://api.ipma.pt/open-data/observation/meteorology/stations/';
 const TALLY = 'https://allfield-tally.odj-clarke.workers.dev';
 const H = 36e5;
 
@@ -38,6 +44,35 @@ async function get(url) {
   }
 }
 
+// IPMA readings, judged against IPMA's own feed, for the stations the worker
+// files (those within 60 km of a spot). IPMA posts an hour 1-2.5 h late and
+// the worker runs at :05, so any hour IPMA has that's 3.5 h old should be
+// filed by now: missing it is the worker's fault. IPMA itself going quiet isn't: a warning, and the
+// worker's full run patches what it can from SYNOP (worker/synop.js).
+async function checkIpma(last) {
+  let newest, due;
+  try {
+    const { CAMS, km } = loadSite();
+    const [stations, obs] = await Promise.all([get(IPMA + 'stations.json'), get(IPMA + 'observations.json')]);
+    const near = stations.filter((s) => { const [lon, lat] = s.geometry.coordinates; return CAMS.some((c) => km(c.lat, c.lng, lat, lon) <= 60); }).map((s) => String(s.properties.idEstacao));
+    if (!near.length) throw new Error('no IPMA stations near the spots');
+    const hours = Object.keys(obs).filter((h) => near.some((id) => obs[h] && obs[h][id])).map((h) => h.slice(0, 13) + ':00').sort();
+    newest = hours.at(-1) || null;
+    due = hours.filter((h) => ageH(h) >= 3.5).at(-1) || null;
+  } catch (e) {
+    console.log(`note  IPMA's feed unreadable from here (${e.message}); falling back to a 24 h limit`);
+    return check('IPMA readings', last, 24);
+  }
+  if (!newest) {
+    const line = `IPMA readings: ${last || 'never'} filed; IPMA's feed has nothing for our stations in its last 24 h (their outage, not ours)`;
+    console.log('ok    ' + line);
+    return console.log(`::warning::${line}`);
+  }
+  const line = `IPMA readings: ${last || 'never'} filed, IPMA's newest ${newest} (${ageH(newest).toFixed(1)} h ago)`;
+  if (due && (!last || last < due)) { problems.push(`${line}; IPMA has had ${due} for hours, the worker hasn't filed it`); return console.log('STALE ' + line); }
+  console.log('ok    ' + line + (ageH(newest) > 3 ? ' — IPMA itself is behind' : ''));
+}
+
 try {
   const fc = await get(`${SURF}/forecast`);
   check('forecast build', fc.built, 3);
@@ -48,7 +83,7 @@ try {
 try {
   const st = await get(`${SURF}/history/status`);
   const kind = (k) => (st.obs || []).find((o) => o.kind === k);
-  check('IPMA readings', kind('ipma') && kind('ipma').last, 3);
+  await checkIpma(kind('ipma') && kind('ipma').last);
   check('buoy readings', kind('buoy') && kind('buoy').last, 48);
   check('tide gauge readings', kind('tide') && kind('tide').last, 48);
   const full = (st.runs || []).find((r) => r.kind === 'full');

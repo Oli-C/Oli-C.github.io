@@ -21,6 +21,7 @@ const parts = [
   ['worker/accounts.js', './worker/accounts.js'],
   ['worker/feedback.js', './worker/feedback.js'],
   ['worker/forecast.js', './worker/forecast.js'],
+  ['worker/synop.js', './worker/synop.js'],
   ['worker/history.js', './worker/history.js'],
   ['worker/grid.js', './worker/grid.js'],
   ['worker/banks.js', './worker/banks.js'],

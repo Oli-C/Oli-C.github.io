@@ -18,7 +18,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: SURFING/tools/watch.mjs
+          sparse-checkout: |
+            SURFING/tools/watch.mjs
+            SURFING/tools/site.mjs
+            SURFING/spots.js
+            SURFING/stations.js
+            SURFING/swan.js
+            SURFING/score.js
           sparse-checkout-cone-mode: false
       - uses: actions/setup-node@v4
         with:

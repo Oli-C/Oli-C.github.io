@@ -23,7 +23,8 @@
              each finished day summed up (score.js dayDigest), scored as of
              `build` (the worker build that wrote it)
 
-   Hourly: the IPMA stations. Every 6 hours (00, 06, 12, 18 UTC): the buoys
+   Hourly: the IPMA stations. Every 6 hours (00, 06, 12, 18 UTC): IPMA's
+   synoptic stations' missing hours of the last week from SYNOP (synop.js), the buoys
    and gauges (EMODnet lags a day or more, so each picks up from its last
    stored hour), the wave models at the buoys, and the spots' finished days
    from the latest forecast build (the last two are rewritten until they
@@ -63,10 +64,11 @@ async function insertRows(db, table, cols, rows) {
 const hourIso = (t) => t.slice(0, 13) + ':00';   // "2026-10-28T14:00"
 
 // IPMA stations within 60 km of a spot: every hour IPMA still has (~24).
+const IPMA_BASE = 'https://api.ipma.pt/open-data/observation/meteorology/stations/';
+const ipmaNear = (stations) => new Set(stations.filter((s) => { const [lon, lat] = s.geometry.coordinates; return CAMS.some((c) => km(c.lat, c.lng, lat, lon) <= 60); }).map((s) => String(s.properties.idEstacao)));
 async function archiveIpma(db) {
-  const base = 'https://api.ipma.pt/open-data/observation/meteorology/stations/';
-  const [stations, observations] = await Promise.all([fetch(base + 'stations.json').then((r) => r.json()), fetch(base + 'observations.json').then((r) => r.json())]);
-  const near = new Set(stations.filter((s) => { const [lon, lat] = s.geometry.coordinates; return CAMS.some((c) => km(c.lat, c.lng, lat, lon) <= 60); }).map((s) => String(s.properties.idEstacao)));
+  const [stations, observations] = await Promise.all([fetch(IPMA_BASE + 'stations.json').then((r) => r.json()), fetch(IPMA_BASE + 'observations.json').then((r) => r.json())]);
+  const near = ipmaNear(stations);
   const rows = [];
   for (const [h, byId] of Object.entries(observations)) {
     for (const [id, o] of Object.entries(byId || {})) {
@@ -75,6 +77,35 @@ async function archiveIpma(db) {
       if (ws == null && air == null) continue;
       rows.push([sqlStr('ipma:' + id), sqlStr(hourIso(h)), sqlNum(ws), sqlNum(IPMA_DIR[o.idDireccVento] ?? null), sqlNum(air)]);
     }
+  }
+  return insertRows(db, 'obs', ['src', 't', 'ws', 'wd', 'air'], rows);
+}
+
+// The nearby IPMA stations that are also synoptic stations (12005NN = WMO
+// 085NN): their hours missing from the last week (IPMA's feed went quiet,
+// or the worker didn't run), filled from Ogimet's SYNOP archive (synop.js),
+// filed as the station's own. Hours under 3 h old are left for IPMA. One
+// request for the whole Portuguese block, only when something's missing.
+// Ogimet being down is noted, not an error: IPMA is the source, this the patch.
+async function fillSynop(db) {
+  const stations = await fetch(IPMA_BASE + 'stations.json').then((r) => r.json());
+  const ids = [...ipmaNear(stations)].filter((id) => /^12005\d\d$/.test(id));
+  if (!ids.length) return 0;
+  const now = Date.now(), from = hourIso(new Date(now - 7 * 864e5).toISOString()), to = hourIso(new Date(now - 3 * 36e5).toISOString());
+  const have = await db.prepare(`SELECT src, t FROM obs WHERE src IN (${ids.map((id) => sqlStr('ipma:' + id)).join(',')}) AND t >= ? AND t <= ?`).bind(from, to).all();
+  const got = new Set(have.results.map((r) => r.src + '|' + r.t));
+  if (got.size >= ids.length * (Math.round((Date.parse(to + 'Z') - Date.parse(from + 'Z')) / 36e5) + 1)) return 0;
+  const stamp = (t) => t.replace(/[-T:]/g, '');
+  const r = await fetch(`https://www.ogimet.com/cgi-bin/getsynop?block=085&begin=${stamp(from)}&end=${stamp(to)}`, { headers: HIST_UA });
+  if (!r.ok) return `unavailable: ogimet ${r.status}`;
+  const rows = [];
+  for (const line of (await r.text()).split('\n')) {
+    const o = decodeSynop(line);
+    if (!o || o.t < from || o.t > to) continue;
+    const src = 'ipma:12005' + o.wmo.slice(3);
+    if (!ids.includes(src.slice(5)) || got.has(src + '|' + o.t) || (o.ws == null && o.air == null)) continue;
+    got.add(src + '|' + o.t);
+    rows.push([sqlStr(src), sqlStr(o.t), sqlNum(o.ws), sqlNum(o.wd == null ? null : (Math.round(o.wd / 45) % 8) * 45), sqlNum(o.air)]);
   }
   return insertRows(db, 'obs', ['src', 't', 'ws', 'wd', 'air'], rows);
 }
@@ -221,9 +252,10 @@ async function archiveHistory(env, force) {
     try { out.buoys = await archiveBuoys(db); } catch (e) { out.buoys = 'error: ' + e.message; }
     try { out.fc = await archiveWaveForecasts(db); } catch (e) { out.fc = 'error: ' + e.message; }
     try { out.spots = await archiveSpots(db, env); } catch (e) { out.spots = 'error: ' + e.message; }
+    try { out.synop = await fillSynop(db); } catch (e) { out.synop = 'unavailable: ' + e.message; }
   }
   out.ms = Date.now() - started;
-  try { await db.prepare('INSERT OR REPLACE INTO runs (t, kind, n, ms, note) VALUES (?, ?, ?, ?, ?)').bind(new Date().toISOString().slice(0, 16), six ? 'full' : 'ipma', [out.ipma, out.buoys, out.fc, out.spots].reduce((a, v) => a + (typeof v === 'number' ? v : 0), 0), out.ms, JSON.stringify(out)).run(); } catch {}
+  try { await db.prepare('INSERT OR REPLACE INTO runs (t, kind, n, ms, note) VALUES (?, ?, ?, ?, ?)').bind(new Date().toISOString().slice(0, 16), six ? 'full' : 'ipma', [out.ipma, out.buoys, out.fc, out.spots, out.synop].reduce((a, v) => a + (typeof v === 'number' ? v : 0), 0), out.ms, JSON.stringify(out)).run(); } catch {}
   return out;
 }
 
