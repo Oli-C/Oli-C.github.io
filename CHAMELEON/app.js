@@ -58,7 +58,7 @@ const POSTERS = [
   { img: 'posters/Marv - 17 Mar 2023.webp',                                   title: 'Marv B',                                 meta: '17 Mar 2023', venue: 'Bluebox, York',         lineup: ['Marv B', 'Yuba'] },
   { img: 'posters/Barker - 17 Feb 2023.webp',                                 title: 'Barker (Live)',                          meta: '17 Feb 2023', venue: 'The Crescent, York',    lineup: ['Barker', 'Deo'] },
   { img: 'posters/Tan - 3 Feb 2023.webp',                                     title: 'Tañ',                                    meta: '3 Feb 2023',  venue: 'Bluebox, York',         lineup: ['Tañ', 'B:Cam', 'Allfield'] },
-  { img: 'posters/Space Cadets - 20 Jan 2023.webp',                           title: 'Space Cadets',                           meta: '20 Jan 2023', venue: 'Bluebox, York',         lineup: ['Adam Pits', 'Deo', 'Lisene'] },
+  { img: 'posters/Space Cadets - 20 Jan 2023.webp',                           title: 'Space Cadets',                           meta: '20 Jan 2023', venue: 'Bluebox, York',         lineup: ['Adam Pits', 'Deo', 'Lisene', 'Donk Fantisee'] },
 
   // ---- 2022
   { img: 'posters/Hutch - Chameleon 3rd Birthday - 3 Dec 2022.webp',          title: 'Hutch · Chameleon 3rd Birthday',         meta: '3 Dec 2022',  venue: 'Bluebox, York',         lineup: ['Hutch', 'Allfield', 'B:Cam', 'Deo', 'New Ends', 'Yuba'] },
