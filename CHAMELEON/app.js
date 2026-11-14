@@ -4,8 +4,6 @@ import { RenderPass }         from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass }    from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass }         from 'three/addons/postprocessing/ShaderPass.js';
 import { SMAAPass }           from 'three/addons/postprocessing/SMAAPass.js';
-import { OutputPass }         from 'three/addons/postprocessing/OutputPass.js';
-import { RGBELoader }         from 'three/addons/loaders/RGBELoader.js';
 
 // =============================================================================
 //  Posters — Chameleon event poster archive (WebP-encoded from the print archive)
@@ -255,23 +253,65 @@ scene.add(moon);
 // default flipY=true: canvas BOTTOM → v=0 → cylinder bottom, canvas TOP → v=1
 // → cylinder top. The MIDDLE of the canvas = the middle of the cylinder.
 const pillarTex = (() => {
-  const c = document.createElement('canvas');
-  c.width = 4; c.height = 512;
-  const ctx = c.getContext('2d');
-  const g = ctx.createLinearGradient(0, 0, 0, 512);
-  g.addColorStop(0.00, 'rgba(255,250,235,0)');      // top of canvas / cylinder = far sky → gone
-  g.addColorStop(0.15, 'rgba(255,250,235,0.08)');
-  g.addColorStop(0.35, 'rgba(255,250,235,0.55)');
-  g.addColorStop(0.50, 'rgba(255,250,235,1)');      // middle of canvas / cylinder = floor level → brightest
-  g.addColorStop(0.65, 'rgba(255,250,235,0.55)');
-  g.addColorStop(0.85, 'rgba(255,250,235,0.08)');
-  g.addColorStop(1.00, 'rgba(255,250,235,0)');      // bottom of canvas / cylinder = far below floor → gone
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 4, 512);
-  const t = new THREE.CanvasTexture(c);
+  // [height 0–1, alpha]; the colour is the same warm white throughout.
+  // Computed, not drawn with a canvas gradient: Safari returns canvas
+  // gradients with the colour of their faint parts wrecked (an olive cast
+  // and stripes up the beam), as it did the floor pool's.
+  const STOPS = [[0.00, 0], [0.15, 0.08], [0.35, 0.55], [0.50, 1], [0.65, 0.55], [0.85, 0.08], [1.00, 0]];
+  const H = 512, data = new Uint8Array(H * 4);
+  for (let y = 0; y < H; y++) {
+    const v = y / (H - 1), k = Math.max(1, STOPS.findIndex((st) => st[0] >= v)), a = STOPS[k - 1], b = STOPS[k];
+    data.set([255, 250, 235, Math.round((a[1] + (b[1] - a[1]) * (v - a[0]) / (b[0] - a[0])) * 255)], y * 4);
+  }
+  const t = new THREE.DataTexture(data, 1, H, THREE.RGBAFormat);
   t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = t.minFilter = THREE.LinearFilter;
+  t.needsUpdate = true;
   return t;
 })();
+
+// A beam of light has no surface: it's brightest where you look through the
+// most of it and thins to nothing at its sides. So each cylinder fades by how
+// squarely its wall faces the eye (1 at the middle of the beam as seen, 0 at
+// the silhouette) instead of ending in a hard vertical edge.
+// Kept cheap, since the beam can fill the screen: the facing is worked out
+// per vertex (the cylinders have plenty) and the pixel shader only squares
+// it; and only the near wall is drawn (FrontSide, at about twice the old
+// opacity to match what near + far walls added up to), halving the beam's fill.
+// Haze drifting slowly up the beam, so it reads as light through dusty air
+// rather than a static column: one lookup per pixel into a small tiling
+// noise texture, scrolled by the grain pass's clock.
+const beamHazeTex = (() => {
+  const N = 128, data = new Uint8Array(N * N * 4), f = new Float32Array(N * N);
+  for (const cells of [4, 8, 16]) {                  // three octaves of tiling value noise
+    const grid = Float32Array.from({ length: cells * cells }, Math.random), amp = 4 / cells;
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const gx = x / N * cells, gy = y / N * cells, x0 = gx | 0, y0 = gy | 0;
+      const tx = gx - x0, ty = gy - y0, sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+      const at = (ax, ay) => grid[(ay % cells) * cells + (ax % cells)];
+      f[y * N + x] += amp * ((at(x0, y0) * (1 - sx) + at(x0 + 1, y0) * sx) * (1 - sy) + (at(x0, y0 + 1) * (1 - sx) + at(x0 + 1, y0 + 1) * sx) * sy);
+    }
+  }
+  for (let k = 0; k < N * N; k++) data.set([255, 255, 255, 255].fill(Math.min(255, f[k] / 1.75 * 255), 0, 3), k * 4);
+  const t = new THREE.DataTexture(data, N, N, THREE.RGBAFormat);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.magFilter = t.minFilter = THREE.LinearFilter;
+  t.needsUpdate = true;
+  return t;
+})();
+function softBeam(mat) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uHaze = { value: beamHazeTex };
+    sh.uniforms.uTime = finalPass.uniforms.time;     // seconds; the tick loop keeps it
+    sh.vertexShader = 'varying float vEdge;\n' + sh.vertexShader.replace('#include <project_vertex>',
+      // Facing measured flat, across the beam (it stands upright at the origin):
+      // the wall's outward direction against the direction to the camera.
+      '#include <project_vertex>\n  vEdge = abs(dot(normalize(normal.xz), normalize(cameraPosition.xz - position.xz)));');
+    sh.fragmentShader = 'varying float vEdge;\nuniform sampler2D uHaze;\nuniform float uTime;\n' + sh.fragmentShader.replace('#include <map_fragment>',
+      '#include <map_fragment>\n  diffuseColor.a *= vEdge * vEdge * (0.72 + 0.56 * texture2D(uHaze, vec2(vMapUv.x * 2.0 + uTime * 0.004, vMapUv.y * 26.0 - uTime * 0.011)).r);');
+  };
+  return mat;
+}
 
 // Beam centred on the floor: extends 60 m up AND 60 m down through the hole.
 // Fog + the texture gradient combine so both ends dissolve into atmosphere.
@@ -279,34 +319,34 @@ const PILLAR_H = 120;
 const PILLAR_Y = 0;            // cylinder centred ON the floor
 
 const pillar = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.22, 0.22, PILLAR_H, 24, 1, true),
-  new THREE.MeshBasicMaterial({
+  new THREE.CylinderGeometry(0.22, 0.22, PILLAR_H, 64, 1, true),
+  softBeam(new THREE.MeshBasicMaterial({
     map: pillarTex,
     color: 0xfff4dc,
     transparent: true,
-    opacity: 0.42,
+    opacity: 1.0,            // one wall now, not two; and the soft edges take some light away
     blending: THREE.AdditiveBlending,
-    side: THREE.DoubleSide,
+    side: THREE.FrontSide,
     depthWrite: false,
     fog: true,
-  })
+  }))
 );
 pillar.position.y = PILLAR_Y;
 scene.add(pillar);
 
 // Wider, softer outer glow cylinder
 const halo = new THREE.Mesh(
-  new THREE.CylinderGeometry(1.4, 1.4, PILLAR_H, 24, 1, true),
-  new THREE.MeshBasicMaterial({
+  new THREE.CylinderGeometry(1.4, 1.4, PILLAR_H, 96, 1, true),
+  softBeam(new THREE.MeshBasicMaterial({
     map: pillarTex,
     color: 0xfff4dc,
     transparent: true,
-    opacity: 0.18,
+    opacity: 0.50,           // as above
     blending: THREE.AdditiveBlending,
-    side: THREE.DoubleSide,
+    side: THREE.FrontSide,
     depthWrite: false,
     fog: true,
-  })
+  }))
 );
 halo.position.y = PILLAR_Y;
 scene.add(halo);
@@ -389,29 +429,38 @@ const floorRoughnessTex = texLoader.load('textures/concrete/concrete_roughness.w
 //  Posters float in open space; fog hides the absence of architecture.
 // =============================================================================
 
-// Floor material: MeshPhysicalMaterial with clearcoat for polished-concrete reflectivity
+// Floor material: plain MeshStandardMaterial. It used to be a
+// MeshPhysicalMaterial with clearcoat and anisotropy, the costliest material
+// features three has, on the surface that fills most of the screen; with no
+// environment to reflect they changed next to nothing in the picture.
 // Floor tile scale — each tile is ~2 m, denser repeat than before so the
 // concrete texture's micro-detail is readable at walking distance.
 const floorRepeat = [ROOM.radius / 2, ROOM.radius / 2];
 [floorColorTex, floorNormalTex, floorRoughnessTex].forEach(t => t.repeat.set(...floorRepeat));
-// Mobile uses the lighter MeshStandardMaterial — no clearcoat / anisotropy
-// (those are some of the most expensive uniforms / branches in the PBR
 // Warm tint multiplied with the grey concrete albedo — free way to get
 // chroma into the floor without paying for a second directional light.
 const FLOOR_TINT = 0xf2e6c8;   // pale ochre — lifts the outer floor out of shadow
-const floorMat = new THREE.MeshPhysicalMaterial({
+const floorMat = new THREE.MeshStandardMaterial({
   color:              FLOOR_TINT,
   map:                floorColorTex,
   normalMap:          floorNormalTex,
   roughnessMap:       floorRoughnessTex,
   normalScale:        new THREE.Vector2(0.55, 0.55),
   metalness:          0.0,
-  clearcoat:          0.08,
-  clearcoatRoughness: 0.90,
-  anisotropy:         0.4,
-  anisotropyRotation: 0,
-  envMapIntensity:    0,        // HDRI off on the floor — star glints in the HDRI were the source of the green-blob artefact on iOS
 });
+
+// The floor's rim sinks into the dark instead of ending in a hard line
+// against the sky. Done inside the floor's own shader (its lit colour is
+// scaled down to nothing over the outer fifth), not with a dark ring laid
+// on top: a second surface a few millimetres above the floor fights it for
+// depth at a distance, which drew a line across the screen.
+floorMat.onBeforeCompile = (sh) => {
+  sh.uniforms.uRim = { value: new THREE.Vector2(ROOM.radius * 0.80, ROOM.radius) };
+  sh.vertexShader = 'varying float vRimR;\n' + sh.vertexShader.replace('#include <begin_vertex>',
+    '#include <begin_vertex>\n  vRimR = length(position.xy);');   // the ring lies in its own XY plane
+  sh.fragmentShader = 'varying float vRimR;\nuniform vec2 uRim;\n' + sh.fragmentShader.replace('#include <opaque_fragment>',
+    'outgoingLight *= 1.0 - smoothstep(uRim.x, uRim.y, vRimR);\n  #include <opaque_fragment>');
+};
 
 // Floor — ring with an open hole at the centre so the light shaft can
 // pass through. Inner radius matches the halo (1.4 m) so the beam fits
@@ -490,16 +539,22 @@ scene.add(innerLip);
     blending: THREE.AdditiveBlending,
     fog: false,
   });
+  // Twinkle and size, on the GPU: each star gets its own size, pace and
+  // phase from its position, and breathes in brightness and a little in
+  // size. (It used to be 30 random stars re-dimmed on the CPU each frame,
+  // re-sending the whole colour buffer every time, for an effect too faint
+  // to see.)
+  starMat.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = finalPass.uniforms.time;
+    sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <logdepthbuf_vertex>', `
+      float starId = fract(sin(dot(position.xyz, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+      float twinkle = 0.5 + 0.5 * sin(uTime * (0.5 + 2.2 * starId) + starId * 6.2831);
+      gl_PointSize *= (0.65 + 1.0 * starId * starId) * (0.85 + 0.3 * twinkle);
+      vColor.rgb *= 0.5 + 0.5 * twinkle;
+      #include <logdepthbuf_vertex>`);
+  };
   const stars = new THREE.Points(starGeo, starMat);
   scene.add(stars);
-
-  // Expose for twinkle in the tick loop — keep an immutable copy of the base
-  // colours so we can dim individual stars then restore them on a sine.
-  scene.userData.stars = {
-    points: stars,
-    base:   new Float32Array(colour),
-    count:  STAR_COUNT,
-  };
 }
 
 // =============================================================================
@@ -739,7 +794,9 @@ const paintings = [];
 const POSTER_BASE_COLOR = new THREE.Color(0xf6e8cc);
 const CARD_PAD   = 0.07;
 const CARD_DEPTH = 0.025;
-const cardMat = new THREE.MeshStandardMaterial({ color: 0x1f2125, roughness: 0.9, metalness: 0 });
+// The faint emissive stands in for the ambient the old HDRI environment gave
+// the cards: without it they sink into the black behind them.
+const cardMat = new THREE.MeshStandardMaterial({ color: 0x1f2125, roughness: 0.9, metalness: 0, emissive: 0x2a2520, emissiveIntensity: 0.3 });
 const _cardGeomCache = new Map();
 function _cardGeom(w, h) {
   const key = `${w.toFixed(3)}x${h.toFixed(3)}`;
@@ -751,10 +808,34 @@ function _cardGeom(w, h) {
   return g;
 }
 
+// Posters are unlit (their colours stay true), which on its own makes each a
+// flat glowing screen. A fixed shading in the shader makes them sit in the
+// room's light instead: a little brighter low down, where the pillar's pool
+// is, and falling away towards the corners. No lights, no extra pass.
+function shadePoster(sh) {
+  sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+  {
+    float low = mix(1.05, 0.86, smoothstep(0.0, 1.0, vMapUv.y));
+    float corner = 1.0 - 0.16 * smoothstep(0.30, 0.72, length(vMapUv - 0.5));
+    diffuseColor.rgb *= low * corner;
+  }`);
+}
+
 function makePoster({ img, title, meta, url, indexLabel, venue, lineup, w, h }, parent) {
-  const tex = texLoader.load(img, t => {
+  // Round the ring every poster wears a small copy (posters/sm/, 512 px tall,
+  // made by build.mjs): a GPU holds textures as raw pixels, so 51 full-size
+  // posters were ~210 MB there; the small ones are about a quarter of that.
+  // The full-size file is fetched for whichever poster you're at (sharpen,
+  // below). A poster with no small copy yet just uses its full one.
+  const asPoster = (t) => {
     t.colorSpace = THREE.SRGBColorSpace;
     t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    tintPool(group.userData.paintingIdx, t.image);
+  };
+  let onlyFull = false;
+  const tex = texLoader.load(img.replace('posters/', 'posters/sm/'), asPoster, undefined, () => {
+    onlyFull = art.userData.onlyFull = true;
+    texLoader.load(img, (t) => { asPoster(t); artMat.map = art.userData.texSm = t; artMat.needsUpdate = true; });
   });
 
   const group = new THREE.Group();
@@ -772,10 +853,12 @@ function makePoster({ img, title, meta, url, indexLabel, venue, lineup, w, h }, 
   // pillar wash rather than sitting on a cold neutral. Click-flash multiplies
   // around this base, so it's the colour each painting "rests" at.
   const artMat = new THREE.MeshBasicMaterial({ map: tex, color: POSTER_BASE_COLOR, fog: true });
+  artMat.onBeforeCompile = shadePoster;
   const art = new THREE.Mesh(new THREE.PlaneGeometry(w, h), artMat);
   art.position.z = 0.002;
   art.renderOrder = 1;
-  art.userData = { title, meta, url, indexLabel, venue, lineup, isPoster: true, group, edge: card, artMat };
+  art.userData = { title, meta, url, indexLabel, venue, lineup, isPoster: true, group, edge: card, artMat, img, texSm: tex, texHi: null, onlyFull };
+  group.userData.art = art;
   group.add(art);
   interactives.push(art);
 
@@ -851,6 +934,44 @@ overheadFlash.scale.set(0.30, 0.30, 1);
 overheadFlash.visible = false;
 scene.add(overheadFlash);
 
+// One poster at a time holds its full-size texture: the one you clicked, or
+// the nearest one you've walked up to. It swaps in when it has loaded (a
+// moment of sharpening), and the poster that had it goes back to its small
+// copy, its full texture freed.
+const hiLoader = new THREE.TextureLoader();   // not the loading-screen manager's
+let hiArt = null;
+function sharpen(art) {
+  const u = art && art.userData;
+  if (!u || art === hiArt || !u.img || u.onlyFull) return;
+  const prev = hiArt;
+  hiArt = art;
+  hiLoader.load(u.img, (t) => {
+    if (hiArt !== art) return t.dispose();       // moved on while it loaded
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    u.texHi = t;
+    u.artMat.map = t;
+  });
+  if (prev && prev.userData.texHi) {
+    prev.userData.artMat.map = prev.userData.texSm;
+    prev.userData.texHi.dispose();
+    prev.userData.texHi = null;
+  }
+}
+// Walking up to a poster counts too: every so often, the nearest within reach.
+const SHARPEN_WITHIN = 5;   // metres
+let sharpenCheckAt = 0;
+function sharpenNearest(now) {
+  if (now - sharpenCheckAt < 400) return;
+  sharpenCheckAt = now;
+  let best = null, bestD = SHARPEN_WITHIN * SHARPEN_WITHIN;
+  for (const g of paintings) {
+    const dx = g.position.x - camera.position.x, dz = g.position.z - camera.position.z, d = dx * dx + dz * dz;
+    if (d < bestD) { bestD = d; best = g; }
+  }
+  if (best && best.userData.art) sharpen(best.userData.art);
+}
+
 function placePosterAt(p, angle, isFeatured) {
   const w = 1.15;
   const h = 1.5;
@@ -881,6 +1002,53 @@ for (let i = 0; i < rest.length; i++) {
   // Skip the featured slot (-π/2). Offset by half-step so neighbours don't crowd.
   const angle = -Math.PI / 2 + (i + 1) * (Math.PI * 2 / N);
   placePosterAt(rest[i], angle, false);
+}
+
+// ---- Each poster's colour, spilled on the floor in front of it ----
+// A soft pool of light under every poster, in that poster's own colour, so
+// the ring glows and the posters belong to the room. All the pools are one
+// instanced mesh (one draw call), sharing the pillar pool's falloff texture;
+// each instance takes its colour once its poster's image has loaded.
+const posterPools = new THREE.InstancedMesh(
+  new THREE.PlaneGeometry(1, 1),
+  new THREE.MeshBasicMaterial({ map: pillarPoolTex, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }),
+  paintings.length
+);
+{
+  const m = new THREE.Object3D(), flat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2), yaw = new THREE.Quaternion(), black = new THREE.Color(0);
+  paintings.forEach((g, i) => {
+    const n = g.userData.normal;
+    m.position.set(g.position.x + n.x * 1.9, 0.012, g.position.z + n.z * 1.9);   // a couple of steps in from the poster, clear of the rim's fade
+    m.quaternion.copy(yaw.setFromAxisAngle(new THREE.Vector3(0, 1, 0), g.rotation.y)).multiply(flat);
+    m.scale.set(3.4, 5.0, 1);            // across the poster × out into the room
+    m.updateMatrix();
+    posterPools.setMatrixAt(i, m.matrix);
+    posterPools.setColorAt(i, black);    // dark until its poster's colour is known
+  });
+}
+posterPools.renderOrder = -1;
+scene.add(posterPools);
+// A poster's colour: its pixels averaged at 8 × 8, the vivid ones counting
+// for more (a plain average of a busy poster is mud), then held to a middling
+// brightness so a dark poster still gives some light and a pale one doesn't glare.
+const _tintCx = (() => { const c = document.createElement('canvas'); c.width = c.height = 8; return c.getContext('2d', { willReadFrequently: true }); })();
+function tintPool(i, image) {
+  if (i === undefined || !image) return;
+  let r = 0, g = 0, b = 0, wsum = 0;
+  try {
+    _tintCx.drawImage(image, 0, 0, 8, 8);
+    const d = _tintCx.getImageData(0, 0, 8, 8).data;
+    for (let k = 0; k < d.length; k += 4) {
+      const mx = Math.max(d[k], d[k + 1], d[k + 2]), mn = Math.min(d[k], d[k + 1], d[k + 2]);
+      const w = 0.05 + Math.pow((mx - mn) / 255, 2) * (mx / 255);
+      r += d[k] * w; g += d[k + 1] * w; b += d[k + 2] * w; wsum += w;
+    }
+  } catch { return; }
+  const c = new THREE.Color().setRGB(r / wsum / 255, g / wsum / 255, b / wsum / 255, THREE.SRGBColorSpace), hsl = {};
+  c.getHSL(hsl, THREE.SRGBColorSpace);
+  c.setHSL(hsl.h, Math.min(1, hsl.s * 1.3 + 0.08), Math.min(0.58, Math.max(0.38, hsl.l)), THREE.SRGBColorSpace);
+  posterPools.setColorAt(i, c);
+  posterPools.instanceColor.needsUpdate = true;
 }
 
 // =============================================================================
@@ -1462,6 +1630,7 @@ document.getElementById('navNext').addEventListener('click', () => navigatePaint
 
 function glideToPoster(art, withRock = true) {
   const group = art.userData.group;
+  sharpen(art);          // its full-size texture loads while the camera travels (no-op for the plaque)
   // Track which painting is "current" for the prev/next arrow nav (not for the plaque)
   if (!art.userData.isPlaque && group.userData.paintingIdx !== undefined) {
     currentPaintingIdx = group.userData.paintingIdx;
@@ -1691,27 +1860,12 @@ cardEl.addEventListener('click', () => {
 });
 
 // =============================================================================
-//  Environment map — real night-sky HDRI as an equirectangular Radiance
-//  .hdr (RGBE encoded, 512×256, ~350 KB vs the original 1.5 MB EXR). PMREM
-//  pre-filters it for env-map use, so this lower-res source looks identical
-//  to a 1K HDRI after filtering. Drives the floor's PBR reflections + adds
-//  proper HDR ambient IBL. Background stays the procedural starfield.
-//
-//  Skipped on mobile: HDR float values sampled at lower fragment precision
-//  produce chromatic banding (green/magenta dots) near additive bright
-//  sources like the pillar pool. HemisphereLight + tone-mapping exposure
-//  carry the ambient there instead. Also saves a 350 KB download.
+//  No environment map. A night-sky HDRI used to be loaded and set as
+//  scene.environment (350 KB, plus a PMREM pass at load), but the floor had
+//  its reflections turned off and still paid to sample it on every pixel;
+//  all it gave was a faint sheen on the poster cards and the plaque frame.
+//  The HemisphereLight carries the ambient.
 // =============================================================================
-{
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  pmrem.compileEquirectangularShader();
-  new RGBELoader(manager).load('textures/env/night-sky.hdr', tex => {
-    tex.mapping = THREE.EquirectangularReflectionMapping;
-    scene.environment = pmrem.fromEquirectangular(tex).texture;
-    tex.dispose();
-    pmrem.dispose();
-  });
-}
 
 // =============================================================================
 //  Post-processing — bloom + vignette + subtle grain
@@ -1743,20 +1897,24 @@ const bloom = new UnrealBloomPass(
 );
 composer.addPass(bloom);
 
-// Subtle post passes (grade / vignette / grain / smaa) — all skipped on mobile
-// because each is a full-screen pass and together they add ~2-3 ms / frame
-// that mobile GPUs can't always afford. Bloom is preserved as the one
-// signature post-pass.
-const SUBTLE_POST = true;
-
-// Color grade — subtle cool shadows / warm highlights. Anchors the palette
-// without leaning Instagram-y.
-const gradePass = new ShaderPass({
+// One closing pass does the colour grade, the film grain, the tone mapping
+// and the sRGB output together. They used to be three full-screen passes
+// (grade, grain, OutputPass), each reading and writing the whole frame;
+// folding them into one shader gives the same picture for a third of that.
+//   grade — subtle cool shadows / warm highlights, anchoring the palette;
+//   grain — kills colour banding in the dark sky and adds a hint of texture,
+//           shimmering with the time uniform;
+//   tone mapping + output colour space — three's own (the renderer's ACES and
+//           exposure settings), applied because this pass draws to the screen.
+// The vignette is a CSS overlay (#vignette in index.html): no GPU work here.
+const finalPass = new ShaderPass({
   uniforms: {
     tDiffuse: { value: null },
-    strength: { value: 0.6 },                                  // blend amount
+    strength: { value: 0.6 },                                    // grade blend amount
     shadowTint:    { value: new THREE.Color(0.88, 0.93, 1.04) }, // slight teal in darks
     highlightTint: { value: new THREE.Color(1.03, 1.00, 0.95) }, // slight warm in lights
+    time:     { value: 0 },
+    amount:   { value: 0.010 },                                  // barely-visible grain
   },
   vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
   fragmentShader: `
@@ -1764,40 +1922,6 @@ const gradePass = new ShaderPass({
     uniform float strength;
     uniform vec3 shadowTint;
     uniform vec3 highlightTint;
-    varying vec2 vUv;
-    void main() {
-      vec4 c = texture2D(tDiffuse, vUv);
-      float l = dot(c.rgb, vec3(0.299, 0.587, 0.114));
-      vec3 tint = mix(shadowTint, highlightTint, smoothstep(0.25, 0.75, l));
-      c.rgb = mix(c.rgb, c.rgb * tint, strength);
-      gl_FragColor = c;
-    }
-  `,
-});
-if (SUBTLE_POST) composer.addPass(gradePass);
-
-// Vignette — radial edge darkening. Subtle, cinematic, drops attention onto the centre.
-// Vignette moved to a CSS overlay (see #vignette in index.html). Browser
-// composites it over the canvas at higher-than-8-bit precision, so no
-// banding, and zero per-frame GPU work.
-
-// Subtle film grain — kills colour banding in the dark sky and adds a hint
-// of texture. Animated via a time uniform so the grain shimmers.
-const grainPass = new ShaderPass({
-  uniforms: {
-    tDiffuse: { value: null },
-    time:     { value: 0 },
-    amount:   { value: 0.010 },     // barely-visible grain — just enough to break banding
-  },
-  vertexShader: `
-    varying vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  fragmentShader: `
-    uniform sampler2D tDiffuse;
     uniform float time;
     uniform float amount;
     varying vec2 vUv;
@@ -1806,20 +1930,18 @@ const grainPass = new ShaderPass({
     }
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
-      float n = hash(vUv + fract(time)) - 0.5;
-      c.rgb += n * amount;
-      gl_FragColor = c;
+      float l = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+      vec3 tint = mix(shadowTint, highlightTint, smoothstep(0.25, 0.75, l));
+      c.rgb = mix(c.rgb, c.rgb * tint, strength);
+      c.rgb += (hash(vUv + fract(time)) - 0.5) * amount;
+      // as the 8-bit targets between the old passes did
+      gl_FragColor = vec4(clamp(c.rgb, 0.0, 1.0), c.a);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
     }
   `,
 });
-if (SUBTLE_POST) composer.addPass(grainPass);
-
-// SMAA — sub-pixel anti-aliasing on the final composite. ~3 full-screen
-// internal passes — skipped on mobile (renderer's MSAA is good enough there).
-// SMAA pass removed — hardware MSAA on the composerRT (samples: 4) is
-// cheaper and visually similar quality for geometric edges.
-
-composer.addPass(new OutputPass());
+composer.addPass(finalPass);
 
 // =============================================================================
 //  Main loop — look smoothing + glide + ripple + render
@@ -1936,25 +2058,6 @@ function tick() {
     }
   }
 
-  // ----- star twinkle -----
-  if (scene.userData.stars) {
-    const S = scene.userData.stars;
-    const arr = S.points.geometry.attributes.color.array;
-    const base = S.base;
-    const tt = now * 0.001;
-    // Update a random subset each frame — 30 stars / 2200 total = light cost
-    for (let i = 0; i < 30; i++) {
-      const idx = (Math.random() * S.count) | 0;
-      const phase = idx * 0.137;
-      const k = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(tt * 0.9 + phase));
-      const o = idx * 3;
-      arr[o]     = base[o]     * k;
-      arr[o + 1] = base[o + 1] * k;
-      arr[o + 2] = base[o + 2] * k;
-    }
-    S.points.geometry.attributes.color.needsUpdate = true;
-  }
-
   // ----- slow dust drift -----
   if (scene.userData.dust) {
     const dust = scene.userData.dust;
@@ -2022,7 +2125,7 @@ function tick() {
     }
 
     applyCameraRotation();
-    grainPass.uniforms.time.value = now * 0.001;
+    finalPass.uniforms.time.value = now * 0.001;
     composer.render();
     requestAnimationFrame(tick);
     return;
@@ -2097,6 +2200,8 @@ function tick() {
     camera.position.y = EYE_Y;
   }
 
+  if (!intro.active && !glide.active) sharpenNearest(now);
+
   // Step-away / look-away dismiss: fade the info card + nav arrows out once
   // the camera has visibly moved on from the focused poster — either past the
   // viewing distance, or turned far enough away that the poster is offscreen.
@@ -2120,7 +2225,7 @@ function tick() {
 
   applyCameraRotation();
 
-  grainPass.uniforms.time.value = now * 0.001;
+  finalPass.uniforms.time.value = now * 0.001;
   composer.render();
   requestAnimationFrame(tick);
 }

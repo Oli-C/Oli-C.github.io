@@ -53,3 +53,20 @@ await build({
 });
 
 console.log('built ./app.bundle.min.js');
+
+// Small copies of the posters (posters/sm/, 512 px tall) for the ring: the
+// gallery shows these everywhere and fetches a full-size poster only for the
+// one being looked at (see makePoster / sharpen in app.js). Made here for any
+// poster that has none, or whose copy is older than it. Needs cwebp
+// (brew install webp); without it the gallery falls back to the full files.
+import { readdirSync, statSync, mkdirSync, existsSync } from 'node:fs';
+const posters = join(root, 'posters'), small = join(posters, 'sm');
+mkdirSync(small, { recursive: true });
+let made = 0;
+for (const f of readdirSync(posters).filter((n) => n.endsWith('.webp'))) {
+  const src = join(posters, f), out = join(small, f);
+  if (existsSync(out) && statSync(out).mtimeMs >= statSync(src).mtimeMs) continue;
+  try { execSync(`cwebp -quiet -q 84 -resize 0 512 ${JSON.stringify(src)} -o ${JSON.stringify(out)}`); made++; }
+  catch { console.warn(`no small copy for ${f} (is cwebp installed?)`); }
+}
+console.log(`small posters: ${made} made`);
