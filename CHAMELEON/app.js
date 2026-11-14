@@ -77,7 +77,7 @@ const POSTERS = [
   { img: 'posters/Send Return - 1 Oct 2021.webp',                             title: 'Send / Return',                          meta: '1 Oct 2021',  venue: 'Bluebox, York',         lineup: ['Owari', 'Allfield', 'B:Cam', 'Deo'] },
 
   // ---- 2020 (earliest known flyer — first venue)
-  { img: 'posters/Chameleon 002 x The Lounge - 21 Feb 2020.webp',             title: 'Chameleon 002 · The Lounge',             meta: '21 Feb 2020', venue: 'The Lounge, York',      lineup: [] },
+  { img: 'posters/Chameleon 002 x The Lounge - 21 Feb 2020.webp',             title: 'Chameleon 002 · The Lounge',             meta: '21 Feb 2020', venue: 'The Lounge, York',      lineup: ['Allfield', 'B:Cam', 'Deo', 'Hudson'] },
 ];
 
 // Chronological sort — featured stays at the anchor, the rest run oldest → newest
@@ -1835,6 +1835,15 @@ function _normName(n) {
   return n.toLowerCase().replace(/[_.\s]+$/g, '').replace(/\s+/g, ' ').trim();
 }
 
+// Is the night (or the last of its nights) still to come? Its link is only
+// worth offering until then. Counted to the end of the morning after, since
+// these run past midnight; a date that can't be read counts as past.
+const _MONTH_NO = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+function isUpcoming(meta) {
+  const ends = String(meta || '').split(',').map(_parseOne).filter(Boolean)
+    .map((d) => new Date(d.year, _MONTH_NO[d.monKey], d.day + 1, 12).getTime());
+  return ends.length > 0 && Math.max(...ends) > Date.now();
+}
 function showCard(art) {
   cardArt = art;
   const { title, meta, indexLabel, venue, lineup } = art.userData;
@@ -1856,64 +1865,39 @@ function showCard(art) {
   // Support DJs = lineup minus anyone already named in the title primary.
   // Title parts split on , & and " b2b " — same separators we accept in titles.
   const titleParts = primary.split(/\s*,\s*|\s+&\s+|\s+b2b\s+/i).map(_normName);
-  const support = (lineup || []).filter(n => !titleParts.includes(_normName(n)));
+  // …and always in alphabetical order, whatever order the bill was typed in.
+  const support = (lineup || []).filter(n => !titleParts.includes(_normName(n)))
+    .sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
 
-  // Stale badge from a previous card needs clearing before render
-  const oldBadge = cardEl.querySelector('.badge');
+  // The card reads in two columns: who, on the left (its place in the run,
+  // the headliner large, then the night's subtitle and the rest of the bill);
+  // when and where, on the right, with the way out to tickets / the event
+  // page if the poster has one.
+  const el = (cls, text) => { const d = document.createElement('div'); d.className = cls; if (text) d.textContent = text; return d; };
+  const oldBadge = cardEl.querySelector(':scope > .badge');   // from the card's old layout
   if (oldBadge) oldBadge.remove();
-  if (badgeText) {
-    const b = document.createElement('div');
-    b.className = 'badge';
-    b.textContent = badgeText;
-    cardEl.appendChild(b);
-  }
-
   cardBody.replaceChildren();
 
-  if (indexLabel) {
-    const idx = document.createElement('div');
-    idx.className = 'index';
-    idx.textContent = indexLabel;
-    cardBody.appendChild(idx);
-  }
+  const top = el('top');
+  if (indexLabel) top.appendChild(el('index', indexLabel));
+  if (badgeText)  top.appendChild(el('badge', badgeText));
+  if (top.children.length) cardBody.appendChild(top);
 
-  const artistEl = document.createElement('div');
-  artistEl.className = 'artist';
-  artistEl.textContent = primary;
-  cardBody.appendChild(artistEl);
+  const who = el('who');
+  who.appendChild(el('artist', primary));
+  if (subtitle) who.appendChild(el('subtitle', subtitle));
+  if (support.length > 0) who.appendChild(el('support', 'with ' + support.join(', ')));
+  cardBody.appendChild(who);
 
-  if (subtitle) {
-    const sub = document.createElement('div');
-    sub.className = 'subtitle';
-    sub.textContent = subtitle;
-    cardBody.appendChild(sub);
-  }
-
-  if (support.length > 0) {
-    const sup = document.createElement('div');
-    sup.className = 'support';
-    sup.textContent = 'w/ ' + support.join(', ');
-    cardBody.appendChild(sup);
-  }
-
-  const div = document.createElement('span');
-  div.className = 'divider';
-  cardBody.appendChild(div);
-
+  const when = el('when');
   const dateText = compactDate(meta);
-  if (dateText) {
-    const m = document.createElement('div');
-    m.className = 'meta';
-    m.textContent = dateText;
-    cardBody.appendChild(m);
-  }
-  if (venue) {
-    const v = document.createElement('div');
-    v.className = 'venue';
-    v.textContent = venue;
-    cardBody.appendChild(v);
-  }
+  // several nights: one to a line, so no date is broken across two
+  for (const d of dateText ? dateText.split(' · ') : []) when.appendChild(el('meta', d));
+  if (venue) when.appendChild(el('venue', venue));
+  if (art.userData.url && isUpcoming(meta)) when.appendChild(el('go', (/ra\.co|seetickets|ticket/i.test(art.userData.url) ? 'Tickets' : 'Event page') + ' ↗'));
+  cardBody.appendChild(when);
 
+  cardEl.style.cursor = art.userData.url && isUpcoming(meta) ? 'pointer' : 'default';
   cardEl.classList.add('show');
   navPrevEl.classList.add('show');
   navNextEl.classList.add('show');
@@ -1927,7 +1911,7 @@ function hideCard() {
   if (b) b.remove();
 }
 cardEl.addEventListener('click', () => {
-  if (cardArt && cardArt.userData.url) window.open(cardArt.userData.url, '_blank', 'noopener');
+  if (cardArt && cardArt.userData.url && isUpcoming(cardArt.userData.meta)) window.open(cardArt.userData.url, '_blank', 'noopener');
 });
 
 // =============================================================================
