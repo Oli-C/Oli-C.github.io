@@ -8,7 +8,9 @@ import { SMAAPass }           from 'three/addons/postprocessing/SMAAPass.js';
 // =============================================================================
 //  Posters — Chameleon event poster archive (WebP-encoded from the print archive)
 // =============================================================================
-// Each entry: { img, title, meta, venue, lineup, url?, featured? }
+// Each entry: { img, title, meta, venue, lineup, url?, featured?, allNight? }
+//   allNight — the headliner(s) played all night long; the card says so
+//   restIn  — where the rest of the bill played, if not with them ("Room 2")
 //   title  — what shows as the headliner line on the info card
 //   lineup — full bill (including headliner); the renderer surfaces the
 //            non-headliner names as "support" below the title
@@ -22,13 +24,13 @@ const POSTERS = [
   // ---- 2025
   { img: 'posters/Call Super - Chameleon 6th Birthday - 12 Dec 2025.webp',  title: 'Call Super · Chameleon 6th Birthday',  meta: '12 Dec 2025', venue: 'Bluebox, York',     lineup: ['Call Super', 'Deo'] },
   { img: 'posters/Objekt - 29 Nov 2025.webp',                                title: 'Objekt',                               meta: '29 Nov 2025', venue: 'The Crescent, York', lineup: ['Objekt', 'Deo', 'B:Cam'] },
-  { img: 'posters/Deo b2b Parris - 2 May 2025.webp',                         title: 'Deo b2b Parris',                       meta: '2 May 2025',  venue: 'The Crescent, York', lineup: ['Deo', 'Parris'] },
+  { img: 'posters/Deo b2b Parris - 2 May 2025.webp',                         title: 'Deo b2b Parris',                       meta: '2 May 2025',  venue: 'The Crescent, York', lineup: ['Deo', 'Parris'], allNight: true },
   { img: 'posters/Rene Wise - 14 Mar 2025.webp',                             title: 'Rene Wise',                            meta: '14 Mar 2025', venue: 'Bluebox, York',     lineup: ['Rene Wise', 'Deo', 'Oren'] },
   { img: 'posters/Orla - 15 Feb 2025.webp',                                  title: 'Or:la',                                meta: '15 Feb 2025', venue: 'The Crescent, York', lineup: ['Or:la', 'Deo'] },
   { img: 'posters/Chameleon Free Party - 2 - 31 Jan 2025.webp',              title: 'Chameleon Free Party · 2',             meta: '31 Jan 2025', venue: 'Bluebox, York',     lineup: ['benjics', 'Burley', 'Deo', 'Hall', 'Jasp', 'Laqai'] },
 
   // ---- 2024
-  { img: 'posters/Special Request b2b Hutch - 5th Birthday - 13 Dec 2024.webp', title: 'Special Request b2b Hutch · 5th Birthday', meta: '13 Dec 2024', venue: 'Bluebox, York',         lineup: ['Special Request', 'Hutch', 'Allfield', 'Deo', 'James Frances', 'Mike Jones', 'se.arle'] },
+  { img: 'posters/Special Request b2b Hutch - 5th Birthday - 13 Dec 2024.webp', title: 'Special Request b2b Hutch · 5th Birthday', meta: '13 Dec 2024', venue: 'Bluebox, York',         lineup: ['Special Request', 'Hutch', 'Allfield', 'Deo', 'James Frances', 'Mike Jones', 'se.arle'], allNight: true, restIn: 'Room 2' },
   { img: 'posters/Pearson Sound - 29 Nov 2024.webp',                          title: 'Pearson Sound',                          meta: '29 Nov 2024', venue: 'The Crescent, York',    lineup: ['Pearson Sound', 'Harkirit'] },
   { img: 'posters/Chameleon Disco - 2 Nov 2024.webp',                         title: 'Chameleon Disco',                        meta: '2 Nov 2024',  venue: 'Bluebox, York',         lineup: ['Filip U', 'Mike Jones', 'se.arle'] },
   { img: 'posters/Chameleon x Meridian - Peckham Audio - 18 Oct 2024.webp',   title: 'Chameleon × Meridian · Peckham Audio',   meta: '18 Oct 2024', venue: 'Peckham Audio, London', lineup: ['Deo', 'B:Cam', 'Flo Ruby', 'Allfield', 'Owari', 'forms', 'Yuba'] },
@@ -52,7 +54,7 @@ const POSTERS = [
   { img: 'posters/OnRo x Chameleon - 9th Birthday - 23 Sep 2023.webp',        title: 'On Rotation',                            meta: '23 Sep 2023',  venue: 'Plant & Deck, Leeds',   lineup: ['Adam Pits', "Chris I’Anson", 'Deo', 'Allfield', 'B:Cam'] },
   { img: 'posters/Cham & Friends - Vol. 2 - 21 Jul 2023.webp',                title: 'Deo, Oren, se.arle',                     meta: '21 Jul 2023', venue: 'Bluebox, York',         lineup: ['Deo', 'Oren', 'se.arle'] },
   { img: 'posters/Midland - 9 Jun 2023.webp',                                 title: 'Midland',                                meta: '9 Jun 2023',  venue: 'The Crescent, York',    lineup: ['Midland', 'Lara David'] },
-  { img: 'posters/Deo - 2 Jun 2023.webp',                                     title: 'Deo',                                    meta: '2 Jun 2023',  venue: 'Bluebox, York',         lineup: ['Deo'] },
+  { img: 'posters/Deo - 2 Jun 2023.webp',                                     title: 'Deo',                                    meta: '2 Jun 2023',  venue: 'Bluebox, York',         lineup: ['Deo'], allNight: true },
   { img: 'posters/Cham & Friends - Vol. 2 - 30 Apr 2023.webp',                title: 'Cham & Friends · Vol. 2',                meta: '30 Apr 2023', venue: 'Bluebox, York',         lineup: ['Litherland', 'B:Cam b2b Deo', 'se.arle', 'Yuba'] },
   { img: 'posters/Cham & Friends - Vol. 1 - 14 Apr 2023.webp',                title: 'Cham & Friends · Vol. 1',                meta: '14 Apr 2023', venue: 'Bluebox, York',         lineup: ['Allfield', 'Oren', 'Harkirit', 'Sizeup'] },
   { img: 'posters/Marv - 17 Mar 2023.webp',                                   title: 'Marv B',                                 meta: '17 Mar 2023', venue: 'Bluebox, York',         lineup: ['Marv B', 'Yuba'] },
@@ -837,7 +839,7 @@ function shadePoster(sh) {
   }`);
 }
 
-function makePoster({ img, title, meta, url, indexLabel, venue, lineup, w, h }, parent) {
+function makePoster({ img, title, meta, url, indexLabel, venue, lineup, allNight, restIn, w, h }, parent) {
   // Round the ring every poster wears a small copy (posters/sm/, 512 px tall,
   // made by build.mjs): a GPU holds textures as raw pixels, so 51 full-size
   // posters were ~210 MB there; the small ones are about a quarter of that.
@@ -873,7 +875,7 @@ function makePoster({ img, title, meta, url, indexLabel, venue, lineup, w, h }, 
   const art = new THREE.Mesh(new THREE.PlaneGeometry(w, h), artMat);
   art.position.z = 0.002;
   art.renderOrder = 1;
-  art.userData = { title, meta, url, indexLabel, venue, lineup, isPoster: true, group, edge: card, artMat, img, texSm: tex, texHi: null, onlyFull };
+  art.userData = { title, meta, url, indexLabel, venue, lineup, allNight, restIn, isPoster: true, group, edge: card, artMat, img, texSm: tex, texHi: null, onlyFull };
   group.userData.art = art;
   group.add(art);
   interactives.push(art);
@@ -1885,8 +1887,9 @@ function showCard(art) {
 
   const who = el('who');
   who.appendChild(el('artist', primary));
+  if (art.userData.allNight) who.appendChild(el('allnight', 'All night long'));
   if (subtitle) who.appendChild(el('subtitle', subtitle));
-  if (support.length > 0) who.appendChild(el('support', 'with ' + support.join(', ')));
+  if (support.length > 0) who.appendChild(el('support', (art.userData.restIn ? art.userData.restIn + ': ' : 'with ') + support.join(', ')));
   cardBody.appendChild(who);
 
   const when = el('when');
