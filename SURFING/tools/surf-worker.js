@@ -4,8 +4,8 @@
    D1 database DB (surf-history); optional rate limiters RL_READ, RL_WRITE,
    RL_AUTH, RL_ADMIN.
    Triggers: a Cron Trigger every hour, e.g. "5 * * * *".
-   Build 03c15ba69c. */
-const WORKER_BUILD = '03c15ba69c';
+   Build 8c2ae6895f. */
+const WORKER_BUILD = '8c2ae6895f';
 
 /* ===== spots.js ===== */
 /* Spots: the cams and their local knowledge — shared by index.html (live cams) and week.html (16-day outlook).
@@ -374,7 +374,7 @@ const CAMS = [
     source:  'MEO Beachcam via viewsurf',
     thumb:   'https://films.viewsurf.com/BCcostacaparicacds_1_1.stream/media.jpg',
     viewLabel: 'CDS',
-    views:   [{ key: 'sul', label: 'Sul', type: 'hls', embed: 'https://video-auth1.iol.pt/beachcam/costacaparicabernard/playlist.m3u8' }, { key: 'tarquinio', label: 'Tarquínio', type: 'hls', embed: 'https://video-auth1.iol.pt/beachcam/bctarquinho/playlist.m3u8' }],   // MEO's partner feeds
+    views:   [{ key: 'sul', label: 'Sul', type: 'hls', embed: 'https://video-auth1.iol.pt/beachcam/costacaparicabernard/playlist.m3u8' }, { key: 'tarquinio', label: 'Tarquínio', type: 'hls', embed: 'https://video-auth1.iol.pt/beachcam/bctarquinho/playlist.m3u8', link: 'https://beachcam.meo.pt/livecams/costa-da-caparica-tarquinio/' }],   // MEO's partner feeds
   },
   {
     id:      'caparica-praia-nova',
@@ -624,7 +624,7 @@ const AREA_ORDER = ['Cascais', 'Caparica'];
 // A spot's extra cams (views), each a cam of its own for the Cams page and
 // the viewer, pointing back at its spot (of) for the forecast.
 const CAM_VIEWS = CAMS.flatMap((c) => (c.views || []).map((v) => ({
-  ...c, alt: undefined, thumb: undefined, poster: undefined, ...v, views: undefined,
+  ...c, alt: undefined, thumb: undefined, poster: undefined, fallback: undefined, ...v, views: undefined,
   id: `${c.id}~${v.key}`, of: c.id, name: `${c.name} · ${v.label}`,
 })));
 const AREAS = [...new Set(CAMS.map((c) => c.area))]
