@@ -214,6 +214,7 @@ promptEl.innerHTML = isMobile
   + '<kbd>tap</kbd>focus'
   : '<kbd>drag</kbd>look<span class="sep">·</span>'
   + '<kbd>wasd</kbd>move<span class="sep">·</span>'
+  + '<kbd>shift</kbd>run<span class="sep">·</span>'
   + '<kbd>scroll</kbd>zoom<span class="sep">·</span>'
   + '<kbd>click</kbd>focus';
 
@@ -785,6 +786,7 @@ scene.add(innerLip);
 // Each painting is rendered as a slightly luminous panel floating on the wall
 // with a hairline edge. The painting reads as the OBJECT, not a "framed photo".
 const interactives = [];
+let plaqueFace = null;   // the plaque's face, set where the plaque is built (for its hover lift)
 
 // Painting groups collected so the tick loop can bob them in place
 const paintings = [];
@@ -1161,8 +1163,14 @@ function tintPool(i, image) {
     group:        plaqueGroup,
     viewDistance: 3.6,                    // further back than posters (plaque is taller)
   };
-  face.userData  = { ...plaqueMeta };
-  interactives.push(face);
+  // The whole plaque is the target, from any side: its face, and its frame
+  // and back too (the face alone can't be hit from behind). Wherever it's
+  // clicked from, the camera comes round to stand in front of it.
+  plaqueMeta.face = face;
+  plaqueFace = face;
+  face.userData    = { ...plaqueMeta };
+  backing.userData = { ...plaqueMeta };
+  interactives.push(face, backing);
 
   // Tiny warm spotlight on the plaque so it doesn't sit in pure black
   const plaqueLight = new THREE.SpotLight(0xf1ead4, 1.4, 6, Math.PI / 5, 0.7, 1.2);
@@ -1227,6 +1235,8 @@ applyCameraRotation();
 const LOOK_SENS_DESKTOP = 0.0035;
 const LOOK_SENS_TOUCH   = 0.0060;        // a touch more responsive on small screens
 const PITCH_MAX = Math.PI / 180 * 70;
+const FLICK_CARRY = 0.09;                // seconds of the pointer's speed a flick carries on for
+const FLICK_MAX   = 0.5;                 // radians, the most a flick can add
 
 // Active pointers, keyed by pointerId. Supports:
 //   • 1 pointer down → drag-to-look
@@ -1301,6 +1311,13 @@ canvasEl.addEventListener('pointermove', e => {
     const movedTotal = Math.hypot(p.x - p.startX, p.y - p.startY);
     if (movedTotal > DRAG_THRESHOLD_PX) {
       p.dragging = true;
+      // Dragging while a click-to-move glide is under way takes the view
+      // back: the glide carries on moving the camera, but stops steering it.
+      if (glide.active && !glide.lookFree) {
+        glide.lookFree = true;
+        cam.targetYaw = cam.yaw;
+        cam.targetPitch = cam.pitch;
+      }
       canvasEl.classList.add('dragging');
       promptEl.classList.add('hide');
     } else {
@@ -1311,6 +1328,11 @@ canvasEl.addEventListener('pointermove', e => {
   const stepX = p.x - prevX;
   const stepY = p.y - prevY;
   const sens = p.kind === 'touch' ? LOOK_SENS_TOUCH : LOOK_SENS_DESKTOP;
+  // How fast the pointer is travelling (px/s, lightly averaged), for the flick on release
+  const tNow = performance.now(), dtMove = Math.max(1, tNow - (p.moveT || tNow - 16)) / 1000;
+  p.moveT = tNow;
+  p.vx = (p.vx || 0) * 0.5 + (stepX / dtMove) * 0.5;
+  p.vy = (p.vy || 0) * 0.5 + (stepY / dtMove) * 0.5;
   // Touch: swipe in the direction you want to look (FPS-style — finger right → view turns right).
   // Desktop: drag-the-world style (finger right → view turns left, matches the rest of the web).
   if (p.kind === 'touch') {
@@ -1353,6 +1375,15 @@ canvasEl.addEventListener('pointerup', e => {
       }
     }
   } else if (e.pointerId === primaryId) {
+    // A flick: the view carries on a little in the direction it was going,
+    // then settles. Only if the pointer was still moving when it lifted, so a
+    // drag that came to rest stops exactly where it was put.
+    if (p.dragging && performance.now() - (p.moveT || 0) < 60) {
+      const sens = (p.kind === 'touch' ? LOOK_SENS_TOUCH : -LOOK_SENS_DESKTOP) * FLICK_CARRY;
+      const lim = (v) => Math.max(-FLICK_MAX, Math.min(FLICK_MAX, v * sens));
+      cam.targetYaw += lim(p.vx || 0);
+      cam.targetPitch = Math.max(-PITCH_MAX, Math.min(PITCH_MAX, cam.targetPitch + lim(p.vy || 0) * 0.6));
+    }
     canvasEl.classList.remove('dragging');
     primaryId = pointers.size ? [...pointers.keys()][0] : null;
   }
@@ -1379,7 +1410,9 @@ const dollyTarget = { dist: 0 };  // signed metres to apply over the next few fr
 // =============================================================================
 //  Keyboard movement — WASD + arrow keys for free walking
 // =============================================================================
-const moveKeys = { f: false, b: false, l: false, r: false };
+const moveKeys = { f: false, b: false, l: false, r: false, run: false };
+// Shift runs. Tracked on every key event, so it can't stick.
+for (const ev of ['keydown', 'keyup']) window.addEventListener(ev, (e) => { moveKeys.run = e.shiftKey; });
 
 window.addEventListener('keydown', e => {
   if (intro.active) return;
@@ -1416,6 +1449,12 @@ window.addEventListener('keyup', e => {
     case 'KeyD': case 'ArrowRight': moveKeys.r = false; break;
   }
 });
+
+// A key released while the window isn't focused never reports its keyup:
+// let go of everything, so the camera can't walk off on its own.
+const releaseKeys = () => { moveKeys.f = moveKeys.b = moveKeys.l = moveKeys.r = moveKeys.run = false; };
+window.addEventListener('blur', releaseKeys);
+document.addEventListener('visibilitychange', () => { if (document.hidden) releaseKeys(); });
 
 canvasEl.addEventListener('wheel', e => {
   if (intro.active) { e.preventDefault(); return; }
@@ -1474,6 +1513,8 @@ function handleHover(x, y) {
     if (hoveredArt && hoveredArt.userData.edge) {
       hoveredArt.userData.edge.material.opacity = 1.0;
     }
+    // The plaque lifts a little under the pointer, so it reads as clickable
+    if (plaqueFace) plaqueFace.material.color.setHex(newArt && newArt.userData.isPlaque ? 0xeeeeee : 0xc8c8c8);
   }
 
   if (newArt) canvasEl.classList.add('hover-poster');
@@ -1563,6 +1604,7 @@ function startGlide(toX, toZ, toYaw, toPitch, onDone) {
   glide.dur = dur;
   glide.t0  = performance.now();
   glide.active = true;
+  glide.lookFree = false;
   glide.onDone = onDone || null;
 
   // Also seed look targets so smoothing matches the tween
@@ -1570,20 +1612,36 @@ function startGlide(toX, toZ, toYaw, toPitch, onDone) {
   cam.targetPitch = toPitch;
 }
 
+const GLIDE_AVOID = { x: 0, z: 0.9, r: 2.7 };   // the pillar and the plaque (the plaque stands at z = 1.9)
 function updateGlide() {
   if (!glide.active) return;
   const t = (performance.now() - glide.t0) / 1000 / glide.dur;
   if (t >= 1) {
     camera.position.set(glide.toPos.x, EYE_Y, glide.toPos.z);
-    cam.yaw   = glide.toYaw;
-    cam.pitch = glide.toPitch;
+    if (!glide.lookFree) { cam.yaw = glide.toYaw; cam.pitch = glide.toPitch; }
     glide.active = false;
     if (glide.onDone) { const fn = glide.onDone; glide.onDone = null; fn(); }
     return;
   }
   const e = easeOutCubic(t);
-  camera.position.x = glide.fromPos.x + (glide.toPos.x - glide.fromPos.x) * e;
-  camera.position.z = glide.fromPos.z + (glide.toPos.z - glide.fromPos.z) * e;
+  let gx = glide.fromPos.x + (glide.toPos.x - glide.fromPos.x) * e;
+  let gz = glide.fromPos.z + (glide.toPos.z - glide.fromPos.z) * e;
+  // Go round the middle, not through it: a straight line across the room
+  // would pass through the pillar and the plaque, so anywhere the path dips
+  // inside this circle it's pushed back out to the edge.
+  {
+    const dx = gx - GLIDE_AVOID.x, dz = gz - GLIDE_AVOID.z, d = Math.hypot(dx, dz);
+    if (d < GLIDE_AVOID.r) {
+      // dead centre has no "out": step aside along the path's own right-hand side
+      const ox = d > 0.05 ? dx / d : -(glide.toPos.z - glide.fromPos.z), oz = d > 0.05 ? dz / d : (glide.toPos.x - glide.fromPos.x);
+      const ol = Math.hypot(ox, oz) || 1;
+      gx = GLIDE_AVOID.x + ox / ol * GLIDE_AVOID.r;
+      gz = GLIDE_AVOID.z + oz / ol * GLIDE_AVOID.r;
+    }
+  }
+  camera.position.x = gx;
+  camera.position.z = gz;
+  if (glide.lookFree) return;
   cam.yaw   = glide.fromYaw   + (glide.toYaw   - glide.fromYaw)   * e;
   cam.pitch = glide.fromPitch + (glide.toPitch - glide.fromPitch) * e;
 }
@@ -1951,6 +2009,11 @@ composer.addPass(finalPass);
 //  Main loop — look smoothing + glide + ripple + render
 // =============================================================================
 const LOOK_DAMP = 14;       // higher = snappier; lower = silkier
+const WALK_SPEED = 5.2;     // m/s (was 4.2)
+const RUN_FACTOR = 1.9;     // with Shift held
+const WALK_ACCEL = 14;      // easing rate up to speed (per second): ~0.1 s to feel at pace
+const WALK_STOP  = 9;       // easing rate back to rest: a short glide, not a slide
+const walkVel = { x: 0, z: 0 };   // strafe, forward (m/s)
 let last = performance.now();
 
 // Allocations lifted out of the tick loop to avoid per-frame GC pressure
@@ -2137,7 +2200,7 @@ function tick() {
 
   // Exponential smoother on yaw/pitch toward targets (skipped during glide
   // because glide already drives cam.yaw / cam.pitch directly).
-  if (!glide.active) {
+  if (!glide.active || glide.lookFree) {
     const k = 1 - Math.exp(-LOOK_DAMP * dt);
     cam.yaw   += (cam.targetYaw   - cam.yaw)   * k;
     cam.pitch += (cam.targetPitch - cam.pitch) * k;
@@ -2161,22 +2224,31 @@ function tick() {
   }
 
   // ----- keyboard movement (WASD / arrows) -----
-  if (!glide.active && (moveKeys.f || moveKeys.b || moveKeys.l || moveKeys.r)) {
-    const SPEED = 4.2;   // m/s
-    let mx = (moveKeys.r ? 1 : 0) - (moveKeys.l ? 1 : 0);
-    let mz = (moveKeys.f ? 1 : 0) - (moveKeys.b ? 1 : 0);
-    const len = Math.hypot(mx, mz);
-    if (len > 0) { mx /= len; mz /= len; }
-    camera.getWorldDirection(_tmpFwd);
-    _tmpFwd.y = 0; _tmpFwd.normalize();
-    // right = forward × up  →  for forward (fx,0,fz):  right = (-fz, 0, fx)
-    const rx = -_tmpFwd.z;
-    const rz =  _tmpFwd.x;
-    const dx = (_tmpFwd.x * mz + rx * mx) * SPEED * dt;
-    const dz = (_tmpFwd.z * mz + rz * mx) * SPEED * dt;
-    const c = clampWalkable(camera.position.x + dx, camera.position.z + dz);
-    camera.position.x = c.x;
-    camera.position.z = c.z;
+  // The keys set a wanted velocity and the real one eases to it: off the mark
+  // in about a tenth of a second (still immediate under the fingers), and a
+  // short glide to rest on release rather than a dead stop.
+  {
+    let mx = 0, mz = 0;
+    if (!glide.active) {
+      mx = (moveKeys.r ? 1 : 0) - (moveKeys.l ? 1 : 0);
+      mz = (moveKeys.f ? 1 : 0) - (moveKeys.b ? 1 : 0);
+      const len = Math.hypot(mx, mz);
+      if (len > 0) { mx /= len; mz /= len; }
+    } else walkVel.x = walkVel.z = 0;
+    const ease = 1 - Math.exp(-((mx || mz) ? WALK_ACCEL : WALK_STOP) * dt);
+    const pace = WALK_SPEED * (moveKeys.run ? RUN_FACTOR : 1);
+    walkVel.x += (mx * pace - walkVel.x) * ease;
+    walkVel.z += (mz * pace - walkVel.z) * ease;
+    if (Math.abs(walkVel.x) + Math.abs(walkVel.z) > 0.01) {
+      camera.getWorldDirection(_tmpFwd);
+      _tmpFwd.y = 0; _tmpFwd.normalize();
+      // right = forward × up  →  for forward (fx,0,fz):  right = (-fz, 0, fx)
+      const rx = -_tmpFwd.z, rz = _tmpFwd.x;
+      const c = clampWalkable(camera.position.x + (_tmpFwd.x * walkVel.z + rx * walkVel.x) * dt,
+                              camera.position.z + (_tmpFwd.z * walkVel.z + rz * walkVel.x) * dt);
+      camera.position.x = c.x;
+      camera.position.z = c.z;
+    } else walkVel.x = walkVel.z = 0;
   }
 
   // Idle camera bob — barely-there breathing motion when the user is still.
@@ -2184,7 +2256,7 @@ function tick() {
   // there's no perceptible "jump" the moment the intro fly-through or a glide
   // hands off control.
   if (intro.active || glide.active || moveKeys.f || moveKeys.b
-      || moveKeys.l || moveKeys.r
+      || moveKeys.l || moveKeys.r || walkVel.x || walkVel.z
       || Math.abs(dollyTarget.dist) >= 0.001
       || pointers.size > 0) {
     bobControlledLast = now;
