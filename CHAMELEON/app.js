@@ -331,6 +331,7 @@ const pillar = new THREE.Mesh(
     side: THREE.FrontSide,
     depthWrite: false,
     fog: true,
+    dithering: true,
   }))
 );
 pillar.position.y = PILLAR_Y;
@@ -348,6 +349,7 @@ const halo = new THREE.Mesh(
     side: THREE.FrontSide,
     depthWrite: false,
     fog: true,
+    dithering: true,
   }))
 );
 halo.position.y = PILLAR_Y;
@@ -401,6 +403,7 @@ const pillarPool = new THREE.Mesh(
     blending:   THREE.AdditiveBlending,
     depthWrite: false,
     fog:        false,
+    dithering:  true,
   })
 );
 pillarPool.rotation.x = -Math.PI / 2;
@@ -437,6 +440,12 @@ const floorRoughnessTex = texLoader.load('textures/concrete/concrete_roughness.w
 // environment to reflect they changed next to nothing in the picture.
 // Floor tile scale — each tile is ~2 m, denser repeat than before so the
 // concrete texture's micro-detail is readable at walking distance.
+// DITHER: the scene is drawn into an 8-bit target, and the floor's soft
+// falloffs (the pillar's pool, the rim fade, the posters' pools, the beam)
+// cross only a handful of those 8-bit steps in the dark, which shows as
+// bands, worst on phone screens. `dithering` adds under one step of noise
+// as each of those surfaces is drawn, so the steps dissolve into fine grain.
+// A couple of shader operations per pixel; no extra pass or bigger target.
 const floorRepeat = [ROOM.radius / 2, ROOM.radius / 2];
 [floorColorTex, floorNormalTex, floorRoughnessTex].forEach(t => t.repeat.set(...floorRepeat));
 // Warm tint multiplied with the grey concrete albedo — free way to get
@@ -449,6 +458,7 @@ const floorMat = new THREE.MeshStandardMaterial({
   roughnessMap:       floorRoughnessTex,
   normalScale:        new THREE.Vector2(0.55, 0.55),
   metalness:          0.0,
+  dithering:          true,     // see DITHER below
 });
 
 // The floor's rim sinks into the dark instead of ending in a hard line
@@ -1017,7 +1027,7 @@ for (let i = 0; i < rest.length; i++) {
 // each instance takes its colour once its poster's image has loaded.
 const posterPools = new THREE.InstancedMesh(
   new THREE.PlaneGeometry(1, 1),
-  new THREE.MeshBasicMaterial({ map: pillarPoolTex, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }),
+  new THREE.MeshBasicMaterial({ map: pillarPoolTex, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, fog: true, dithering: true }),
   paintings.length
 );
 {
