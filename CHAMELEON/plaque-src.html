@@ -1,0 +1,74 @@
+<!doctype html>
+<!-- Source of the gallery's central plaque (photos/plaque.webp, 1536 × 2600).
+     Edit NAMES / the credits below, then screenshot this page at exactly
+     1536 × 2600 (device scale 1) and save it as photos/plaque.webp, e.g.
+       chrome --headless --window-size=1536,2600 --screenshot=plaque.png plaque-src.html
+       cwebp -q 88 plaque.png -o photos/plaque.webp
+     Names sort themselves and run alphabetically down each column. -->
+<meta charset="utf-8">
+<title>plaque source</title>
+<style>
+  @font-face { font-family: 'Anek Kannada'; font-weight: 400 700; font-stretch: 125%; src: url('fonts/anek-latin-ext.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+  @font-face { font-family: 'Anek Kannada'; font-weight: 400 700; font-stretch: 125%; src: url('fonts/anek-latin.woff2') format('woff2'); }
+  :root { --bg: #0b0c11; --ink: #e4e6ea; --soft: #9a9ea8; --faint: #5d616b; --line: rgba(255,255,255,0.13); --accent: #ff6b3a; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1536px; height: 2600px; overflow: hidden; background: var(--bg); }
+  body { position: relative; color: var(--ink); font-family: 'Anek Kannada', sans-serif; font-stretch: 125%; letter-spacing: -0.005em; -webkit-font-smoothing: antialiased; }
+
+  /* The night itself: edge to edge, never stretched (cover keeps its shape),
+     down through the crowd before it sinks into the plaque. */
+  .photo { position: absolute; inset: 0 0 auto 0; height: 1330px; background: url('photos/event.webp') center 92% / cover; }
+  .photo::after { content: ''; position: absolute; inset: 0;
+    background: linear-gradient(to bottom, rgba(11,12,17,0.5) 0%, rgba(11,12,17,0.12) 14%, rgba(11,12,17,0.12) 70%, rgba(11,12,17,0.6) 88%, var(--bg) 100%); }
+  /* Its colour carries on down behind the names, very quietly. */
+  .glow { position: absolute; inset: 0;
+    background: radial-gradient(60% 20% at 18% 56%, rgba(214,40,170,0.12), transparent 72%), radial-gradient(60% 22% at 86% 58%, rgba(92,52,255,0.12), transparent 72%); }
+  .frame { position: absolute; inset: 44px; border: 2px solid var(--line); }
+
+  /* Set as the site sets its own name: semi-bold, lowercase, pulled tight. */
+  .head { position: absolute; left: 116px; right: 116px; top: 1262px; }
+  .eyebrow { font-size: 28px; font-weight: 500; letter-spacing: 0.3em; text-transform: uppercase; color: var(--accent); }
+  .title { margin-top: 6px; display: flex; align-items: baseline; justify-content: space-between; }
+  h1 { font-size: 124px; line-height: 1.05; font-weight: 600; letter-spacing: -0.05em; text-transform: lowercase; color: #fff; }
+  .since { font-size: 34px; font-style: italic; color: var(--soft); }
+
+  .label { position: absolute; left: 116px; right: 116px; display: flex; align-items: center; gap: 28px;
+    font-size: 24px; font-weight: 500; letter-spacing: 0.3em; text-transform: uppercase; color: var(--faint); }
+  .label::after { content: ''; flex: 1; height: 2px; background: var(--line); }
+  .label b { font-weight: 500; color: var(--accent); }
+
+  .names { position: absolute; left: 116px; right: 96px; top: 1572px; display: grid; grid-template-columns: repeat(4, 1fr); column-gap: 20px; }
+  .names ul { list-style: none; }
+  .names li { height: 50px; font-size: 32.5px; font-weight: 500; white-space: nowrap; }
+
+  .rule { position: absolute; left: 116px; right: 116px; top: 2398px; height: 2px; background: var(--line); }
+  .thanks { position: absolute; left: 116px; right: 116px; top: 2422px; font-size: 30px; font-weight: 500; color: var(--soft); white-space: nowrap; }
+  .last { position: absolute; left: 116px; right: 116px; top: 2470px; font-size: 36px; font-style: italic; color: var(--ink); }
+</style>
+
+<div class="photo"></div>
+<div class="glow"></div>
+<div class="frame"></div>
+
+<div class="head">
+  <div class="eyebrow">Chameleon</div>
+  <div class="title"><h1>Poster Gallery</h1><div class="since">2019 – present</div></div>
+</div>
+
+<div class="label" style="top: 1512px"><span><b id="count"></b> artists</span></div>
+<div class="names" id="names"></div>
+
+<div class="rule"></div>
+<div class="thanks">Thanks to York, the artworkers, The Crescent, BlueBox, door, bar and sound,</div>
+<div class="last">and everyone who’s ever bought a ticket.</div>
+
+<script>
+const NAMES = ['Adam Pits', 'Allfield', 'Andy Kidd', 'B:Cam', 'Bakey', 'Barker', 'nd_baumecker', 'Ben UFO', 'benjics', 'Breaka', 'Burley', 'Call Super', 'Chris I’Anson', 'Cognition', 'Deo', 'Donk Fantisee', 'Filip U', 'Flo Ruby', 'Fold', 'forms', 'Fox', 'Gastah', 'Harkirit', 'Hudson', 'Huge O', 'Hutch', 'James Frances', 'Joe Hell', 'Kitsta', 'Laqai', 'Lara David', 'Lenzman', 'Lilo', 'Lisene', 'Litherland', 'lo.pan', 'Martyn', 'Marv B', 'Midland', 'Mike Jones', 'New Ends', 'Objekt', 'Or:la', 'Oren', 'Owari', 'Pangaea', 'Parris', 'Pearson Sound', 'Perseus Traxx', 'Ploy', 're:ni', 'Rene Wise', 'Rosie', 'Savio', 'se.arle', 'Sizeup', 'Special Request', 'Stenny', 'Tañ', 'Tom VR', 'Tor', 'Yuba'];
+const names = [...NAMES].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
+// Four columns, alphabetical going down; the first columns take the odd ones out.
+const base = Math.floor(names.length / 4), rem = names.length % 4; let at = 0;
+document.getElementById('names').innerHTML = [0, 1, 2, 3].map((i) =>
+  `<ul>${names.slice(at, at += base + (i < rem ? 1 : 0)).map((n) => `<li>${n}</li>`).join('')}</ul>`).join('');
+document.getElementById('count').textContent = names.length;
+</script>

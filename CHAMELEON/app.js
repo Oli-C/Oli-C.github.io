@@ -319,27 +319,35 @@ halo.userData.baseOpacity   = halo.material.opacity;
 // lighting work: just one alpha-blended quad. The pulse animation
 // modulates this disc's opacity instead of a real light's intensity.
 const pillarPoolTex = (() => {
-  // 1024×1024 source so bilinear sampling across the 10m floor disc has
-  // ~4× finer texel data than the previous 256² canvas. Eliminates the
-  // banded patches iOS Safari was producing in the gradient mid-tones.
-  const SZ = 1024;
-  const c = document.createElement('canvas');
-  c.width = c.height = SZ;
-  const cx = c.getContext('2d');
-  const g = cx.createRadialGradient(SZ/2, SZ/2, 0, SZ/2, SZ/2, SZ/2);
   // Hot centre with a long soft falloff — like a tall column of light
-  // scattering through fog onto the floor.
-  g.addColorStop(0.00, 'rgba(255, 232, 188, 1.00)');
-  g.addColorStop(0.10, 'rgba(255, 226, 175, 0.92)');
-  g.addColorStop(0.30, 'rgba(255, 216, 158, 0.55)');
-  g.addColorStop(0.55, 'rgba(255, 208, 148, 0.28)');
-  g.addColorStop(0.80, 'rgba(255, 200, 140, 0.10)');
-  g.addColorStop(1.00, 'rgba(255, 200, 140, 0.00)');
-  cx.fillStyle = g;
-  cx.fillRect(0, 0, SZ, SZ);
-  const t = new THREE.CanvasTexture(c);
+  // scattering through fog onto the floor. [radius 0–1, r, g, b, alpha]
+  const STOPS = [
+    [0.00, 255, 232, 188, 1.00],
+    [0.10, 255, 226, 175, 0.92],
+    [0.30, 255, 216, 158, 0.55],
+    [0.55, 255, 208, 148, 0.28],
+    [0.80, 255, 200, 140, 0.10],
+    [1.00, 255, 200, 140, 0.00],
+  ];
+  // Computed pixel by pixel, not drawn with a canvas gradient: Safari
+  // dithers canvas gradients and stores them premultiplied, so the faint
+  // outer part came back with wrecked colour — turquoise dots all over the
+  // floor on Safari / iOS. Straight-alpha bytes here are the same everywhere.
+  const SZ = 512, data = new Uint8Array(SZ * SZ * 4);
+  for (let y = 0; y < SZ; y++) for (let x = 0; x < SZ; x++) {
+    const r = Math.min(1, Math.hypot(x + 0.5 - SZ / 2, y + 0.5 - SZ / 2) / (SZ / 2));
+    const k = STOPS.findIndex((st) => st[0] >= r), a = STOPS[Math.max(0, k - 1)], b = STOPS[k];
+    const f = b[0] > a[0] ? (r - a[0]) / (b[0] - a[0]) : 0, o = (y * SZ + x) * 4;
+    for (let c = 0; c < 3; c++) data[o + c] = Math.round(a[c + 1] + (b[c + 1] - a[c + 1]) * f);
+    data[o + 3] = Math.round((a[4] + (b[4] - a[4]) * f) * 255);
+  }
+  const t = new THREE.DataTexture(data, SZ, SZ, THREE.RGBAFormat);
   t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = THREE.LinearFilter;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps = true;
   t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  t.needsUpdate = true;
   return t;
 })();
 const pillarPool = new THREE.Mesh(
