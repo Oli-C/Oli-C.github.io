@@ -238,7 +238,8 @@ const texLoader = new THREE.TextureLoader(manager);
 //  Lighting — moody: almost no ambient, just the pillar and a hint of moon
 // =============================================================================
 // Very faint hemisphere — barely lifts the floor / paintings out of pure black
-scene.add(new THREE.HemisphereLight(0x8a8e9a, 0x0a0c10, 2.10));
+// Kept low and cool, so the warm pillar and the posters' own colours carry the room.
+scene.add(new THREE.HemisphereLight(0x7a88a8, 0x080a10, 1.55));   // was 0x8a8e9a at 2.10
 
 // Moon — cool directional, dim
 const moon = new THREE.DirectionalLight(0xb4c0d0, 0.18);
@@ -459,7 +460,10 @@ floorMat.onBeforeCompile = (sh) => {
   sh.vertexShader = 'varying float vRimR;\n' + sh.vertexShader.replace('#include <begin_vertex>',
     '#include <begin_vertex>\n  vRimR = length(position.xy);');   // the ring lies in its own XY plane
   sh.fragmentShader = 'varying float vRimR;\nuniform vec2 uRim;\n' + sh.fragmentShader.replace('#include <opaque_fragment>',
-    'outgoingLight *= 1.0 - smoothstep(uRim.x, uRim.y, vRimR);\n  #include <opaque_fragment>');
+    // Lit from the pillar: warm and a little brighter near it, cooler and
+    // dimmer out towards the rim; then the rim's fade to nothing.
+    'outgoingLight *= mix(vec3(1.14, 1.04, 0.90), vec3(0.74, 0.82, 0.96), smoothstep(2.0, 13.0, vRimR));\n'
+    + '  outgoingLight *= 1.0 - smoothstep(uRim.x, uRim.y, vRimR);\n  #include <opaque_fragment>');
 };
 
 // Floor — ring with an open hole at the centre so the light shaft can
@@ -1011,7 +1015,7 @@ for (let i = 0; i < rest.length; i++) {
 // each instance takes its colour once its poster's image has loaded.
 const posterPools = new THREE.InstancedMesh(
   new THREE.PlaneGeometry(1, 1),
-  new THREE.MeshBasicMaterial({ map: pillarPoolTex, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }),
+  new THREE.MeshBasicMaterial({ map: pillarPoolTex, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }),
   paintings.length
 );
 {
