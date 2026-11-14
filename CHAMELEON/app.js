@@ -29,16 +29,16 @@ const POSTERS = [
 
   // ---- 2024
   { img: 'posters/Special Request b2b Hutch - 5th Birthday - 13 Dec 2024.webp', title: 'Special Request b2b Hutch · 5th Birthday', meta: '13 Dec 2024', venue: 'Bluebox, York',         lineup: ['Special Request', 'Hutch', 'Allfield', 'Deo', 'James Frances', 'Mike Jones', 'se.arle'] },
-  { img: 'posters/Pearson Sound - 29 Nov 2024.webp',                          title: 'Pearson Sound',                          meta: '29 Nov 2024', venue: 'The Crescent, York',    lineup: ['Pearson Sound'] },
+  { img: 'posters/Pearson Sound - 29 Nov 2024.webp',                          title: 'Pearson Sound',                          meta: '29 Nov 2024', venue: 'The Crescent, York',    lineup: ['Pearson Sound', 'Harkirit'] },
   { img: 'posters/Chameleon Disco - 2 Nov 2024.webp',                         title: 'Chameleon Disco',                        meta: '2 Nov 2024',  venue: 'Bluebox, York',         lineup: ['Filip U', 'Mike Jones', 'se.arle'] },
   { img: 'posters/Chameleon x Meridian - Peckham Audio - 18 Oct 2024.webp',   title: 'Chameleon × Meridian · Peckham Audio',   meta: '18 Oct 2024', venue: 'Peckham Audio, London', lineup: ['Deo', 'B:Cam', 'Flo Ruby', 'Allfield', 'Owari', 'forms', 'Yuba'] },
   { img: 'posters/Chameleon Free Party - 21 Sep 2024.webp',                   title: 'Chameleon Free Party',                   meta: '21 Sep 2024', venue: 'Bluebox, York',         lineup: ['benjics', 'Harkirit', 'Deo'] },
   { img: 'posters/Ben UFO - 10 Aug 2024.webp',                                title: 'Ben UFO',                                meta: '10 Aug 2024', venue: 'The Crescent, York',    lineup: ['Ben UFO', 'Deo'] },
   { img: 'posters/OnRo - 29 Jun 2024.webp',                                   title: 'On Rotation',                            meta: '29 Jun 2024', venue: 'Bluebox, York',         lineup: ['Adam Pits', "Chris I’Anson", 'Lisene', 'Deo', 'se.arle'] },
   { img: 'posters/Chameleon Techno Soundclash - 7 Jun 2024.webp',             title: 'A Techno Soundclash',                    meta: '7 Jun 2024',  venue: 'Bluebox, York',         lineup: ['Deo', 'Harkirit', 'Tor', 'Burley', 'Perseus Traxx', 'Andy Kidd'] },
-  { img: 'posters/Martyn - 4 May 2024.webp',                                  title: 'Martyn',                                 meta: '4 May 2024',  venue: 'The Crescent, York',    lineup: ['Martyn'] },
+  { img: 'posters/Martyn - 4 May 2024.webp',                                  title: 'Martyn',                                 meta: '4 May 2024',  venue: 'The Crescent, York',    lineup: ['Martyn', 'Harkirit'] },
   { img: 'posters/Community Night - 19 Apr 2024.webp',                        title: 'Community Night',                        meta: '19 Apr 2024', venue: 'Bluebox, York',         lineup: ['Lilo', 'Filip U', 'benjics', 'Deo & Oren', 'Gastah & Laqai', 'Huge O', 'se.arle', 'lo.pan', 'Harkirit'] },
-  { img: 'posters/Fold - 22 Mar 2024.webp',                                   title: 'Fold',                                   meta: '22 Mar 2024', venue: 'Bluebox, York',         lineup: ['Fold'] },
+  { img: 'posters/Fold - 22 Mar 2024.webp',                                   title: 'Fold',                                   meta: '22 Mar 2024', venue: 'Bluebox, York',         lineup: ['Fold', 'Fleckey'] },
   { img: 'posters/Stenny - 1 Mar 2024.webp',                                  title: 'Stenny',                                 meta: '1 Mar 2024',  venue: 'Bluebox, York',         lineup: ['Stenny', 'B:Cam'] },
   { img: 'posters/Call Super - 16 Feb 2024.webp',                             title: 'Call Super',                             meta: '16 Feb 2024', venue: 'The Crescent, York',    lineup: ['Call Super', 'Deo'] },
   { img: 'posters/Cham & Friends - Vol. 3 - 2 Feb 2024.webp',                 title: 'Cham & Friends · Vol. 3',                meta: '2 Feb 2024',  venue: 'Bluebox, York',         lineup: ['Cognition', 'Oren'] },
@@ -72,7 +72,7 @@ const POSTERS = [
   { img: 'posters/Adam Pits - 21 Jan 2022.webp',                              title: 'Adam Pits',                              meta: '21 Jan 2022', venue: 'Bluebox, York',         lineup: ['Adam Pits', 'Allfield', 'B:Cam', 'Deo', 'Yuba', 'Owari'] },
 
   // ---- 2021
-  { img: 'posters/Back to Basics - 3 Dec 2021.webp',                          title: 'Back to Basics',                         meta: '3 Dec 2021',  venue: 'Bluebox, York',         lineup: ['Allfield', 'B:Cam', 'Deo', 'Owari'] },
+  { img: 'posters/Back to Basics - 3 Dec 2021.webp',                          title: 'Back to Basics',                         meta: '3 Dec 2021',  venue: 'Bluebox, York',         lineup: ['Allfield', 'B:Cam', 'Deo', 'Owari', 'Hudson'] },
   { img: 'posters/Hutch - 29 Oct 2021.webp',                                  title: 'Hutch',                                  meta: '29 Oct 2021', venue: 'Bluebox, York',         lineup: ['Hutch', 'Allfield', 'Deo', 'Savio', 'New Ends'] },
   { img: 'posters/Send Return - 1 Oct 2021.webp',                             title: 'Send / Return',                          meta: '1 Oct 2021',  venue: 'Bluebox, York',         lineup: ['Owari', 'Allfield', 'B:Cam', 'Deo'] },
 

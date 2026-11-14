@@ -314,24 +314,28 @@
   }
   .card .meta:empty { display: none; }
   @media (max-width: 560px) {
+    /* Phones: there's little room, so the card is a slim strip low on the
+       screen, clear of the poster. Who on the left; on the right its place
+       in the run over the date and venue. Two or three lines tall. */
     .card {
-      bottom: calc(72px + env(safe-area-inset-bottom));
-      width: calc(100vw - 32px);
-      padding: 11px 15px 13px;
+      bottom: calc(14px + env(safe-area-inset-bottom));
+      width: calc(100vw - 24px);
+      padding: 9px 13px 10px;
       border-radius: 9px;
       box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
     }
-    /* too narrow for two columns: when and where run along the foot instead */
-    .card-body { grid-template-columns: minmax(0, 1fr); row-gap: 5px; }
-    .card .index    { font-size: 8.5px; letter-spacing: 0.22em; }
-    .card .badge    { font-size: 7.5px; letter-spacing: 0.16em; padding: 2px 5px 1px; }
-    .card .artist   { font-size: 17px; }
-    .card .subtitle { font-size: 11.5px; margin-top: 3px; }
-    .card .support  { font-size: 11.5px; margin-top: 3px; }
-    .card .when     { max-width: none; text-align: left; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; margin-top: 3px; }
-    .card .meta     { font-size: 9.5px; letter-spacing: 0.1em; }
-    .card .venue    { font-size: 9.5px; letter-spacing: 0.08em; margin-top: 0; }
-    .card .go       { font-size: 9.5px; margin-top: 0; margin-left: auto; }
+    .card-body { column-gap: 12px; row-gap: 2px; align-items: start; }
+    .card .top      { grid-column: 2; grid-row: 1; justify-content: flex-end; gap: 7px; }
+    .card .who      { grid-column: 1; grid-row: 1 / span 2; align-self: center; }
+    .card .when     { grid-column: 2; grid-row: 2; max-width: none; }
+    .card .index    { font-size: 8px; letter-spacing: 0.2em; }
+    .card .badge    { font-size: 7px; letter-spacing: 0.14em; padding: 1px 4px 0; order: -1; }
+    .card .artist   { font-size: 15.5px; line-height: 1.15; }
+    .card .subtitle { font-size: 11px; margin-top: 2px; }
+    .card .support  { font-size: 11px; margin-top: 2px; line-height: 1.3; }
+    .card .meta     { font-size: 9px; letter-spacing: 0.1em; line-height: 1.4; }
+    .card .venue    { font-size: 9px; letter-spacing: 0.08em; margin-top: 1px; white-space: nowrap; }
+    .card .go       { font-size: 9px; margin-top: 3px; }
   }
 </style>
 </head>
