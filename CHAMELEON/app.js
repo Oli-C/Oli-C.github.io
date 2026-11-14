@@ -25,7 +25,7 @@ const POSTERS = [
   { img: 'posters/Deo b2b Parris - 2 May 2025.webp',                         title: 'Deo b2b Parris',                       meta: '2 May 2025',  venue: 'The Crescent, York', lineup: ['Deo', 'Parris'] },
   { img: 'posters/Rene Wise - 14 Mar 2025.webp',                             title: 'Rene Wise',                            meta: '14 Mar 2025', venue: 'Bluebox, York',     lineup: ['Rene Wise', 'Deo', 'Oren'] },
   { img: 'posters/Orla - 15 Feb 2025.webp',                                  title: 'Or:la',                                meta: '15 Feb 2025', venue: 'The Crescent, York', lineup: ['Or:la', 'Deo'] },
-  { img: 'posters/Chameleon Free Party - 2 - 31 Jan 2025.webp',              title: 'Chameleon Free Party · 2',             meta: '31 Jan 2025', venue: 'Bluebox, York',     lineup: [] },
+  { img: 'posters/Chameleon Free Party - 2 - 31 Jan 2025.webp',              title: 'Chameleon Free Party · 2',             meta: '31 Jan 2025', venue: 'Bluebox, York',     lineup: ['benjics', 'Burley', 'Deo', 'Hall', 'Jasp', 'Laqai'] },
 
   // ---- 2024
   { img: 'posters/Special Request b2b Hutch - 5th Birthday - 13 Dec 2024.webp', title: 'Special Request b2b Hutch · 5th Birthday', meta: '13 Dec 2024', venue: 'Bluebox, York',         lineup: ['Special Request', 'Hutch', 'Allfield', 'Deo', 'James Frances', 'Mike Jones', 'se.arle'] },
@@ -34,14 +34,14 @@ const POSTERS = [
   { img: 'posters/Chameleon x Meridian - Peckham Audio - 18 Oct 2024.webp',   title: 'Chameleon × Meridian · Peckham Audio',   meta: '18 Oct 2024', venue: 'Peckham Audio, London', lineup: ['Deo', 'B:Cam', 'Flo Ruby', 'Allfield', 'Owari', 'forms', 'Yuba'] },
   { img: 'posters/Chameleon Free Party - 21 Sep 2024.webp',                   title: 'Chameleon Free Party',                   meta: '21 Sep 2024', venue: 'Bluebox, York',         lineup: ['benjics', 'Harkirit', 'Deo'] },
   { img: 'posters/Ben UFO - 10 Aug 2024.webp',                                title: 'Ben UFO',                                meta: '10 Aug 2024', venue: 'The Crescent, York',    lineup: ['Ben UFO', 'Deo'] },
-  { img: 'posters/OnRo - 29 Jun 2024.webp',                                   title: 'On Rotation',                            meta: '29 Jun 2024', venue: 'Bluebox, York',         lineup: ['Adam Pits', "Chris l'Anson", 'Lisene', 'Deo', 'se.arle'] },
+  { img: 'posters/OnRo - 29 Jun 2024.webp',                                   title: 'On Rotation',                            meta: '29 Jun 2024', venue: 'Bluebox, York',         lineup: ['Adam Pits', "Chris I’Anson", 'Lisene', 'Deo', 'se.arle'] },
   { img: 'posters/Chameleon Techno Soundclash - 7 Jun 2024.webp',             title: 'A Techno Soundclash',                    meta: '7 Jun 2024',  venue: 'Bluebox, York',         lineup: ['Deo', 'Harkirit', 'Tor', 'Burley', 'Perseus Traxx', 'Andy Kidd'] },
   { img: 'posters/Martyn - 4 May 2024.webp',                                  title: 'Martyn',                                 meta: '4 May 2024',  venue: 'The Crescent, York',    lineup: ['Martyn'] },
   { img: 'posters/Community Night - 19 Apr 2024.webp',                        title: 'Community Night',                        meta: '19 Apr 2024', venue: 'Bluebox, York',         lineup: ['Lilo', 'Filip U', 'benjics', 'Deo & Oren', 'Gastah & Laqai', 'Huge O', 'se.arle', 'lo.pan', 'Harkirit'] },
   { img: 'posters/Fold - 22 Mar 2024.webp',                                   title: 'Fold',                                   meta: '22 Mar 2024', venue: 'Bluebox, York',         lineup: ['Fold'] },
   { img: 'posters/Stenny - 1 Mar 2024.webp',                                  title: 'Stenny',                                 meta: '1 Mar 2024',  venue: 'Bluebox, York',         lineup: ['Stenny', 'B:Cam'] },
   { img: 'posters/Call Super - 16 Feb 2024.webp',                             title: 'Call Super',                             meta: '16 Feb 2024', venue: 'The Crescent, York',    lineup: ['Call Super', 'Deo'] },
-  { img: 'posters/Cham & Friends - Vol. 3 - 2 Feb 2024.webp',                 title: 'Cham & Friends · Vol. 3',                meta: '2 Feb 2024',  venue: 'Bluebox, York',         lineup: ['Oren'] },
+  { img: 'posters/Cham & Friends - Vol. 3 - 2 Feb 2024.webp',                 title: 'Cham & Friends · Vol. 3',                meta: '2 Feb 2024',  venue: 'Bluebox, York',         lineup: ['Cognition', 'Oren'] },
   { img: 'posters/Bakey b2b Breaka - 19 Jan 2024.webp',                       title: 'Bakey & Breaka',                         meta: '19 Jan 2024', venue: 'Bluebox, York',         lineup: ['Bakey', 'Breaka'] },
 
   // ---- 2023
@@ -49,7 +49,7 @@ const POSTERS = [
   { img: 'posters/Kitsta - 3 Nov 2023.webp',                                  title: 'Kitsta',                                 meta: '3 Nov 2023',  venue: 'Bluebox, York',         lineup: ['Kitsta', 'se.arle'] },
   { img: 'posters/Reni b2b Ploy - 13 Oct 2023.webp',                          title: 'Re:ni b2b Ploy',                         meta: '13 Oct 2023', venue: 'The Crescent, York',    lineup: ['re:ni', 'Ploy', 'Deo'] },
   { img: 'posters/Residents Night - 22 Sep 2023.webp',                        title: 'Residents Night',                        meta: '22 Sep 2023', venue: 'Bluebox, York',         lineup: ['Allfield', 'B:Cam', 'Deo', 'Owari', 'Yuba'] },
-  { img: 'posters/OnRo x Chameleon - 9th Birthday - 23 Sep 2023.webp',        title: 'On Rotation',                            meta: '23 Sep 2023',  venue: 'Plant & Deck, Leeds',   lineup: ['Adam Pits', "Chris l'Anson", 'Deo', 'Allfield', 'B:Cam'] },
+  { img: 'posters/OnRo x Chameleon - 9th Birthday - 23 Sep 2023.webp',        title: 'On Rotation',                            meta: '23 Sep 2023',  venue: 'Plant & Deck, Leeds',   lineup: ['Adam Pits', "Chris I’Anson", 'Deo', 'Allfield', 'B:Cam'] },
   { img: 'posters/Cham & Friends - Vol. 2 - 21 Jul 2023.webp',                title: 'Deo, Oren, se.arle',                     meta: '21 Jul 2023', venue: 'Bluebox, York',         lineup: ['Deo', 'Oren', 'se.arle'] },
   { img: 'posters/Midland - 9 Jun 2023.webp',                                 title: 'Midland',                                meta: '9 Jun 2023',  venue: 'The Crescent, York',    lineup: ['Midland', 'Lara David'] },
   { img: 'posters/Deo - 2 Jun 2023.webp',                                     title: 'Deo',                                    meta: '2 Jun 2023',  venue: 'Bluebox, York',         lineup: ['Deo'] },

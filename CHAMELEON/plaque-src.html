@@ -40,7 +40,7 @@
 
   .names { position: absolute; left: 116px; right: 96px; top: 1572px; display: grid; grid-template-columns: repeat(4, 1fr); column-gap: 20px; }
   .names ul { list-style: none; }
-  .names li { height: 50px; font-size: 32.5px; font-weight: 500; white-space: nowrap; }
+  .names li { height: 47px; font-size: 32px; font-weight: 500; white-space: nowrap; }   /* 17 rows fit above the rule; a 69th name needs this tightened again */
 
   .rule { position: absolute; left: 116px; right: 116px; top: 2398px; height: 2px; background: var(--line); }
   .thanks { position: absolute; left: 116px; right: 116px; top: 2422px; font-size: 30px; font-weight: 500; color: var(--soft); white-space: nowrap; }
@@ -64,7 +64,7 @@
 <div class="last">and everyone who’s ever bought a ticket.</div>
 
 <script>
-const NAMES = ['Adam Pits', 'Allfield', 'Andy Kidd', 'B:Cam', 'Bakey', 'Barker', 'nd_baumecker', 'Ben UFO', 'benjics', 'Breaka', 'Burley', 'Call Super', 'Chris I’Anson', 'Cognition', 'Deo', 'Donk Fantisee', 'Filip U', 'Flo Ruby', 'Fold', 'forms', 'Fox', 'Gastah', 'Harkirit', 'Hudson', 'Huge O', 'Hutch', 'James Frances', 'Joe Hell', 'Kitsta', 'Laqai', 'Lara David', 'Lenzman', 'Lilo', 'Lisene', 'Litherland', 'lo.pan', 'Martyn', 'Marv B', 'Midland', 'Mike Jones', 'New Ends', 'Objekt', 'Or:la', 'Oren', 'Osc', 'Owari', 'Pangaea', 'Parris', 'Pearson Sound', 'Perseus Traxx', 'Ploy', 're:ni', 'Rene Wise', 'Rosie', 'Savio', 'se.arle', 'Sizeup', 'Special Request', 'Stenny', 'Tañ', 'Tom VR', 'Tor', 'Yuba'];
+const NAMES = ['Adam Pits', 'Allfield', 'Andy Kidd', 'B:Cam', 'Bakey', 'Barker', 'nd_baumecker', 'Ben UFO', 'benjics', 'Breaka', 'Burley', 'Call Super', 'Chris I’Anson', 'Cognition', 'Deo', 'Donk Fantisee', 'Filip U', 'Flo Ruby', 'Fold', 'forms', 'Fox', 'Gastah', 'Hall', 'Harkirit', 'Hudson', 'Huge O', 'Hutch', 'James Frances', 'Jasp', 'Joe Hell', 'Kitsta', 'Laqai', 'Lara David', 'Lenzman', 'Lilo', 'Lisene', 'Litherland', 'lo.pan', 'Martyn', 'Marv B', 'Midland', 'Mike Jones', 'New Ends', 'Objekt', 'Or:la', 'Oren', 'Osc', 'Owari', 'Pangaea', 'Parris', 'Pearson Sound', 'Perseus Traxx', 'Ploy', 're:ni', 'Rene Wise', 'Rosie', 'Savio', 'se.arle', 'Sizeup', 'Special Request', 'Stenny', 'Tañ', 'Tom VR', 'Tor', 'Yuba'];
 const names = [...NAMES].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
 // Four columns, alphabetical going down; the first columns take the odd ones out.
 const base = Math.floor(names.length / 4), rem = names.length % 4; let at = 0;
