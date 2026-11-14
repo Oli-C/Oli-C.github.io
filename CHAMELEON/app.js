@@ -1496,6 +1496,7 @@ function pickFloor(x, y) {
 
 let hoverTimer = 0;
 let hoveredArt = null;
+const HOVER_LIFT = 1.2;   // how much a poster brightens under the pointer
 function handleHover(x, y) {
   // Throttle: only check every ~50 ms
   const now = performance.now();
@@ -1505,15 +1506,13 @@ function handleHover(x, y) {
   const newArt = hit ? hit.object : null;
 
   if (newArt !== hoveredArt) {
-    // Restore the previous one
-    if (hoveredArt && hoveredArt.userData.edge) {
-      hoveredArt.userData.edge.material.opacity = 0.55;
-    }
+    // Whatever is under the pointer lifts a little, so it reads as clickable:
+    // a poster brightens (and the last one settles back), as the plaque does.
+    // (This used to set the opacity of the posters' shared, opaque card
+    // material, which showed nothing.)
+    if (hoveredArt && hoveredArt.userData.artMat) hoveredArt.userData.artMat.color.copy(POSTER_BASE_COLOR);
     hoveredArt = newArt;
-    if (hoveredArt && hoveredArt.userData.edge) {
-      hoveredArt.userData.edge.material.opacity = 1.0;
-    }
-    // The plaque lifts a little under the pointer, so it reads as clickable
+    if (hoveredArt && hoveredArt.userData.artMat) hoveredArt.userData.artMat.color.copy(POSTER_BASE_COLOR).multiplyScalar(HOVER_LIFT);
     if (plaqueFace) plaqueFace.material.color.setHex(newArt && newArt.userData.isPlaque ? 0xeeeeee : 0xc8c8c8);
   }
 
@@ -2061,7 +2060,7 @@ function tick() {
         const elapsed = (now - p.userData.flashT0) / 1000;
         const dur = 0.20;
         if (elapsed >= dur) {
-          p.userData.artMat.color.copy(POSTER_BASE_COLOR);
+          p.userData.artMat.color.copy(POSTER_BASE_COLOR).multiplyScalar(hoveredArt && hoveredArt.userData.artMat === p.userData.artMat ? HOVER_LIFT : 1);
           p.userData.flashT0 = undefined;
         } else {
           const k = 1 + Math.sin((elapsed / dur) * Math.PI) * 0.85;
