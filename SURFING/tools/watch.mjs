@@ -13,7 +13,10 @@
                                                                  noted, not failed; 24 h if
                                                                  the feed can't be read)
      the full history run (6-hourly, worker cron)                8 h
-     the newest buoy and tide gauge readings filed               48 h (EMODnet runs a day behind)
+     the newest buoy and tide gauge readings filed               48 h (EMODnet runs a day behind;
+                                                                 EMODnet itself having nothing
+                                                                 newer is noted, not failed,
+                                                                 bar once a week it lasts)
      the cams' bank readings (surf-banks, hourly by day)          3 h, 09–18 UTC only
      the satellite bank readings (surf-sat, every clear pass)     21 days (cloud can hide the coast for a fortnight)
      the page counter worker answering                           -
@@ -22,8 +25,9 @@ import { loadSite } from './site.mjs';
 
 const SURF = 'https://surf-feedback.odj-clarke.workers.dev';
 const IPMA = 'https://api.ipma.pt/open-data/observation/meteorology/stations/';
+const ERDDAP = 'https://er3webapps.emodnet-physics.eu/platforms3/erddap/tabledap/';
 const TALLY = 'https://allfield-tally.odj-clarke.workers.dev';
-const H = 36e5;
+const H = 36e5, WEEK_H = 7 * 24;
 
 const problems = [];
 const ageH = (t) => (t ? (Date.now() - Date.parse(/Z$|[+-]\d\d:?\d\d$/.test(t) ? t : t + 'Z')) / H : Infinity);
@@ -73,6 +77,33 @@ async function checkIpma(last) {
   console.log('ok    ' + line + (ageH(newest) > 3 ? ' — IPMA itself is behind' : ''));
 }
 
+// Buoy and gauge readings, 48 h; but when they're older than that, judged
+// against EMODnet's own newest: if it has nothing newer than what's filed,
+// the outage is theirs — a warning, not a failure (as with IPMA), bar one
+// failure a week while it lasts.
+async function checkEmodnet(name, list, last) {
+  if (ageH(last) <= 48) return check(name, last, 48);
+  let newest;
+  try {
+    const ends = await Promise.all(list.map((x) => get(`${ERDDAP}${x.ds}.json?time&orderByMax(%22time%22)`).then((j) => j.table.rows[0][0])));
+    newest = ends.sort().at(-1).slice(0, 13) + ':00';   // filed readings are folded to the hour
+  } catch (e) {
+    console.log(`note  EMODnet unreadable from here (${e.message})`);
+    return check(name, last, 48);
+  }
+  if (last && newest <= last) {
+    const line = `${name}: ${last} filed; EMODnet's newest is ${newest} too (their outage, not ours)`;
+    // A long outage still gets an email: one a week, from the run that
+    // lands in the 3 h after each full week (this runs every 3 h).
+    // ponytail: stateless, so a skipped run in that window skips that week's email.
+    const weeks = Math.floor(ageH(last) / WEEK_H);
+    if (weeks >= 1 && ageH(last) % WEEK_H < 3) { problems.push(`${line}: ${weeks} week${weeks > 1 ? 's' : ''} now`); return console.log('STALE ' + line); }
+    console.log('ok    ' + line);
+    return console.log(`::warning::${line}`);
+  }
+  check(`${name} (EMODnet has ${newest})`, last, 48);
+}
+
 try {
   const fc = await get(`${SURF}/forecast`);
   check('forecast build', fc.built, 3);
@@ -84,8 +115,9 @@ try {
   const st = await get(`${SURF}/history/status`);
   const kind = (k) => (st.obs || []).find((o) => o.kind === k);
   await checkIpma(kind('ipma') && kind('ipma').last);
-  check('buoy readings', kind('buoy') && kind('buoy').last, 48);
-  check('tide gauge readings', kind('tide') && kind('tide').last, 48);
+  const { BUOYS, GAUGES } = loadSite();
+  await checkEmodnet('buoy readings', BUOYS, kind('buoy') && kind('buoy').last);
+  await checkEmodnet('tide gauge readings', GAUGES, kind('tide') && kind('tide').last);
   const full = (st.runs || []).find((r) => r.kind === 'full');
   check('full history run', full && full.t, 8);
   if (full) {
