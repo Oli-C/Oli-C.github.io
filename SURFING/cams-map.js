@@ -44,7 +44,7 @@ function slidePins() {
   loadWorkerForecast().then((fc) => { pinFc = fc; }, () => {}).then(() => {
     // Only the pins whose content changed (scores are remembered per hour).
     for (const c of CAMS) if (markers[c.id]._pinHtml !== pinHtml(c)) markers[c.id].setIcon(pinIcon(c));
-    declutter();
+    syncMarkers();
     // An open popup / card keeps its size as the time moves: it may grow, never shrink.
     if (popSpot && popSpot.isOpen()) {
       const el = popSpot.getElement() && popSpot.getElement().querySelector('.leaflet-popup-content');
@@ -194,7 +194,7 @@ function initMap() {
   // pins (markerPane is 600); hidden while a zoom animates.
   map.createPane('leaders').style.zIndex = 590;
   leaderBox = L.DomUtil.create('div', 'leaders leaflet-zoom-hide', map.getPane('leaders'));
-  map.on('zoomend', () => { labels(); declutter(); });
+  map.on('zoomend', () => { labels(); syncMarkers(); });
   labels();
   // Keep the map's idea of its size right whenever its box changes
   // (view switches, the toolbar wrapping, the window resizing).
@@ -268,15 +268,36 @@ const mapTop = () => (layout.dataset.view === 'map' ? Math.round($('controls').g
 // The map fits itself to the spots on show only when the filter changes,
 // so it otherwise stays where it was left.
 let fitKey = null;
+// Zoomed out, spots can't be told apart, so one pin stands for a group:
+// its best-scoring spot at the map's hour. A pin per country up to
+// COUNTRY_ZOOM, per area up to AREA_ZOOM, every spot past that.
+const COUNTRY_ZOOM = 7, AREA_ZOOM = 9;
+function bestBy(by) {
+  const best = {}, top = {};
+  for (const c of CAMS) {
+    if (!matches(c)) continue;
+    const k = pinAt(c).k, r = k && score(c, k);
+    const s = !r ? -1 : r.dark ? r.lit || 0 : r.total;
+    if (!(s <= top[c[by]])) { top[c[by]] = s; best[c[by]] = c; }
+  }
+  return best;
+}
 const filterKey = () => area + '|' + q.value.trim();
 function syncMarkers(fit) {
   const shown = [], home = [];
+  const z = map.getZoom(), by = z <= COUNTRY_ZOOM ? 'country' : z <= AREA_ZOOM ? 'area' : null;
+  const best = by && bestBy(by);
   for (const c of CAMS) {
-    const m = markers[c.id];
-    if (matches(c)) {
-      if (!map.hasLayer(m)) m.addTo(map);
+    const m = markers[c.id], ok = matches(c);
+    if (ok) {
       shown.push([c.lat, c.lng]);
       if (HOME_AREAS.includes(c.area)) home.push([c.lat, c.lng]);
+    }
+    if (ok && (!best || best[c[by]] === c)) {
+      if (!map.hasLayer(m)) m.addTo(map);
+      // The summary pin says whose best it is (setIcon redraws the pin, so set each time).
+      const pin = m.getElement() && m.getElement().querySelector('.pin');
+      if (pin) { if (best) pin.dataset.sum = `${c.name} · ${c[by]}`; else delete pin.dataset.sum; }
     } else if (map.hasLayer(m)) map.removeLayer(m);
   }
   if (fit && shown.length && filterKey() !== fitKey) {
@@ -292,7 +313,7 @@ function refreshPins() {
   if (!map) return;
   for (const c of CAMS) markers[c.id].setIcon(pinIcon(c));
   buildArrows();
-  declutter();
+  syncMarkers();
 }
 
 // Cams on the same stretch of beach (Guincho Norte and Sul, the Caparica

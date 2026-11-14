@@ -693,6 +693,8 @@ header { display: none; }
 .pin.lvl-x .sc { border: 0; }
 .pin.lvl-4 .sc { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.4); }
 .leaflet-container:not(.labels) .pin .d { display: none; }
+/* Zoomed right out: one pin per country, naming its best spot (cams-map.js syncMarkers). */
+.pin[data-sum]::after { content: attr(data-sum); align-self: center; padding: 0 8px 0 6px; font-size: 10px; font-weight: 700; color: #fff; }
 .leaflet-container:not(.labels) .pin .sc { border-radius: 9px; }
 .leaflet-marker-icon:hover .pin, .leaflet-marker-icon.hot .pin { transform: translate(calc(var(--sc) / -2 - 1.5px), -50%) scale(1.1); }
 .leaflet-marker-icon.hot { z-index: 1000 !important; }
@@ -1021,7 +1023,8 @@ header { display: none; }
   background: #000;
 }
 .frame.video { aspect-ratio: 16 / 9; }
-.frame.page  { height: min(70vh, 900px); }
+/* margin/padding: undo the layout .page rule, which this class name also matches */
+.frame.page  { height: min(70vh, 900px); margin: 0; padding: 0; }
 .frame iframe {
   position: absolute;
   inset: 0;
@@ -1039,7 +1042,7 @@ header { display: none; }
   color: #d6d2c4;
   font-size: 15px;
 }
-.frame-msg .nav { display: flex; width: max-content; margin: 14px auto 0; }
+.frame-msg .nav { display: flex; width: max-content; margin: 14px auto 0; color: inherit; border-color: currentColor; }
 /* Plyr in our palette. Plyr is given ratio 16:9 so it fills .frame.video exactly. */
 .plyr {
   --plyr-color-main: var(--accent);
