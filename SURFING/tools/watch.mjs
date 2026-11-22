@@ -31,9 +31,9 @@ const H = 36e5, WEEK_H = 7 * 24;
 
 const problems = [];
 const ageH = (t) => (t ? (Date.now() - Date.parse(/Z$|[+-]\d\d:?\d\d$/.test(t) ? t : t + 'Z')) / H : Infinity);
-function check(name, t, maxH) {
+function check(name, t, maxH, why = '') {
   const a = ageH(t);
-  const line = `${name}: ${t || 'never'} (${Number.isFinite(a) ? a.toFixed(1) + ' h ago' : 'no time'}, limit ${maxH} h)`;
+  const line = `${name}: ${t || 'never'} (${Number.isFinite(a) ? a.toFixed(1) + ' h ago' : 'no time'}, limit ${maxH} h)${a <= maxH ? '' : why}`;
   if (!(a <= maxH)) problems.push(line);
   console.log((a <= maxH ? 'ok    ' : 'STALE ') + line);
 }
@@ -81,7 +81,7 @@ async function checkIpma(last) {
 // against EMODnet's own newest: if it has nothing newer than what's filed,
 // the outage is theirs — a warning, not a failure (as with IPMA), bar one
 // failure a week while it lasts.
-async function checkEmodnet(name, list, last) {
+async function checkEmodnet(name, list, last, why) {
   if (ageH(last) <= 48) return check(name, last, 48);
   let newest;
   try {
@@ -89,7 +89,7 @@ async function checkEmodnet(name, list, last) {
     newest = ends.sort().at(-1).slice(0, 13) + ':00';   // filed readings are folded to the hour
   } catch (e) {
     console.log(`note  EMODnet unreadable from here (${e.message})`);
-    return check(name, last, 48);
+    return check(name, last, 48, why);
   }
   if (last && newest <= last) {
     const line = `${name}: ${last} filed; EMODnet's newest is ${newest} too (their outage, not ours)`;
@@ -101,7 +101,7 @@ async function checkEmodnet(name, list, last) {
     console.log('ok    ' + line);
     return console.log(`::warning::${line}`);
   }
-  check(`${name} (EMODnet has ${newest})`, last, 48);
+  check(`${name} (EMODnet has ${newest})`, last, 48, why);
 }
 
 try {
@@ -115,13 +115,15 @@ try {
   const st = await get(`${SURF}/history/status`);
   const kind = (k) => (st.obs || []).find((o) => o.kind === k);
   await checkIpma(kind('ipma') && kind('ipma').last);
-  const { BUOYS, GAUGES } = loadSite();
-  await checkEmodnet('buoy readings', BUOYS, kind('buoy') && kind('buoy').last);
-  await checkEmodnet('tide gauge readings', GAUGES, kind('tide') && kind('tide').last);
   const full = (st.runs || []).find((r) => r.kind === 'full');
+  const note = JSON.parse((full && full.note) || '{}');
+  // The worker's own fetch failures, if any, say why the readings are stale.
+  const why = note.emodnet ? ` — last full run: ${note.emodnet}` : '';
+  const { BUOYS, GAUGES } = loadSite();
+  await checkEmodnet('buoy readings', BUOYS, kind('buoy') && kind('buoy').last, why);
+  await checkEmodnet('tide gauge readings', GAUGES, kind('tide') && kind('tide').last, why);
   check('full history run', full && full.t, 8);
   if (full) {
-    const note = JSON.parse(full.note || '{}');
     for (const [k, v] of Object.entries(note)) if (typeof v === 'string' && v.startsWith('error')) problems.push(`full history run, ${k}: ${v}`);
   }
 } catch (e) { problems.push(`history: ${e.message}`); console.log('FAIL  history:', e.message); }

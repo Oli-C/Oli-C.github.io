@@ -136,7 +136,7 @@ async function lastObs(db, src) {
   const floor = new Date(Date.now() - 20 * 864e5).toISOString().slice(0, 16);
   return r && r.t && r.t > floor ? r.t : floor;
 }
-async function archiveBuoys(db) {
+async function archiveBuoys(db, errs) {
   let n = 0;
   for (const b of BUOYS) {
     try {
@@ -144,14 +144,14 @@ async function archiveBuoys(db) {
       const hours = await erddapHours(b.ds, buoyVars(b), since);
       n += await insertRows(db, 'obs', ['src', 't', 'h', 'p', 'd', 'ws', 'wd', 'sst'], hours.filter(([, o]) => o.VHM0 != null || o.WSPD != null).map(([t, o]) =>
         [sqlStr('buoy:' + b.id), sqlStr(t), sqlNum(o.VHM0), sqlNum(o.VTPK), sqlNum(o.VPED ?? o.VMDR), sqlNum(o.WSPD != null ? o.WSPD * 3.6 : null), sqlNum(o.WDIR), sqlNum(o.TEMP)]));
-    } catch (e) { console.log('buoy', b.id, e.message); }
+    } catch (e) { errs.push(`buoy ${b.id}: ${e.message}`); }
   }
   for (const g of GAUGES) {
     try {
       const since = await lastObs(db, 'tide:' + g.id);
       const hours = await erddapHours(g.ds, ['SLEV'], since);
       n += await insertRows(db, 'obs', ['src', 't', 'lvl'], hours.filter(([, o]) => o.SLEV != null).map(([t, o]) => [sqlStr('tide:' + g.id), sqlStr(t), sqlNum(o.SLEV)]));
-    } catch (e) { console.log('gauge', g.id, e.message); }
+    } catch (e) { errs.push(`gauge ${g.id}: ${e.message}`); }
   }
   return n;
 }
@@ -249,7 +249,10 @@ async function archiveHistory(env, force) {
   const started = Date.now(), six = force || new Date().getUTCHours() % 6 === 0, out = {};
   try { out.ipma = await archiveIpma(db); } catch (e) { out.ipma = 'error: ' + e.message; }
   if (six) {
-    try { out.buoys = await archiveBuoys(db); } catch (e) { out.buoys = 'error: ' + e.message; }
+    // A feed failing is noted, not an error: watch.mjs judges staleness and quotes this when it's stale.
+    const emod = [];
+    try { out.buoys = await archiveBuoys(db, emod); } catch (e) { out.buoys = 'error: ' + e.message; }
+    if (emod.length) out.emodnet = 'unavailable: ' + emod.join('; ');
     try { out.fc = await archiveWaveForecasts(db); } catch (e) { out.fc = 'error: ' + e.message; }
     try { out.spots = await archiveSpots(db, env); } catch (e) { out.spots = 'error: ' + e.message; }
     try { out.synop = await fillSynop(db); } catch (e) { out.synop = 'unavailable: ' + e.message; }

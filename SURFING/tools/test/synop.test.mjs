@@ -83,3 +83,14 @@ test('fillSynop: files only the synoptic stations\' missing hours, last week', a
   const down = load({ fetch: async (u) => (String(u).endsWith('stations.json') ? new Response(JSON.stringify(stations)) : new Response('busy', { status: 503 })), Response });
   assert.equal(await down('fillSynop')(db), 'unavailable: ogimet 503');
 });
+
+test('archiveBuoys: a failing EMODnet feed is listed for the run note, not thrown', async () => {
+  const { BUOYS, GAUGES, buoyVars, ERDDAP } = loadSite();
+  const db = { prepare: () => ({ bind: () => ({ first: async () => null }) }) };
+  const get = load({ BUOYS, GAUGES, buoyVars, ERDDAP, Response, fetch: async () => new Response('busy', { status: 503 }) });
+  const errs = [];
+  assert.equal(await get('archiveBuoys')(db, errs), 0);
+  assert.equal(errs.length, BUOYS.length + GAUGES.length, 'every feed named');
+  assert.match(errs[0], /^buoy \S+: \S+ 503$/);
+  assert.match(errs.at(-1), /^gauge \S+: \S+ 503$/);
+});
