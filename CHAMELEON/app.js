@@ -177,7 +177,8 @@ scene.background = new THREE.Color('#000000');
 // keeps the void feel.
 scene.fog = new THREE.FogExp2('#000000', 0.030);
 
-const camera = new THREE.PerspectiveCamera(78, window.innerWidth / window.innerHeight, 0.05, 600);
+const BASE_FOV = 78;
+const camera = new THREE.PerspectiveCamera(BASE_FOV, window.innerWidth / window.innerHeight, 0.05, 600);
 
 // =============================================================================
 //  Intro fly-through (Artisans d'idées style) — camera starts deep in the fog
@@ -230,6 +231,7 @@ manager.onLoad = () => {
   setTimeout(() => splash.remove(), 1200);
   // Kick the fly-through the moment the splash starts fading away.
   setTimeout(() => {
+    if (TOUR_WANT) intro.duration = TOUR_INTRO;   // a shared poster link gets there fast
     intro.active = true;
     intro.t0 = performance.now();
   }, 280);
@@ -575,55 +577,68 @@ scene.add(innerLip);
 }
 
 // =============================================================================
+//  Warp streaks — the fly-in at speed: 400 lines down the corridor that
+//  stretch with how fast the camera is going. One draw call, and hidden the
+//  moment the fly-in lands.
+// =============================================================================
+{
+  const N = 400, pos = new Float32Array(N * 6), tail = new Float32Array(N * 2);
+  for (let i = 0; i < N; i++) {
+    let x, y;
+    do { x = (Math.random() - 0.5) * 70; y = Math.random() * 40 - 10; } while (Math.hypot(x - 2.5, y - 5.5) < 3);   // keep the flight line itself clear
+    const z = ROOM.radius + 8 + Math.random() * ROOM.radius * 10;
+    pos.set([x, y, z, x, y, z], i * 6);
+    tail[i * 2 + 1] = 1;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('tail',     new THREE.BufferAttribute(tail, 1));
+  const warp = new THREE.LineSegments(geo, new THREE.ShaderMaterial({
+    uniforms: { uLen: { value: 0 }, uAmp: { value: 0 } },
+    vertexShader: 'attribute float tail; uniform float uLen; varying float vA; void main() { vec3 p = position; p.z += tail * uLen; vA = 1.0 - tail; gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }',
+    fragmentShader: 'uniform float uAmp; varying float vA; void main() { gl_FragColor = vec4(vec3(0.62, 0.74, 1.0) * vA * uAmp, 1.0); }',
+    blending: THREE.AdditiveBlending, transparent: true, depthWrite: false,
+  }));
+  warp.frustumCulled = false;
+  scene.add(warp);
+  scene.userData.warp = warp;
+}
+
+// =============================================================================
 //  Smoke clouds — fill the tunnel between the camera's intro start and the
 //  rotunda entrance. The camera flies THROUGH these on the way in.
 // =============================================================================
 {
   const SMOKE_COUNT = 75;
   const smokeTex = (() => {
-    // Wispier smoke: build from several offset radial gradients rather than
-    // a single centred one, so the silhouette isn't a perfect circle. Then
-    // overlay turbulence-style alpha noise to break up the soft edges.
-    const SIZE = 512;
-    const c = document.createElement('canvas');
-    c.width = c.height = SIZE;
-    const ctx = c.getContext('2d');
-
-    // 7 overlapping soft puffs at random offsets
-    for (let i = 0; i < 7; i++) {
-      const cx = SIZE / 2 + (Math.random() - 0.5) * SIZE * 0.5;
-      const cy = SIZE / 2 + (Math.random() - 0.5) * SIZE * 0.5;
-      const rr = SIZE * (0.22 + Math.random() * 0.20);
-      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rr);
-      g.addColorStop(0,   'rgba(230, 232, 240, 0.55)');
-      g.addColorStop(0.5, 'rgba(190, 194, 206, 0.22)');
-      g.addColorStop(1,   'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, SIZE, SIZE);
+    // A soft, billowing puff: layered smooth noise inside a ragged round
+    // falloff. Computed, not drawn on a canvas — the old canvas puffs were
+    // grainy and ringed up close, and Safari mangles canvas gradients.
+    const SIZE = 256;
+    const layer = (cells) => {
+      const g = Float32Array.from({ length: (cells + 1) * (cells + 1) }, Math.random);
+      return (u, v) => {
+        const x = u * cells, y = v * cells, xi = Math.min(cells - 1, x | 0), yi = Math.min(cells - 1, y | 0);
+        const fx = x - xi, fy = y - yi, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+        const i = yi * (cells + 1) + xi;
+        return (g[i] * (1 - sx) + g[i + 1] * sx) * (1 - sy) + (g[i + cells + 1] * (1 - sx) + g[i + cells + 2] * sx) * sy;
+      };
+    };
+    const n3 = layer(3), n6 = layer(6), n12 = layer(12), n24 = layer(24);
+    const px = new Uint8Array(SIZE * SIZE * 4);
+    for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) {
+      const u = x / (SIZE - 1), v = y / (SIZE - 1);
+      const billow = (n3(u, v) * 8 + n6(u, v) * 4 + n12(u, v) * 2 + n24(u, v)) / 15;
+      const d = Math.hypot(u - 0.5, v - 0.5) * 2 * (0.8 + 0.5 * n3(v, u));   // ragged edge, clear by the quad's corners
+      const f = Math.max(0, Math.min(1, (1 - d) / 0.75)), fall = f * f * (3 - 2 * f);
+      const i = (y * SIZE + x) * 4;
+      px[i] = 222; px[i + 1] = 225; px[i + 2] = 236;
+      px[i + 3] = 150 * fall * Math.min(1, 0.1 + 1.5 * billow * billow);
     }
-
-    // Soft falloff at the edges so the sprite quad's corners are always
-    // fully transparent — kills any rectangular billboard outline.
-    const edge = ctx.createRadialGradient(SIZE / 2, SIZE / 2, SIZE * 0.30, SIZE / 2, SIZE / 2, SIZE * 0.50);
-    edge.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    edge.addColorStop(1, 'rgba(0, 0, 0, 1)');
-    ctx.globalCompositeOperation = 'destination-in';
-    ctx.fillStyle = edge;
-    ctx.fillRect(0, 0, SIZE, SIZE);
-    ctx.globalCompositeOperation = 'source-over';
-
-    // Subtle alpha jitter — high-freq, low amplitude. No more visible "bubbles".
-    const img = ctx.getImageData(0, 0, SIZE, SIZE);
-    for (let i = 0; i < img.data.length; i += 4) {
-      const a = img.data[i + 3];
-      if (a < 4) continue;
-      img.data[i + 3] = Math.max(0, Math.min(255, a + (Math.random() - 0.5) * 30));
-    }
-    ctx.putImageData(img, 0, 0);
-
-    const t = new THREE.CanvasTexture(c);
+    const t = new THREE.DataTexture(px, SIZE, SIZE);
     t.colorSpace = THREE.SRGBColorSpace;
-    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    t.magFilter = t.minFilter = THREE.LinearFilter;
+    t.needsUpdate = true;
     return t;
   })();
 
@@ -659,6 +674,7 @@ scene.add(innerLip);
     // Start AT target opacity — the splash covers the canvas during the first
     // ~700 ms of intro anyway, so there's no visible "pop into existence".
     s.material.opacity = s.userData.targetOpacity;
+    mat.color.setHSL(0.6 + Math.random() * 0.22, 0.3, 0.72);   // blue-grey through to a faint violet
     scene.add(s);
     smoke.push(s);
   }
@@ -1753,6 +1769,69 @@ function glideToPoster(art, withRock = true) {
 }
 
 // =============================================================================
+//  Shared links — ?poster=baumecker flies in fast, swirls once past every
+//  poster and comes to rest at that one. Any part of a card's "title date" matches, and
+//  the address bar always holds the link for the poster whose card is open.
+// =============================================================================
+const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const posterSlug = (art) => slug(art.userData.title + ' ' + art.userData.meta);
+const TOUR_WANT = slug(new URLSearchParams(location.search).get('poster') || '');
+const TOUR_INTRO = 3000;   // ms: the fly-in, cut short (normally 6.8 s)
+const TOUR_PEEL = 0.6;     // how far through the fly-in the camera peels off into the swirl, well short of the plaque
+const TOUR_LAP = 3;        // s per full circle of the swirl
+const tour = { active: false, t0: 0, dur: 1, th0: 0, sweep: 0, r0: 0, r1: 0, y0: 0, yaw0: 0, fov0: 0, art: null };
+
+// One unbroken move: still carrying speed from the fly-in, peel off into a
+// widening spiral past all the posters that ends in front of the linked one.
+function startTour() {
+  const art = TOUR_WANT && paintings.map((g) => g.children.find((c) => c.userData && c.userData.isPoster))
+    .find((a) => a && posterSlug(a).includes(TOUR_WANT));
+  if (!art) return false;
+  const g = art.userData.group, n = g.userData.normal;
+  const end = clampWalkable(g.position.x + n.x * VIEW_DISTANCE, g.position.z + n.z * VIEW_DISTANCE);   // where glideToPoster would stand
+  // Angles run from +z round towards +x, so the fly-in arrives along angle 0.
+  tour.th0 = Math.atan2(camera.position.x, camera.position.z);
+  tour.r0  = Math.hypot(camera.position.x, camera.position.z);
+  tour.r1  = Math.hypot(end.x, end.z);
+  tour.y0  = camera.position.y;
+  tour.yaw0 = cam.yaw;
+  tour.fov0 = camera.fov - BASE_FOV;
+  // The short way round to the poster, plus one full lap the same way.
+  const d = wrapYawDelta(tour.th0, Math.atan2(end.x, end.z)) - tour.th0;
+  tour.sweep = d + (d < 0 ? -1 : 1) * Math.PI * 2;
+  tour.dur = Math.abs(tour.sweep) / (Math.PI * 2) * TOUR_LAP;
+  tour.t0 = performance.now();
+  tour.art = art;
+  tour.active = true;
+  sharpen(art);
+  return true;
+}
+
+function updateTour(now) {
+  const sm = (x) => { x = Math.min(1, x); return x * x * (3 - 2 * x); };
+  const t = Math.min(1, (now - tour.t0) / 1000 / tour.dur);
+  // Sets off already moving (it inherits the fly-in's pace) and settles to rest at the poster.
+  const e = (t * t * t - 2 * t * t + t) * 0.6 + (3 * t * t - 2 * t * t * t);
+  const th = tour.th0 + tour.sweep * e;
+  const r  = tour.r0 + (tour.r1 - tour.r0) * e;
+  // Finish the descent the fly-in was making, with a slight swoop over the lap.
+  camera.position.set(Math.sin(th) * r, EYE_Y + (tour.y0 - EYE_Y) * (1 - sm(t * 2.5)) + 0.25 * Math.sin(Math.PI * t), Math.cos(th) * r);
+  // Swing away from the centre to face out at the posters, looking ahead into the turn mid-lap.
+  const out = sm(t / 0.3), dir = Math.sign(tour.sweep);
+  cam.yaw = cam.targetYaw = th + (tour.yaw0 - tour.th0) * (1 - out) + dir * (Math.PI * out + 0.5 * Math.sin(Math.PI * t));
+  cam.pitch = cam.targetPitch = 0;
+  camera.fov = BASE_FOV + tour.fov0 * (1 - sm(t * 3));
+  camera.updateProjectionMatrix();
+  if (t >= 1) { tour.active = false; glideToPoster(tour.art, false); }
+}
+// Any touch, click, key or scroll hands the camera straight back.
+for (const ev of ['pointerdown', 'keydown', 'wheel']) window.addEventListener(ev, () => {
+  if (!tour.active) return;
+  tour.active = false;
+  camera.fov = BASE_FOV; camera.updateProjectionMatrix();
+}, { capture: true, passive: true });
+
+// =============================================================================
 //  Info card
 // =============================================================================
 const cardEl   = document.getElementById('card');
@@ -1848,6 +1927,7 @@ function isUpcoming(meta) {
 }
 function showCard(art) {
   cardArt = art;
+  history.replaceState(null, '', '?poster=' + posterSlug(art));
   const { title, meta, indexLabel, venue, lineup } = art.userData;
 
   // "Artists · Subtitle" — artists stay on a single line (b2b / & preserved);
@@ -1906,6 +1986,7 @@ function showCard(art) {
   navNextEl.classList.add('show');
 }
 function hideCard() {
+  if (cardArt) history.replaceState(null, '', location.pathname);
   cardArt = null;
   cardEl.classList.remove('show');
   navPrevEl.classList.remove('show');
@@ -2108,16 +2189,16 @@ function tick() {
 
   // ----- Smoke clouds: drift + swirl + fade. Runs every frame, even during intro -----
   if (scene.userData.smoke) {
-    const k = 1 - Math.exp(-2.2 * dt);
     for (const s of scene.userData.smoke) {
       s.position.x += s.userData.driftX * dt;
       s.position.y += s.userData.driftY * dt;
       if (s.position.y > 8) s.position.y = -1;
       s.material.rotation += s.userData.rotRate * dt;
-      const ahead = s.position.z < camera.position.z - 1.5;
-      const target = ahead ? s.userData.targetOpacity : 0;
-      const delta = target - s.material.opacity;
-      if (delta < -0.001 || delta > 0.001) s.material.opacity += delta * k;
+      // Thins out as the camera reaches it, so nothing pops at speed; once
+      // passed it isn't drawn at all (75 fewer draw calls inside the gallery).
+      const near = Math.max(0, Math.min(1, (camera.position.z - 1.5 - s.position.z) / 14));
+      s.material.opacity = s.userData.targetOpacity * near;
+      s.visible = near > 0;
     }
   }
 
@@ -2179,8 +2260,20 @@ function tick() {
     cam.targetYaw   = cam.yaw;
     cam.targetPitch = cam.pitch;
 
-    if (t >= 1) {
+    // Warp: how fast we're still going (1 at launch → 0 on landing) stretches
+    // the streaks and widens the lens, both easing off with the camera.
+    {
+      const speed = Math.pow(1 - t, 3), warp = scene.userData.warp;
+      warp.visible = t < 1;
+      warp.material.uniforms.uLen.value = 1 + 22 * speed;
+      warp.material.uniforms.uAmp.value = Math.min(1, speed * 2.5);
+      camera.fov = BASE_FOV + 24 * speed;
+      camera.updateProjectionMatrix();
+    }
+
+    if (t >= 1 || (t >= TOUR_PEEL && startTour())) {
       intro.active = false;
+      scene.userData.warp.visible = false;
       // Hand off control: show prompt. Auto-hide it after 7s. Nav arrows
       // are tied to the info card — they only appear when focused on a poster.
       promptEl.classList.add('show');
@@ -2193,6 +2286,8 @@ function tick() {
     requestAnimationFrame(tick);
     return;
   }
+
+  if (tour.active) updateTour(now);
 
   // Exponential smoother on yaw/pitch toward targets (skipped during glide
   // because glide already drives cam.yaw / cam.pitch directly).
