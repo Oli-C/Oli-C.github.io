@@ -308,7 +308,9 @@ async function handleHistory(req, env, url, json) {
       env.DB.prepare("SELECT substr(src, 1, instr(src, ':') - 1) AS kind, count(*) AS rows, count(DISTINCT src) AS sources, min(t) AS first, max(t) AS last FROM obs GROUP BY kind").all(),
       env.DB.prepare('SELECT count(*) AS rows, count(DISTINCT model) AS models, min(t) AS first, max(t) AS last FROM fc').first(),
       env.DB.prepare('SELECT count(*) AS days, count(DISTINCT spot) AS spots, min(date) AS first, max(date) AS last FROM spot_day').first(),
-      env.DB.prepare('SELECT * FROM runs ORDER BY t DESC LIMIT 5').all(),
+      // The newest full run always rides along: it's 6-hourly behind hourly ipma runs, so the last 5 alone
+      // lose it 5 h after it ran and watch.mjs then reads it as 'never'.
+      env.DB.prepare("SELECT * FROM (SELECT * FROM runs ORDER BY t DESC LIMIT 5) UNION SELECT * FROM (SELECT * FROM runs WHERE kind = 'full' ORDER BY t DESC LIMIT 1) ORDER BY t DESC").all(),
     ]);
     return json({ obs: obs.results, fc, spots, runs: runs.results }, 200, { 'Cache-Control': 'public, max-age=300' });
   }
