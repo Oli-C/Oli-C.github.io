@@ -520,15 +520,21 @@ function makeParticleLayer() {
       return w < 0.5 ? null : { u: u / w, v: v / w, mag: m / w, spd: s / w };
     },
     _start() { if (!this._raf) this._raf = requestAnimationFrame(() => this._frame()); },
-    _stop() { if (this._raf) cancelAnimationFrame(this._raf); this._raf = 0; },
+    _stop() { if (this._raf) cancelAnimationFrame(this._raf); this._raf = 0; this._last = 0; },
     _frame() {
       this._raf = 0;
       if (!this._map) return;
+      const now = performance.now(), last = this._last;
+      this._last = now;
       if (document.hidden || !this._parts.length) { this._raf = requestAnimationFrame(() => this._frame()); return; }
+      // Time-based, tuned at 60 fps: the browser's frame rate varies (a
+      // ProMotion screen idles low and jumps to 120 Hz while the mouse
+      // moves), and per-frame steps would make the wind speed up with it.
+      const k = last ? Math.min(3, Math.max(0.1, (now - last) / (1000 / 60))) : 1;
       const ctx = this._ctx, o = this.options;
       // Fade what's there, then draw each particle's next step.
       ctx.globalCompositeOperation = 'destination-in';
-      ctx.fillStyle = `rgba(0,0,0,${o.fade})`;
+      ctx.fillStyle = `rgba(0,0,0,${o.fade ** k})`;
       ctx.fillRect(0, 0, this._w, this._h);
       ctx.globalCompositeOperation = 'source-over';
       ctx.lineWidth = o.width;
@@ -537,10 +543,10 @@ function makeParticleLayer() {
         const f = this._vel(p.x, p.y);
         if (!f || p.age > o.life || f.mag < o.min) { Object.assign(p, this._spawn(false)); continue; }
         const len = Math.hypot(f.u, f.v) || 1;
-        const nx = p.x + (f.u / len) * f.spd, ny = p.y + (f.v / len) * f.spd;
+        const nx = p.x + (f.u / len) * f.spd * k, ny = p.y + (f.v / len) * f.spd * k;
         ctx.strokeStyle = o.color(f.mag);
         ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(nx, ny); ctx.stroke();
-        p.x = nx; p.y = ny; p.age++;
+        p.x = nx; p.y = ny; p.age += k;
       }
       if (this._land) {   // anything that strayed over the land, gone
         ctx.globalCompositeOperation = 'destination-out';
