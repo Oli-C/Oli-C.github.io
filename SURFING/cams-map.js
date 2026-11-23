@@ -453,7 +453,7 @@ function makeParticleLayer() {
   if (ParticleLayerClass) return ParticleLayerClass;
   const CELL = 10;   // the field is looked up on a 10 px screen grid, then interpolated
   ParticleLayerClass = L.Layer.extend({
-    initialize(opts) { L.setOptions(this, opts); this.field = null; this._parts = []; this._raf = 0; },
+    initialize(opts) { L.setOptions(this, opts); this.field = null; this._parts = []; this._raf = 0; this._last = 0; this._dt = 1000 / 60; },
     onAdd(map) {
       this._map = map;
       this._canvas = L.DomUtil.create('canvas', 'particles leaflet-zoom-hide');
@@ -470,7 +470,10 @@ function makeParticleLayer() {
     setField(fn) { this.field = fn; if (this._map) this._reset(); },
     _reset() {
       const map = this._map, size = map.getSize();
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      // At 1x even on sharp screens: the trails' fade repaints the whole
+      // canvas every frame, and at 2x (four times the pixels) the two
+      // layers overran the frame and stuttered; soft streaks lose nothing.
+      const dpr = 1;
       this._canvas.width = size.x * dpr; this._canvas.height = size.y * dpr;
       this._canvas.style.width = size.x + 'px'; this._canvas.style.height = size.y + 'px';
       L.DomUtil.setPosition(this._canvas, map.containerPointToLayerPoint([0, 0]));
@@ -530,7 +533,10 @@ function makeParticleLayer() {
       // Time-based, tuned at 60 fps: the browser's frame rate varies (a
       // ProMotion screen idles low and jumps to 120 Hz while the mouse
       // moves), and per-frame steps would make the wind speed up with it.
-      const k = last ? Math.min(3, Math.max(0.1, (now - last) / (1000 / 60))) : 1;
+      // The step follows a smoothed frame time, so one slow frame (or the
+      // rate switching) doesn't make the streaks lurch.
+      if (last) this._dt += (Math.min(50, now - last) - this._dt) * 0.15;
+      const k = Math.min(3, Math.max(0.1, this._dt / (1000 / 60)));
       const ctx = this._ctx, o = this.options;
       // Fade what's there, then draw each particle's next step.
       ctx.globalCompositeOperation = 'destination-in';
@@ -539,15 +545,20 @@ function makeParticleLayer() {
       ctx.globalCompositeOperation = 'source-over';
       ctx.lineWidth = o.width;
       ctx.lineCap = 'round';
+      // One path per colour: a handful of strokes a frame, not one per particle.
+      const paths = new Map();
       for (const p of this._parts) {
         const f = this._vel(p.x, p.y);
         if (!f || p.age > o.life || f.mag < o.min) { Object.assign(p, this._spawn(false)); continue; }
         const len = Math.hypot(f.u, f.v) || 1;
         const nx = p.x + (f.u / len) * f.spd * k, ny = p.y + (f.v / len) * f.spd * k;
-        ctx.strokeStyle = o.color(f.mag);
-        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(nx, ny); ctx.stroke();
+        const col = o.color(f.mag);
+        let path = paths.get(col);
+        if (!path) paths.set(col, path = new Path2D());
+        path.moveTo(p.x, p.y); path.lineTo(nx, ny);
         p.x = nx; p.y = ny; p.age += k;
       }
+      for (const [col, path] of paths) { ctx.strokeStyle = col; ctx.stroke(path); }
       if (this._land) {   // anything that strayed over the land, gone
         ctx.globalCompositeOperation = 'destination-out';
         ctx.fill(this._land);
@@ -564,7 +575,7 @@ function makeParticleLayer() {
 // sits on a beach; brisk short trails.
 const windColor = (ws) => `rgba(236,240,244,${Math.min(0.95, 0.45 + ws / 60).toFixed(2)})`;
 // Swell: sea blue, slow long streaks, brighter the bigger it is.
-const swellColor = (h) => `rgba(79,195,220,${Math.min(0.95, 0.35 + h * 0.2)})`;
+const swellColor = (h) => `rgba(79,195,220,${Math.min(0.95, 0.35 + h * 0.2).toFixed(2)})`;
 
 // The heat map: swell height in steps, so it reads at a glance — half a
 // metre each to 3 m, then 3–4 and 4+ — one warm hue, paler and fainter
