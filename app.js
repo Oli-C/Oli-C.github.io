@@ -928,6 +928,7 @@
   //  Mix data — pulled from the real Linktree export
   // ============================================================================
   const MIXES = [
+    { code: 'LUS-060', title: 'November Radio (Jazzy Special)', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '25.11.2026', y: 2026, sub: 'Residency solo', img: 'assets/mix-lus-060.jpeg', url: 'https://youtu.be/nozJfb5-o8A' },
     { code: 'LUS-059', title: 'October Radio', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '29.10.2026', y: 2026, sub: 'Residency solo', img: 'assets/mix-lus-059.jpeg', url: 'https://youtu.be/FT0M7NHGLGk' },
     { code: 'COL-001', title: 'allfield at Collect Radio', series: 'col', platform: 'youtube', tag: 'COLLECT RADIO', date: '27.10.2026', y: 2026, sub: 'Collect Cais do Sodré', img: 'assets/mix-col-001.jpeg', url: 'https://youtu.be/uzVVx4DA_os' },
     { code: 'LUS-058', title: 'September Radio w/ Owari', series: 'lus', platform: 'youtube', tag: 'LUSOPHONICA', date: '20.09.2026', y: 2026, sub: 'Residency w/ Owari', img: 'assets/mix-lus-058.jpeg', url: 'https://youtu.be/AwsD1EYgqv8' },
